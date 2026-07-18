@@ -9158,8 +9158,17 @@ name = "lemurclaw-gui"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "codex-app-server-client",
+ "codex-app-server-protocol",
+ "codex-arg0",
+ "codex-config",
+ "codex-protocol",
+ "codex-rollout",
  "lemurclaw-transport",
+ "serde",
+ "serde_json",
  "tao",
+ "tokio",
  "wry",
 ]
 

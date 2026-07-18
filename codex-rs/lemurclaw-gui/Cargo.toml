@@ -13,6 +13,15 @@ workspace = true
 
 [dependencies]
 lemurclaw-transport = { workspace = true }
+codex-app-server-client = { workspace = true }
+codex-app-server-protocol = { workspace = true }
+codex-arg0 = { workspace = true }
+codex-config = { workspace = true }
+codex-protocol = { workspace = true }
+codex-rollout = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tao = { workspace = true }
+tokio = { workspace = true }
 wry = { workspace = true }
