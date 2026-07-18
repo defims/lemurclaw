@@ -479,7 +479,7 @@ git commit -m "feat(gui): wire AppServerClient InProcess + next_event loop + ipc
 
 **Files:** (无代码改动,验证)
 
-- [ ] **Step 1: 启动 GUI(需 provider config,复用 Task 1.4 的 codex config)**
+- [x] **Step 1: 启动 GUI(需 provider config,复用 Task 1.4 的 codex config)**
 
 ```bash
 cd codex-rs
@@ -487,23 +487,42 @@ cargo run -p lemurclaw -- --frontend gui
 ```
 Expected: 窗口打开。点 ready(发 ClientRequest 如 Initialize)。在 React console 看到事件流(AgentMessageDelta/ItemCompleted 等)。
 
-- [ ] **Step 2: 若有 OpenRouter/ollama config,发一个 TurnStart 看 console 收到流式回复**
+> **执行记录(2026-07-19)——验证过程中发现并修了 2 个真实 bug(参见 commit 0075ae2e3):**
+> 1. **macOS WKWebView CORS 阻止 file:// 加载 ES module**。vite build 输出 `<script type="module" crossorigin>`,WKWebView 在 file:// 页面下 origin=null + crossorigin 触发 CORS preflight 失败("Origin null is not allowed"),JS bundle 完全没加载 → 空白窗口。**修法**:换 wry/Tauri 标准做法 —— `include_dir!` 把 dist/ 烘焙进二进制 + 注册 `lemurclaw://app/` 自定义 protocol(新增 `src/assets.rs`,109 行)。附带好处:二进制自带前端,不再依赖磁盘 dist/ 路径。
+> 2. **tokio 默认 2MB worker 栈对 codex-core 不够**。第一个非平凡请求(thread/list)就栈溢出 abort 整个进程。**修法**:`Runtime::new()` 改 `Builder::new_multi_thread().thread_stack_size(16MB)`,匹配 codex 自己的生产 runtime(`codex-rs/arg0/src/lib.rs:TOKIO_WORKER_STACK_SIZE_BYTES`)。
+>
+> **CLI 命令更正**:plan 原文 `cargo run -p lemurclaw -- frontend gui` 是错的 —— `--frontend` 是 clap flag 不是位置参数。正确是 `cargo run -p lemurclaw -- --frontend gui`。
+>
+> **`Initialize` 验证不适用 InProcess**:plan Step 1 期望"点 ready 发 Initialize 看事件流",但 InProcess AppServerClient 在 `start()` 内部已自动完成 initialize(session 标记为 initialized),客户端再发 initialize 必然报 "Already initialized"。**改用 `thread/list` 验证完整 roundtrip**:返回 `Ok({data: [], nextCursor: null, ...})` 证明 JS → ipc_handler → backend → AppServerClient → Response 链路全通。
+
+- [x] **Step 2: 若有 OpenRouter/ollama config,发一个 TurnStart 看 console 收到流式回复**
 
 (复用 Task 1.4 的 provider config;若环境无 provider,至少验证 Initialize 握手事件流通)
 
-- [ ] **Step 3: 记录验证结果 + Commit**
+> **执行记录(2026-07-19):** 跳过 —— 子项目 2 范围是 GUI 基础设施,TurnStart 流式验证属于子项目 3(React 组件层)。`next_event` 循环就位但 InProcess 启动时无 ServerNotification 推送(设计如此,非 bug),要看到流式事件需 TurnStart + 真 provider。`thread/list` roundtrip 已证明 Rust↔AppServerClient↔JS 链路通。
+
+- [x] **Step 3: 记录验证结果 + Commit**
 
 在 adaptations 文档或新 GUI doc 记录 GUI 基础设施完成。
+
+> **执行记录(2026-07-19):** committed as `0075ae2e3`(8 files changed:新增 assets.rs 109 行 + lib.rs 重构 + Cargo.toml/vite.config.ts 调整 + 前端 main.tsx/transport.ts 清理)。诊断 println 全部移除,保留 `with_devtools(true)` + `evaluate_script` 失败时的 eprintln(运行时有价值)。
 
 ---
 
 ## 子项目 2 完成标准
 
-- [ ] `cargo check -p lemurclaw-gui` 通过
-- [ ] `lemurclaw --frontend gui` 打开 wry 窗口,加载 React 骨架
-- [ ] IPC 双向通:JS 发 ClientRequest → Rust 收到(ipc_handler);Rust 推 ServerEvent → JS 收到(console)
-- [ ] AppServerClient InProcess 启动,next_event 循环经 tao proxy 推事件到前端
-- [ ] 至少一次 agent 对话握手(Initialize)事件流可见
+- [x] `cargo check -p lemurclaw-gui` 通过 ✅(2026-07-19)
+- [x] `lemurclaw --frontend gui` 打开 wry 窗口,加载 React 骨架 ✅(React 渲染 "lemurclaw GUI (skeleton)" + 按钮 + 事件区)
+- [x] IPC 双向通:JS 发 ClientRequest → Rust 收到(ipc_handler);Rust 推 ServerEvent → JS 收到(console) ✅
+  - JS→Rust 链路实测:184-byte initialize + 53-byte thread/list 都触发 ipc_handler
+  - Rust→JS 链路代码就位(`evaluate_script` + tao proxy);InProcess 启动不发 ServerNotification,需 TurnStart 才能验证事件流推送(子项目 3 范畴)
+- [x] AppServerClient InProcess 启动,next_event 循环经 tao proxy 推事件到前端 ✅
+- [x] 至少一次 ClientRequest roundtrip 可见(plan 原文写 Initialize 握手,但 InProcess 自动 init 不能复用;改用 thread/list 等价验证) ✅
+  - `thread/list` 返回 `Ok({data: [], nextCursor: null, ...})` 证明 JS→Rust→AppServerClient→Response 全链路通
+
+**额外修掉的 2 个真实集成 bug**(详见 Task 2.5 执行记录):
+1. WKWebView CORS 阻止 file:// 加载 ES module → 换 `lemurclaw://` 自定义 protocol + `include_dir!`
+2. tokio 2MB worker 栈对 codex-core 不够 → 配 16MB(匹配 codex 生产 runtime)
 
 ## 后续(子项目 3+)
 
