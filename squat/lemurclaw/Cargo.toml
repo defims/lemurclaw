@@ -1,0 +1,13 @@
+[package]
+name = "lemurclaw"
+version = "0.0.1"
+edition = "2021"
+authors = ["Long, Wei <lostaim@gmail.com>"]
+description = "Cross-platform agent runtime + TUI/GUI/WebUI (placeholder; full functionality via git)"
+license = "MIT"
+repository = "https://github.com/defims/lemurclaw"
+homepage = "https://github.com/defims/lemurclaw"
+
+[lib]
+name = "lemurclaw"
+path = "src/lib.rs"
