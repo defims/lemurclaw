@@ -55,6 +55,7 @@ pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer
 #[serde(rename_all = "lowercase")]
 pub enum WireApi {
     /// The Responses API exposed by OpenAI at `/v1/responses`.
+    #[default]
     Responses,
     /// The Responses API over a WebSocket transport.
     #[serde(rename = "responses-websocket")]
@@ -62,7 +63,6 @@ pub enum WireApi {
     /// The Chat Completions API (`/v1/chat/completions`), used by third-party
     /// OpenAI-compatible providers. lemurclaw re-adds this (upstream removed it
     /// in https://github.com/openai/codex/discussions/7782).
-    #[default]
     Chat,
 }
 
