@@ -343,7 +343,7 @@ pub fn run_gui() -> anyhow::Result<()> {
 
 ```bash
 cd codex-rs
-cargo run -p lemurclaw -- frontend gui  # 或 --gui(看 CLI)
+cargo run -p lemurclaw -- --frontend gui
 ```
 Expected: 窗口打开,显示 "lemurclaw GUI (skeleton)" + ready 按钮。点 ready 看 stdout "ipc_handler received"。
 
@@ -351,7 +351,7 @@ Expected: 窗口打开,显示 "lemurclaw GUI (skeleton)" + ready 按钮。点 re
 > - `cargo check -p lemurclaw-gui` ✅ Finished(dev profile, 3.73s)
 > - `cargo clippy -p lemurclaw-gui` ✅ Finished(2m06s,无新 lint)
 > - `cargo clippy -p lemurclaw` ✅(3m43s,仅 pre-existing codex-api/codex-core 警告)
-> - **手动跑窗口留给用户**(沙箱无 display)。CLI 是 `cargo run -p lemurclaw -- frontend gui`(已核实 lemurclaw CLI 解析 `--frontend` 标志;webui stub 仍返回错)。期望:窗口打开 → 加载 React 骨架 → console 显示 "bridge: injected (wry)" → 点 "send initialize" → 终端 stdout 出现 `[lemurclaw] ipc_handler received: {"method":"initialize",...}`。
+> - **手动跑窗口留给用户**(沙箱无 display)。CLI 是 `cargo run -p lemurclaw -- --frontend gui`(注:`--frontend` 是 lemurclaw 的 clap flag 不是位置参数;`--` 是 cargo run 分隔符;webui stub 仍返回错)。期望:窗口打开 → 加载 React 骨架 → console 显示 "bridge: injected (wry)" → 点 "send initialize" → 终端 stdout 出现 `[lemurclaw] ipc_handler received: {"method":"initialize",...}`。
 
 - [x] **Step 3: Commit**
 
@@ -483,7 +483,7 @@ git commit -m "feat(gui): wire AppServerClient InProcess + next_event loop + ipc
 
 ```bash
 cd codex-rs
-cargo run -p lemurclaw -- frontend gui  # 或相应 CLI
+cargo run -p lemurclaw -- --frontend gui
 ```
 Expected: 窗口打开。点 ready(发 ClientRequest 如 Initialize)。在 React console 看到事件流(AgentMessageDelta/ItemCompleted 等)。
 

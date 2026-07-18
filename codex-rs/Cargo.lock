@@ -9164,6 +9164,7 @@ dependencies = [
  "codex-config",
  "codex-protocol",
  "codex-rollout",
+ "include_dir",
  "lemurclaw-transport",
  "serde",
  "serde_json",

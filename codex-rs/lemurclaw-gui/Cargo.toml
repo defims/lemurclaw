@@ -20,6 +20,7 @@ codex-config = { workspace = true }
 codex-protocol = { workspace = true }
 codex-rollout = { workspace = true }
 anyhow = { workspace = true }
+include_dir = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tao = { workspace = true }

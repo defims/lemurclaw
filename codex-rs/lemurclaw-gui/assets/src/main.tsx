@@ -2,21 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { hasBridge, onEvent, send } from './transport';
 
-// Minimal valid `initialize` ClientRequest (see
-// app-server-protocol schema: ClientRequest.ts → InitializeParams).
-// The id is a per-tab counter; any string/number is valid per RequestId.
+// A `thread/list` ClientRequest. The InProcess AppServerClient
+// auto-initializes during `start()`, so manually sending `initialize` from
+// the UI gets rejected with "Already initialized". `thread/list` is a safe
+// read-only request that exercises the full request/response roundtrip
+// (JS → ipc_handler → backend → AppServerClient → Response) without needing
+// a real model provider.
 let nextRequestId = 1;
 
-function makeInitializeRequest() {
+function makeThreadListRequest() {
   return {
-    method: 'initialize',
+    method: 'thread/list',
     id: nextRequestId++,
     params: {
-      clientInfo: { name: 'lemurclaw-gui', title: 'lemurclaw', version: '0.0.0' },
-      capabilities: {
-        experimentalApi: true,
-        requestAttestation: false,
-      },
+      limit: 10,
     },
   };
 }
@@ -50,7 +49,7 @@ function App() {
       <p style={{ fontSize: 12, color: '#555' }}>
         bridge: {hasBridge() ? 'injected (wry)' : 'missing (plain web — npm run dev)'}
       </p>
-      <button onClick={() => send(makeInitializeRequest())}>send initialize</button>
+      <button onClick={() => send(makeThreadListRequest())}>send thread/list</button>
       <button onClick={() => setEvents([])} style={{ marginLeft: 8 }}>
         clear
       </button>

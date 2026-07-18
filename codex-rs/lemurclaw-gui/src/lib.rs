@@ -17,9 +17,8 @@
 //! 同源等效性:GUI 与 codex TUI 都消费同一份 `AppServerEvent` 流(经 `AppServerClient::next_event`),
 //! 无 patch,无状态机复用 —— 是平行的另一个客户端。
 
+mod assets;
 mod backend;
-
-use std::path::PathBuf;
 
 use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy};
@@ -61,8 +60,7 @@ pub fn run_gui() -> anyhow::Result<()> {
         .with_title("lemurclaw")
         .build(&event_loop)?;
 
-    let dist_index = resolve_dist_index_html()?;
-    let dist_url = format!("file://{}", dist_index.display());
+    let entry_url = assets::entry_url();
 
     // Install the onEvent bridge up front so any Rust-driven evaluate_script
     // (including the next_event loop) always has a handler. JS in transport.ts
@@ -71,13 +69,19 @@ pub fn run_gui() -> anyhow::Result<()> {
     let init_script = "window.__lemurclaw = { onEvent: function(json) { console.log('[lemurclaw] onEvent (stub)', json); } };";
 
     let webview = wry::WebViewBuilder::new()
-        .with_url(&dist_url)
+        .with_url(&entry_url)
+        // Serve the embedded React build (see `assets.rs`). This is the
+        // wry/Tauri standard pattern and avoids macOS WKWebView's rejection
+        // of file://-loaded pages trying to fetch ES-module subresources
+        // (origin `null` + crossorigin → CORS preflight failure).
+        .with_custom_protocol(assets::PROTOCOL_SCHEME.to_string(), assets::handle)
         .with_initialization_script(init_script)
         .with_ipc_handler(move |request| {
             // JS → Rust. Forward the JSON body to the AppServerClient via
             // the request handle on the backend's tokio runtime.
             backend.handle_ipc(request.body());
         })
+        .with_devtools(true)
         .build(&window)?;
 
     event_loop.run(move |event, _, control_flow| {
@@ -104,43 +108,6 @@ pub fn run_gui() -> anyhow::Result<()> {
             _ => {}
         }
     });
-}
-
-/// Resolve the absolute path to `assets/dist/index.html`.
-///
-/// `env!("CARGO_MANIFEST_DIR")` is the compile-time path Cargo bakes into the
-/// binary for the crate that owns this source file (`lemurclaw-gui/`). It
-/// therefore always points at the right place regardless of the current
-/// working directory at runtime. We fall back to a few relative candidates
-/// only if that baked path doesn't exist (e.g. crate relocated after build).
-fn resolve_dist_index_html() -> anyhow::Result<PathBuf> {
-    let baked = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("dist")
-        .join("index.html");
-    if baked.exists() {
-        return Ok(baked);
-    }
-
-    let fallbacks: &[&str] = &[
-        "assets/dist/index.html",
-        "lemurclaw-gui/assets/dist/index.html",
-        "codex-rs/lemurclaw-gui/assets/dist/index.html",
-    ];
-    for f in fallbacks {
-        let p = PathBuf::from(f);
-        if p.exists() {
-            return Ok(p);
-        }
-    }
-
-    anyhow::bail!(
-        "lemurclaw-gui: assets/dist/index.html not found. \
-         Run `npm run build` in codex-rs/lemurclaw-gui/assets/ first. \
-         Searched baked={} plus fallbacks {:?}",
-        baked.display(),
-        fallbacks,
-    );
 }
 
 /// Escape a string for safe embedding inside a JS double-quoted string

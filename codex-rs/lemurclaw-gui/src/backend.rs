@@ -30,7 +30,7 @@ use codex_config::LoaderOverrides;
 use codex_protocol::protocol::SessionSource;
 use codex_rollout::state_db;
 use tao::event_loop::EventLoopProxy;
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime::Handle;
 
 use crate::GuiEvent;
 
@@ -87,7 +87,16 @@ pub fn spawn(proxy: EventLoopProxy<GuiEvent>) -> anyhow::Result<BackendHandles> 
     // ever sent.
     let (start_tx, start_rx) = std::sync::mpsc::channel::<StartMessage>();
 
-    let runtime = Runtime::new()?;
+    // Build the runtime with a 16 MB worker stack to match codex's own
+    // production runtime (see codex-rs/arg0/src/lib.rs:
+    // TOKIO_WORKER_STACK_SIZE_BYTES). tokio's default 2 MB worker stack is
+    // too small for codex-core's deep recursion in agent::control / config
+    // loading paths, and crashes the process with a stack overflow on the
+    // first non-trivial request (e.g. thread/list).
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(16 * 1024 * 1024)
+        .build()?;
     let handle = runtime.handle().clone();
 
     // Enter the runtime on a background thread so the main thread is free
@@ -183,9 +192,9 @@ async fn run_next_event_loop(
             break;
         }
     }
-    // Stream ended. The runtime stays up (so handle_ipc still works against a
-    // closed channel and just no-ops), and the process will exit when the
-    // user closes the window.
+    // Stream ended. The runtime stays up so handle_ipc still works against a
+    // closed channel and just no-ops; the process exits when the user closes
+    // the window.
 }
 
 /// Serialize an `InProcessServerEvent` for JS delivery.
