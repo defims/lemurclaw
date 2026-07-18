@@ -3,7 +3,7 @@
 - **日期:** 2026-07-18
 - **状态:** Draft(待用户 review)
 - **作者:** Long, Wei(brainstorming 协作产出)
-- **上游:** `~/code`(just-every/code fork,Apache-2.0),以 git submodule 引入整个仓库,基座是其 `codex-rs/` 上游镜像
+- **上游:** lemurclaw = openai/codex 的 fork(远程 defims/lemurclaw forked from openai/codex)。codex-rs workspace 在仓库 `codex-rs/`。基座是 codex-rs(有 Windows 沙箱 + in_process API)。just-every/code 的 code-rs 作三方模型移植参照
 - **前身:** grok-build 方案(已归档于 `docs/superpowers/archive/grok-build/`,放弃原因:沙箱不支持 Windows)
 
 ## 目标
@@ -20,10 +20,11 @@
 
 | 维度 | 决定 |
 |---|---|
-| 上游基座 | codex-rs(`vendor/code/codex-rs/`,submodule 指向整个 ~/code) |
-| Windows 沙箱 / in_process API | codex-rs 原生 ✅(这是选 codex 而非 grok-build 的根本理由) |
-| 三方模型 | **patch codex-rs core**(加回 Chat:WireApi 变体 + client.rs arm + 移植 chat_completions.rs + 依赖)。参照 ~/code/code-rs/ 实现 |
-| crate 结构 | **4 Rust crate**:`lemurclaw`(lib+bin:runtime+config)+ `lemurclaw-transport`(独立,无 wry)+ `lemurclaw-gui`(wry+tao+shim+assets/)。transport 独立让 webui 模式不背 wry/tao 依赖 |
+| 上游基座 | **lemurclaw = openai/codex 的 fork**(远程 defims/lemurclaw forked from openai/codex)。codex-rs workspace 在仓库根的 `codex-rs/`。lemurclaw crate 直接加进该 workspace |
+| Windows 沙箱 / in_process API | codex-rs 原生 ✅(fork 自带 windows-sandbox-rs;这是选 codex 而非 grok-build 的根本理由) |
+| 集成方式 | **fork 模式**(非 submodule/path-dep)。lemurclaw crate 作为 codex-rs workspace 新 member,用 workspace=true 引用 codex 依赖,共享 Cargo.lock/patch/lints。实测零摩擦。详见 §2 |
+| 三方模型 | **直接改 fork 内的 codex-rs/core + model-provider-info**(加回 Chat:WireApi 变体 + client.rs arm + 移植 chat_completions.rs + 依赖)。非 patch,是 fork commit。参照 just-every/code 的 code-rs 实现 |
+| crate 结构 | **3 Rust crate,全在 codex-rs/ 内**:`lemurclaw`(lib+bin:runtime+config)+ `lemurclaw-transport`(独立,无 wry)+ `lemurclaw-gui`(wry+tao+shim+assets/)。transport 独立让 webui 模式不背 wry/tao 依赖 |
 | 前端 | TUI 复用 codex-rs/tui;GUI 自建;`--frontend tui|gui|webui` |
 | GUI 默认 | wry+React 进程内;WebUI = 同前端纯 web + WebSocket |
 | 等效性 | 自动成立(TUI/GUI 同源消费 ServerNotification 事件流),无 patch |
@@ -37,6 +38,7 @@
 > 2. **Windows 沙箱只在 codex-rs 侧,三方模型只在 code-rs 侧,且 codex-rs 无 trait 注入点**(`ModelClient` 是具体类型,session 硬连)。要"两者都要",必须把一侧的东西搬到另一侧。
 > 3. 用户选**基座 codex-rs + patch 三方模型进去**(逆 upstream,因 upstream #7782 故意删了 Chat)。
 > 4. **依赖 codex 的 crate 发不了 crates.io**(实测 `cargo publish` 在打包阶段因 codex-core 不在 crates.io 索引而失败;codex 有 `[patch.crates-io] ratatui=fork` 在单 crate 失效)。发布走 git+二进制。
+> 5. **集成方式转向 fork(2026-07-18):** 原"独立 workspace + submodule + path dep codex"经实测推翻(codex 127-crate workspace + alpha 依赖 rama 漂移 + cargo workspace 根约束,详见 `notes/2026-07-18-integration-blocker-findings.md`)。**转向 fork**:lemurclaw 仓库 = openai/codex fork,crate 直接加进 codex-rs workspace。这是行业对 codex 类(不发 crate 的巨型 workspace)上游的通用做法(rust-analyzer/helix/zed 类)。三方模型从"patch submodule"变为"fork 内直接改"。
 
 ---
 
@@ -118,99 +120,115 @@ agent 想跑命令时 → `ServerRequest::CommandExecutionRequestApproval`(带 c
 
 ## 设计章节 2:Workspace 与 Crate 结构
 
+> **架构转向记录(2026-07-18):** 原方案"独立 workspace + submodule + path dep codex"经实测推翻(codex 127-crate workspace + alpha 依赖 rama + cargo workspace 根约束,详见 `notes/2026-07-18-integration-blocker-findings.md`)。**转向:lemurclaw 仓库本身就是 openai/codex 的 fork**(远程 `defims/lemurclaw` 已改为 fork from openai/codex)。lemurclaw 的 crate 直接加进 codex-rs workspace,像 codex 自己的 crate 一样工作。**实测验证零摩擦**(lemurclaw-transport 作为 codex-rs member 编译+测试通过)。这符合行业通用做法:codex 不发 crates.io,所有 codex 下游(rust-analyzer/helix/zed 类)都是 fork 模式。
+
 ### 2.1 目录结构
 
-lemurclaw 独立 Cargo workspace;`~/code`(just-every/code fork)整体作为 git submodule 挂在 `vendor/code/`。**4 Rust crate**(`lemurclaw` + `lemurclaw-transport` + `lemurclaw-gui` + 配置内联)。
+lemurclaw = openai/codex fork。codex-rs workspace 在 `codex-rs/`(仓库根下)。lemurclaw 的 3 个 Rust crate 作为**新 member** 加进 codex-rs workspace。
 
 ```
-lemurclaw/
-├── .gitmodules                    # 指向 ~/code (just-every/code) @ 固定 commit
-├── Cargo.toml                     # workspace root (members 只列 crates/*,绝不含 vendor/)
-├── vendor/
-│   └── code/                      # submodule = 整个 ~/code 仓库
-│       ├── codex-rs/              # 上游镜像,patch 应用目标(基座)
-│       ├── code-rs/               # fork,三方模型实现参照源
-│       └── ...
-├── patches/
-│   ├── codex-rs-third-party-models.patch   # 三方模型 patch
-│   └── README.md                  # 锚点 commit + patch 意图 + rebase 指南
-├── scripts/
-│   └── apply-patches.sh           # 幂等应用 patch 到 vendor/code/codex-rs/
-├── crates/
-│   ├── lemurclaw/                 # lib + bin:runtime + config(不含 transport)
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs             # pub run() / Frontend / RuntimeConfig
-│   │       ├── main.rs            # composition root(调 lemurclaw::run)
-│   │       └── config.rs          # 配置层 + CLI 转换(原 lemurclaw-config)
-│   ├── lemurclaw-transport/       # 独立:Transport trait + JSON 编解码(无 wry/tao)
-│   │   ├── Cargo.toml
-│   │   └── src/lib.rs             # trait Transport + 编解码辅助
-│   └── lemurclaw-gui/             # wry+tao+shim + frontend assets
+lemurclaw/                         # = openai/codex fork(远程 defims/lemurclaw)
+├── codex-rs/                      # codex 的 Rust workspace(lemurclaw crate 加进这里)
+│   ├── Cargo.toml                 # workspace 根,members 含 lemurclaw-*(直接改)
+│   ├── Cargo.lock                 # codex 的 lockfile,lemurclaw crate 共享(零 alpha 漂移)
+│   ├── core/                      # codex-core(三方模型改动直接在此,非 patch)
+│   ├── model-provider-info/       # WireApi::Chat 改动直接在此
+│   ├── tui/                       # codex-tui(TUI 复用)
+│   ├── app-server*/               # in_process API + 协议
+│   ├── ...                        # codex 其余 ~120 crate
+│   ├── lemurclaw/                 # ← 新增:lib+bin,runtime + config
+│   │   ├── Cargo.toml             # workspace=true 引用 codex 依赖
+│   │   └── src/{lib.rs, main.rs, config.rs}
+│   ├── lemurclaw-transport/       # ← 新增:Transport trait + JSON 编解码(无 wry/tao)
+│   │   └── src/lib.rs
+│   └── lemurclaw-gui/             # ← 新增:wry+tao+shim + assets/
 │       ├── Cargo.toml
-│       ├── build.rs               # 检测 Node → npm run build → 生成 assets/dist
-│       ├── src/
-│       │   ├── lib.rs             # WryIpcTransport + gui_loop + AppServerClient 驱动
-│       │   └── ...
-│       └── assets/                # 原 lemurclaw-gui-frontend(非独立 crate)
-│           ├── package.json
-│           ├── src/               # React/TS 源码
-│           └── dist/              # Vite 构建产物(include_dir! 嵌入)
-└── docs/superpowers/
+│       ├── build.rs               # npm run build → assets/dist
+│       ├── src/lib.rs
+│       └── assets/{package.json, src/, dist/}
+├── docs/superpowers/              # lemurclaw 自己的 brainstorming 产出(spec/plan/notes)
+├── AGENTS.md / README.md / ...    # codex 原有(lemurclaw 可改 README)
+└── (codex 其余:codex-cli, sdk, docs, ...)
 ```
+
+**关键变化(vs 原方案):**
+- ❌ 不再有 `vendor/` submodule(lemurclaw 就是 codex 本身)
+- ❌ 不再有 `patches/` + `apply-patches.sh`(改动直接在 fork 里,跟 upstream 同步靠 git merge)
+- ❌ 不再有 `[patch.crates-io]` 复制问题(共享 codex 的)
+- ✅ lemurclaw crate 用 `workspace=true` 引用 codex 依赖(就像 codex 自己的 crate)
+- ✅ 共享 codex 的 Cargo.lock → 零 alpha 漂移
+- ✅ 共享 codex 的 [workspace.lints] / [patch] / workspace.dependencies
+- ✅ 三方模型改动直接改 codex-rs/core + model-provider-info(fork 内改,非 patch)
 
 ### 2.2 crate 职责
 
-**`lemurclaw`(lib + bin 合一)** —— runtime + config(transport 已拆出)。
-- `src/lib.rs`:暴露 `pub async fn run(config: RuntimeConfig) -> Result<ExitCode>`、`enum Frontend { Tui, Gui, Webui }`。
-  - Tui → 调 codex-rs/tui 入口
+**`lemurclaw`(lib + bin,在 `codex-rs/lemurclaw/`)** —— runtime + config。
+- `src/lib.rs`:`pub async fn run(config: RuntimeConfig) -> Result<ExitCode>`、`enum Frontend { Tui, Gui, Webui }`。
+  - Tui → 调 `codex_tui::run_main`(同 workspace,直接引用)
   - Gui → 调 `lemurclaw_gui::run`(in_process + wry)
-  - Webui → 起 codex app-server WebSocket server + serve assets + 打印 URL(**只依赖 lemurclaw-transport,不依赖 lemurclaw-gui**)
+  - Webui → 起 codex app-server WebSocket server + serve assets + 打印 URL(只依赖 lemurclaw-transport)
 - `src/main.rs`:clap 解析 CLI → `RuntimeConfig` → `lemurclaw::run`。
 - `src/config.rs`:RuntimeConfig + 配置文件读写 + 封装 codex-config。
-- 依赖 `lemurclaw-transport`(用 Transport trait);**不含 wry/tao/ratatui**(GUI 在 lemurclaw-gui,TUI 用 codex-tui)。
-- embedding 用例:`lemurclaw = { git = "url" }` → `use lemurclaw::run;`
+- Cargo.toml:`version.workspace=true`/`edition.workspace=true`/`[lints] workspace=true`,依赖用 `workspace=true`(codex-tui、codex-config、lemurclaw-transport 等)。
+- **不含 wry/tao/ratatui**(GUI 在 lemurclaw-gui,TUI 用 codex-tui)。
 
-**`lemurclaw-transport`(独立)** —— Transport 抽象 + JSON 编解码,**无 wry/tao/ratatui**。
-- `src/lib.rs`:`pub trait Transport`(send/recv)+ JSON 编解码辅助(复用 codex 的 forward_incoming_message/serialize_outgoing_message)。
-- 依赖:`codex-app-server-protocol`(消息类型)、`serde_json`、`tokio`。
-- **核心价值:webui 模式只依赖此 crate,不拉 wry/tao。** 想嵌入只跑 webui 的项目,依赖树轻。
-- 不含具体传输实现(WryIpc 在 lemurclaw-gui,WebSocket 由 codex app-server 原生提供)。
+**`lemurclaw-transport`(在 `codex-rs/lemurclaw-transport/`)** —— Transport 抽象 + JSON 编解码,**无 wry/tao/ratatui**。
+- `src/lib.rs`:`pub trait Transport`(async send/recv)+ JSON 编解码辅助。
+- 依赖:`codex-app-server-protocol`(workspace=true)、serde、serde_json、tokio。
+- **核心价值:webui 模式只依赖此 crate,不拉 wry/tao。**
+- **实测验证(2026-07-18):作为 codex-rs member 编译+测试通过,零摩擦。**
 
-**`lemurclaw-gui`** —— GUI 整块(wry+tao+shim+前端资源)。
+**`lemurclaw-gui`(在 `codex-rs/lemurclaw-gui/`)** —— GUI 整块(wry+tao+shim+前端资源)。
 - wry+tao 集成、AppServerClient(InProcess)、ipc_handler 收 JSON → ClientRequest、next_event 循环 → serialize → tao proxy → evaluate_script。
 - 实现 `WryIpcTransport`(满足 `lemurclaw_transport::Transport`)。
-- 依赖 `lemurclaw-transport`(trait 定义在此)。
+- 依赖 `lemurclaw-transport`(workspace=true)+ wry + tao。
 - `assets/`:React 源码 + Vite dist。`build.rs` 检测 Node 时 `npm run build`。
-- build 时 copy codex-rs 的 ts-rs 类型进 `assets/src/types/`。
-- 被 `lemurclaw` 的 gui 路径依赖。webui 模式下 assets 也由它提供给 runtime serve。
+- build 时 copy codex-rs/app-server-protocol/schema/typescript/ 的 ts-rs 类型进 `assets/src/types/`。
 - **不依赖 ratatui。**
 
-### 2.3 依赖图
+### 2.3 依赖关系(同 workspace 内)
 
 ```
-lemurclaw (bin) → lemurclaw (lib) ─┬─ codex-app-server-client (vendored, patched)
-                                   ├─ codex-tui (vendored)         [tui 路径]
-                                   ├─ codex-config (vendored)
-                                   ├─ lemurclaw-transport          [webui 路径只要这个,无 wry]
-                                   └─ lemurclaw-gui ─┬─ wry + tao      [gui 路径才拉]
-                                                       ├─ codex-app-server-client
-                                                       ├─ lemurclaw-transport (用 Transport trait)
-                                                       └─ assets/ (include_dir)
+codex-rs workspace(共享 Cargo.lock / [patch] / lints / workspace.dependencies)
+  │
+  ├─ lemurclaw (bin+lib) ─┬─ codex-tui {workspace=true}        [tui 路径]
+  │                       ├─ codex-config {workspace=true}
+  │                       ├─ lemurclaw-transport {workspace=true}  [webui 路径只要这个]
+  │                       └─ lemurclaw-gui {workspace=true} ─┬─ wry + tao  [gui 路径]
+  │                                                            ├─ codex-app-server-client
+  │                                                            ├─ lemurclaw-transport
+  │                                                            └─ assets/ (include_dir)
+  │
+  └─ codex 原有 crate(core/model-provider-info/tui/app-server*/...)
+       (三方模型改动:直接改 core + model-provider-info,fork 内修改非 patch)
 ```
 
-**vendored(来自 `vendor/code/codex-rs/`,patch 后):** codex-app-server-client、codex-app-server、codex-app-server-protocol、codex-tui、codex-config、codex-core(patch 后含 Chat)、codex-model-provider-info(patch 后含 Chat 变体)。
+### 2.4 upstream 同步(fork 流程)
 
-### 2.4 关键约束
+lemurclaw 是 openai/codex fork,跟 upstream 同步用标准 git 流程:
+```bash
+git remote add upstream https://github.com/openai/codex.git  # 一次性
+git fetch upstream
+git merge upstream/main           # 合并上游改动(冲突时手动解决)
+# lemurclaw crate 在 codex-rs/Cargo.toml 的 members 声明、codex-rs/lemurclaw-*/ 可能冲突
+# 三方模型改动(core/model-provider-info)若 upstream 改了同处,手动 rebase
+```
+不再需要 patch apply 脚本——所有 lemurclaw 改动都是 fork 内的直接 commit,merge upstream 时 git 处理。
 
-- **workspace members 绝不含 `vendor/`**——否则 cargo 把 codex-rs crate 纳入 lemurclaw workspace,导致其 `workspace = true` 依赖解析失败(双根抢成员)。
-- codex-rs 作为 path dep 引用时,cargo 向上找到 `vendor/code/codex-rs/Cargo.toml`(独立 workspace),在 codex-rs workspace 上下文构建。
+### 2.5 关键约束(fork 布局下)
+
+- lemurclaw crate 的 Cargo.toml 用 `workspace=true` 引用 codex 的依赖/版本/lints(参照 codex-rs/app-server-protocol/Cargo.toml 模板)。
+- lemurclaw crate 加进 `codex-rs/Cargo.toml` 的 `[workspace].members`(直接改 fork)。
+- 在 `codex-rs/` 目录下跑 cargo(`cargo check -p lemursclaw-transport`),不在仓库根。
+- lemurclaw 的改动(新 crate + 三方模型)都是 fork commit,与 upstream 同步靠 git merge。
 
 ---
 
-## 设计章节 3:三方模型 Patch 契约(codex 方案的核心)
+## 设计章节 3:三方模型改动契约(codex 方案的核心)
 
-### 3.1 为什么必须 patch(勘察事实)
+> **转向记录:** 原方案"patch submodule"已改为"fork 内直接改"(因集成方式转向 fork)。改动内容相同,但载体从 `patches/*.patch` + apply 脚本变为 fork 内的直接 git commit。与 upstream 同步靠 git merge(冲突手动解决),不再靠 patch reapply。
+
+### 3.1 为什么必须改 core(勘察事实)
 
 codex-rs **无 trait 注入点**(已核实):
 - `ModelClient` 是具体类型(非 `Box<dyn>`),session 硬连到它(`session.rs:1117`)。
@@ -219,21 +237,21 @@ codex-rs **无 trait 注入点**(已核实):
 - `client.rs:1787-1825` 分发 match 只有 `Responses` arm。
 - `chat_completions.rs`(1471行)在 codex-rs **不存在**,只在 code-rs 有。
 
-**结论:** 三方模型必须 patch codex-rs,无法外部注入。勘察同时证明 fork(code-rs)自己也是"直接改 core"实现的——把 `chat_completions.rs` 作为 core 私有模块,依赖 15 个 `crate::` 私有类型。所以"copy 到外部 crate"不成立,必须 patch 进 core。
+**结论:** 三方模型必须直接改 codex-rs 的 core + model-provider-info,无法外部注入。勘察同时证明 fork(code-rs)自己也是"直接改 core"实现的。fork 布局下,lemurclaw 就在 codex-rs 里,直接改这些文件即可。
 
-### 3.2 Patch 内容(全 apply 到 `vendor/code/codex-rs/`)
+### 3.2 改动内容(直接改 fork 内的 codex-rs/)
 
 | Part | 类型 | 内容 |
 |---|---|---|
-| 1 | 改 upstream 代码 | `model-provider-info/src/lib.rs`:`WireApi` 加 `Chat`+`ResponsesWebsocket` 变体;反序列化撤销 `chat` 硬报错 |
-| 2 | 改 upstream 代码 | `core/src/client.rs`:分发 match 加 `Chat` + `ResponsesWebsocket` arm |
-| 3 | 新文件(patch 里新增) | `core/src/chat_completions.rs`(从 code-rs 移植,1471行,适配 codex-rs 类型差异) |
-| 4 | 新文件 | `core/src/model_family.rs`(从 code-rs 移植,code-rs 独有) |
-| 5 | 改 upstream 代码 | `core/src/openai_tools.rs`:增补 `create_tools_json_for_chat_completions_api`(codex-rs 无则新建) |
-| 6 | 改 upstream 代码 | `core/src/lib.rs`:加 `mod chat_completions; mod model_family;` |
-| 7 | 改 upstream 代码 | provider 注册表增补(可选,首版可只提供配置机制不给默认 provider) |
+| 1 | 改 fork 内文件 | `codex-rs/model-provider-info/src/lib.rs`:`WireApi` 加 `Chat`+`ResponsesWebsocket` 变体;反序列化撤销 `chat` 硬报错 |
+| 2 | 改 fork 内文件 | `codex-rs/core/src/client.rs`:分发 match 加 `Chat` + `ResponsesWebsocket` arm |
+| 3 | 新文件 | `codex-rs/core/src/chat_completions.rs`(从 code-rs 移植,1471行,适配 codex-rs 类型差异) |
+| 4 | 新文件 | `codex-rs/core/src/model_family.rs`(从 code-rs 移植,codex-rs 独有) |
+| 5 | 改/新建 fork 内文件 | `codex-rs/core/src/openai_tools.rs`:增补 `create_tools_json_for_chat_completions_api`(codex-rs 无则新建) |
+| 6 | 改 fork 内文件 | `codex-rs/core/src/lib.rs`:加 `mod chat_completions; mod model_family;` |
+| 7 | 改 fork 内文件 | provider 注册表增补(可选,首版可只提供配置机制不给默认 provider) |
 
-**参照源:** `vendor/code/code-rs/core/src/`(同 submodule 内 fork 代码)。
+**参照源:** just-every/code 的 `code-rs/core/src/`(lemurclaw 需单独 clone just-every/code 作为参照,或从 GitHub 直接读)。lemurclaw fork 本身不含 code-rs。
 
 ### 3.3 chat_completions.rs 的 15 个 crate:: 依赖(移植须逐一适配)
 
@@ -251,15 +269,20 @@ codex-rs **无 trait 注入点**(已核实):
 | codex-rs in_process API | 公开 |
 | codex-rs 沙箱(sandboxing/windows-sandbox-rs) | 原生支持 Windows,不动 |
 | codex-rs TUI | 复用,不改 |
-| codex-rs 根 Cargo.toml(workspace 声明) | 保持 workspace 完整 |
 
-### 3.5 Patch 维护
+> 注:codex-rs 根 Cargo.toml 的 workspace 声明**会改**(加 lemurclaw-* member),这是 fork 布局必需。
 
+### 3.5 维护(fork 流程)
+
+三方模型改动是 fork 内的直接 git commit(非 patch 文件)。与 upstream 同步:
+```bash
+git fetch upstream
+git merge upstream/main
+# 若 upstream 改了 core/client.rs 或 model-provider-info 同处,手动解决冲突
+cargo test -p codex-core --lib   # 验证 upstream 测试不破
+cargo test -p codex-tui          # 验证 TUI
 ```
-patches/codex-rs-third-party-models.patch + scripts/apply-patches.sh + patches/README.md
-```
-- 幂等 apply(已 apply 则跳过)
-- bump 流程:`git -C vendor/code checkout <new>` → `apply-patches.sh`(冲突人工调)→ `cargo test -p codex-tui/codex-core`(验证不破)→ 提交
+不再需要 apply-patches.sh——改动已在 fork 历史里,merge 时 git 处理。
 
 ### 3.6 诚实风险
 
@@ -396,7 +419,7 @@ pub trait Transport: Send {
 
 ### 5.3 TS 类型复用
 
-`vendor/code/codex-rs/app-server-protocol/schema/typescript/` 有 ts-rs 生成的 92 个 `.ts` 类型文件。**build 时 copy** 进 `lemurclaw-gui/assets/src/types/`(build.rs 或 Vite 预构建步骤)。保证 Rust↔JS 边界类型安全。
+`codex-rs/app-server-protocol/schema/typescript/` 有 ts-rs 生成的 92 个 `.ts` 类型文件。**build 时 copy** 进 `codex-rs/lemurclaw-gui/assets/src/types/`(build.rs 或 Vite 预构建步骤)。保证 Rust↔JS 边界类型安全。
 
 ### 5.4 句柄持有与线程(wry 固有约束)
 
@@ -424,12 +447,13 @@ pub trait Transport: Send {
 
 ```
 子项目 0:基础骨架
-    │ workspace + 4 crate 空壳(lemurclaw/lemurclaw-transport/lemurclaw-gui + 配置内联)+ submodule(~/code)+ apply-patches.sh
-    │ 产出:可构建,--frontend tui 跑通 codex-rs/tui
+    │ 在 fork(codex-rs workspace)内加 3 个 lemurclaw crate(lemurclaw/lemurclaw-transport/lemurclaw-gui 空壳)
+    │ 改 codex-rs/Cargo.toml 加 members;在 codex-rs/ 下跑 cargo
+    │ 产出:可构建,--frontend tui 跑通 codex-tui
     ▼
-子项目 1:三方模型 patch(最重,独占)
-    │ WireApi::Chat + 反序列化 + client.rs arm + chat_completions.rs(移植)
-    │ + model_family.rs + openai_tools 增补 + provider 注册表
+子项目 1:三方模型改动(最重,独占)
+    │ 直接改 fork 内 codex-rs/:WireApi::Chat + 反序列化 + client.rs arm + chat_completions.rs(移植)
+    │ + model_family.rs + openai_tools 增补 + provider 注册表(参照 just-every/code 的 code-rs)
     │ 产出:wire_api=chat 配置能跑通一个三方模型(如 OpenRouter)
     ▼
 子项目 2:GUI 基础设施(gui 模式)
@@ -459,7 +483,7 @@ pub trait Transport: Send {
     │ + 双前端录放测试套件
 ```
 
-**第一个实现计划聚焦子项目 0+1**(骨架 + 三方模型 patch)。子项目 1 是最重、风险最高部分(逆 upstream patch + chat_completions 移植)。
+**第一个实现计划聚焦子项目 0+1**(骨架 + 三方模型改动)。子项目 1 是最重、风险最高部分(逆 upstream #7782 + chat_completions 移植)。fork 布局下不再需要 patch apply 机制。
 
 ### 6.2 等效性验证(比 grok-build 简单)
 
@@ -482,11 +506,11 @@ pub trait Transport: Send {
 
 | 风险 | 严重度 | 说明 |
 |---|---|---|
-| **三方模型 patch 逆 upstream** | **高** | #7782 故意删 Chat,每次 mirror 刷 client.rs/model-provider-info 冲突 |
+| **三方模型改动逆 upstream** | **高** | #7782 故意删 Chat,每次 merge upstream/main 时 client.rs/model-provider-info 冲突 |
 | **chat_completions 移植依赖闭包** | **高** | 15 个 crate:: 类型,首次移植 2-3 周;codex-rs vs code-rs 分歧逐一适配 |
-| **upstream 重构 ModelClient** | 中 | 若改 client.rs 结构,Part 2 重写 |
+| **upstream 重构 ModelClient** | 中 | 若改 client.rs 结构,client.rs Chat arm 重写 |
+| **fork 与 upstream 同步** | 中 | lemurclaw crate 的 members 声明、三方模型改动,merge upstream 时可能冲突,手动解决 |
 | Linux webview 依赖 | 低 | wry 固有,文档说明 libwebkit2gtk-4.1 |
-| codex-rs mirror 刷新频率 | 中 | fork 活跃,patch 维护税持续 |
 | surface 覆盖遗漏 | 中 | 靠覆盖矩阵清单验收控制 |
 
 ### 6.5 发布(实测验证:依赖 codex 的 crate 发不了 crates.io)
@@ -507,43 +531,45 @@ pub trait Transport: Send {
 | ~~完整 crate 发 crates.io~~ | 不发 | 实测不可行(codex 依赖) |
 | **`lemurclaw` 占位 crate** | **crates.io** | **占名用空壳 crate(README + 空 lib.rs,无 codex 依赖),description/repository 指向 git 仓库。实测 `cargo publish --dry-run` 通过。用户 `cargo add lemurclaw` 拿到占位壳,文档引导走 git 获得完整功能** |
 
-**占位 crate 物理位置:** 放在主仓库的 `squat/lemurclaw/`(workspace 外独立 crate)。**关键约束**:占位 crate 和真实 `crates/lemurclaw/` 都叫 `lemurclaw`,不能在同一 Cargo workspace 共存(workspace 不允许两 member 同 package name)。所以 `squat/` **不在** `[workspace].members` 里(成员只列 `crates/*`),它是独立 crate,单独 `cd squat/lemurclaw && cargo publish` 发布。
+**占位 crate 物理位置:** 放在 fork 仓库的 `squat/lemurclaw/`(codex-rs workspace 外独立 crate)。**关键约束**:占位 crate 和真实 `codex-rs/lemurclaw/` 都叫 `lemurclaw`,不能在同一 Cargo workspace 共存。所以 `squat/` **不在** codex-rs workspace 的 members 里,它是独立 crate,单独 `cd squat/lemurclaw && cargo publish` 发布。
 
 ```
-lemurclaw/                         # 主仓库
-├── Cargo.toml                     # workspace root,members = ["crates/*"](不含 squat/)
-├── crates/                        # 真实 crate(workspace 成员,走 git)
+lemurclaw/                         # = openai/codex fork
+├── codex-rs/                      # codex workspace(真实 lemurclaw crate 在这)
+│   ├── Cargo.toml                 # members 含 lemurclaw/lemurclaw-transport/lemurclaw-gui
 │   ├── lemurclaw/                 # 真实 runtime crate(含 codex,发不了 crates.io)
 │   ├── lemurclaw-transport/
-│   └── lemurclaw-gui/
-├── squat/                         # ← 占位 crate 区,workspace 外
+│   ├── lemurclaw-gui/
+│   └── ... (codex 原有 crate)
+├── squat/                         # ← 占位 crate 区,codex-rs workspace 外
 │   └── lemurclaw/                 # 空壳,同名,独立 cargo publish
 │       ├── Cargo.toml             # name="lemurclaw",无 codex 依赖,只依赖 serde(可选)
 │       ├── lib.rs                 # 占位(可放 Frontend enum 等无 codex 的纯类型,或空)
 │       └── README.md              # 引导:完整功能走 cargo install --git
-└── vendor/code/
+└── (codex fork 其余内容)
 ```
 
-**占位 crate 说明:** crates.io 上的 `lemurclaw` 与 git 仓库里的 `crates/lemurclaw/`(完整 runtime)**同名但内容不同**——前者是纯占名空壳(无 codex,能 publish),后者是完整实现(走 git)。这是 crates.io 允许的占名模式,确保包名不被他人抢注,同时完整功能不受 codex 依赖阻塞。未来若 codex upstream 发 crates.io,可逐步把真实功能迁入 crates.io 上的 `lemurclaw`。
+**占位 crate 说明:** crates.io 上的 `lemurclaw` 与 fork 里的 `codex-rs/lemurclaw/`(完整 runtime)**同名但内容不同**——前者是纯占名空壳(无 codex,能 publish),后者是完整实现(走 git)。这是 crates.io 允许的占名模式,确保包名不被他人抢注,同时完整功能不受 codex 依赖阻塞。未来若 codex upstream 发 crates.io,可逐步把真实功能迁入 crates.io 上的 `lemurclaw`。
 
 ### 6.6 YAGNI 排除
 
 - ❌ 自建 TUI(复用 codex-rs/tui)
 - ❌ 移动端
 - ❌ 远程多客户端(webui 是本地浏览器)
-- ❌ crates.io 发布(实测不可行)
-- ❌ 自动跟随 upstream main(手动 bump + rebase patch)
+- ❌ crates.io 发布完整功能(实测不可行)
+- ❌ 自动跟随 upstream main(手动 git merge upstream)
 - ❌ 增量事件推送(MVP 全量)
 - ❌ 视觉复刻 TUI(功能等价,布局自由)
 - ❌ vendor 全 codex 发 crates.io(150 crate 不现实)
+- ❌ submodule + patch apply 机制(已转向 fork 直接改)
 
 ---
 
 ## 附录:决策溯源
 
 1. **grok-build → codex 转向:** grok-build 沙箱(`xai-grok-sandbox`+`nix`)只支持 Unix,不支持 Windows。转向 codex(codex-rs 有 `windows-sandbox-rs`:JobObjects+WFP+restricted token,37/41 smoketest 通过)。
-2. **~/code 是 fork 非原版:** `~/code` = just-every/code(Apache-2.0),内含 `codex-rs/`(上游镜像,有 Win 沙箱)和 `code-rs/`(fork,有三方模型但无 Win 沙箱)。
-3. **Win 沙箱 + 三方模型分布两侧:** codex-rs 有 Win 沙箱无三方模型;code-rs 反之。codex-rs 无 trait 注入点(`ModelClient` 具体类型),三方模型必须 patch。用户选基座 codex-rs + patch 三方模型(逆 upstream #7782)。
-4. **crate 结构精简:** 从 5 crate → 4 crate(lemurclaw lib+bin 合并 config;gui-bridge+frontend 合并为 lemurclaw-gui,frontend 作 assets/;**transport 独立**让 webui 模式不背 wry/tao 依赖)。
-5. **crates.io 完整功能不可行,占名可行:** 实测 `cargo publish` 对 codex 依赖失败(含 optional+git+version 都失败);codex 有 patch+ratatui fork 阻碍 vendor 合并。完整功能走 git+二进制。**占名**:额外发空占位 crate(无 codex 依赖)到 crates.io 抢占 `lemurclaw` 名,实测通过。
-6. **等效性自动成立:** TUI/GUI 同源消费 ServerNotification 事件流(经 AppServerClient),无需 patch 状态机(对比 grok-build 方案要 patch 8 处可见性)。
+2. **Win 沙箱 + 三方模型都在 codex 生态:** codex-rs(openai/codex)有 Win 沙箱无三方模型;just-every/code 的 code-rs 有三方模型无 Win 沙箱。codex-rs 无 trait 注入点(`ModelClient` 具体类型),三方模型必须直接改 core。用户选**基于 codex-rs + 直接改三方模型**(逆 upstream #7782)。
+3. **crate 结构:** 3 Rust crate(`lemurclaw` lib+bin + `lemurclaw-transport` 独立无 wry + `lemurclaw-gui` wry+assets)。transport 独立让 webui 不背 wry。
+4. **crates.io 完整功能不可行,占名可行:** 实测 `cargo publish` 对 codex 依赖失败(含 optional+git+version 都失败)。完整功能走 git+二进制。**占名**:额外发空占位 crate(无 codex 依赖)到 crates.io 抢占 `lemurclaw` 名,实测通过。
+5. **等效性自动成立:** TUI/GUI 同源消费 ServerNotification 事件流(经 AppServerClient),无需 patch 状态机(对比 grok-build 方案要 patch 8 处可见性)。
+6. **集成方式转向 fork(2026-07-18):** 原"独立 workspace + submodule + path dep codex"经实测推翻(codex 127-crate workspace + alpha 依赖 rama 漂移 + cargo workspace 根约束,详见 `notes/2026-07-18-integration-blocker-findings.md`)。**转向 fork**:lemurclaw = openai/codex fork,crate 直接加进 codex-rs workspace,共享 Cargo.lock/patch/lints,实测零摩擦。三方模型从 patch 变 fork 直接改。这是 codex 类(不发 crate 的巨型 workspace)上游的通用做法。
