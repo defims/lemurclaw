@@ -8627,6 +8627,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lemurclaw-gui"
+version = "0.0.0"
+dependencies = [
+ "lemurclaw-transport",
+]
+
+[[package]]
 name = "lemurclaw-transport"
 version = "0.0.0"
 dependencies = [

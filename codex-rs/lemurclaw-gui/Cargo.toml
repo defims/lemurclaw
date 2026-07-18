@@ -1,0 +1,15 @@
+[package]
+name = "lemurclaw-gui"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[lib]
+name = "lemurclaw_gui"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-transport = { workspace = true }
