@@ -8,8 +8,11 @@
 mod apply_patch;
 mod apps;
 mod audio_preparation;
+mod chat_completions;
 mod client;
 mod client_common;
+mod model_family;
+mod openai_tools;
 mod realtime_context;
 mod realtime_conversation;
 mod realtime_prompt;

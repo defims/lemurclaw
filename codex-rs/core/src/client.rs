@@ -33,6 +33,8 @@ use std::sync::atomic::Ordering;
 use codex_api::AgentIdentityTelemetry;
 use codex_api::ApiError;
 use codex_api::AuthProvider;
+use codex_api::ChatCompletionsClient as ApiChatCompletionsClient;
+use codex_api::ChatCompletionsOptions;
 use codex_api::CompactClient as ApiCompactClient;
 use codex_api::CompactionInput as ApiCompactionInput;
 use codex_api::Compression;
@@ -1506,6 +1508,57 @@ impl ModelClientSession {
         }
     }
 
+    /// Streams a turn via the Chat Completions API over HTTP.
+    ///
+    /// This is the third-party-provider code path, used when
+    /// [`WireApi::Chat`] is selected. It reuses the same transport + auth
+    /// wiring as the Responses API path (so API keys, ChatGPT bearer tokens,
+    /// custom headers, query params, and retry policy all keep working), but
+    /// builds a Chat Completions request body (see
+    /// [`crate::chat_completions::build_chat_completions_payload`]) and parses
+    /// the Chat Completions streaming wire format (see
+    /// `codex_api::sse::chat_completions`).
+    ///
+    /// The Responses-API-only inputs (`effort`, `summary`, `service_tier`,
+    /// `responses_metadata`, `inference_trace`) are intentionally not accepted
+    /// here: Chat Completions has no first-class reasoning/service-tier fields,
+    /// and the Chat arm is not wired into the websocket/prewarm or inference
+    /// trace machinery yet. Reasoning effort is still conveyed indirectly via
+    /// the system instructions and model selection.
+    async fn stream_chat_completions(
+        &self,
+        prompt: &Prompt,
+        model_info: &ModelInfo,
+    ) -> Result<ResponseStream> {
+        const CHAT_COMPLETIONS_ENDPOINT: &str = "chat/completions";
+        let mut payload = crate::chat_completions::build_chat_completions_payload(
+            prompt,
+            &model_info.slug,
+        )?;
+        // Non-OpenAI Chat Completions providers commonly reject roles outside
+        // the strict {system, user, assistant, tool} set; normalize only when
+        // not talking to OpenAI's own chat endpoint. This mirrors the
+        // behaviour of code-rs's stream_chat_completions.
+        if !self.client.state.provider.info().is_openai() {
+            crate::chat_completions::sanitize_message_roles_for_strict_chat_providers(&mut payload);
+        }
+
+        let client_setup = self.client.current_client_setup().await?;
+        let transport = self
+            .client
+            .build_api_transport(&client_setup.api_provider, CHAT_COMPLETIONS_ENDPOINT)?;
+        let chat_client = ApiChatCompletionsClient::new(
+            transport,
+            client_setup.api_provider,
+            client_setup.api_auth,
+        );
+        let api_stream = chat_client
+            .stream(payload, ChatCompletionsOptions::default())
+            .await
+            .map_err(|err| self.client.state.provider.map_api_error(err))?;
+        Ok(bridge_chat_completions_stream(api_stream))
+    }
+
     /// Streams a turn via the Responses API over WebSocket transport.
     #[allow(clippy::too_many_arguments)]
     #[instrument(
@@ -1822,6 +1875,12 @@ impl ModelClientSession {
                 )
                 .await
             }
+            WireApi::Chat => {
+                self.stream_chat_completions(prompt, model_info).await
+            }
+            WireApi::ResponsesWebsocket => Err(CodexErr::UnsupportedOperation(
+                "ResponsesWebsocket wire_api is not yet supported on this code path".to_string(),
+            )),
         }
     }
 
@@ -1896,6 +1955,66 @@ fn add_responses_lite_header(headers: &mut ApiHeaderMap, use_responses_lite: boo
 
 const RESPONSE_STREAM_CHANNEL_CAPACITY: usize = 1600;
 const STREAM_DROPPED_REASON: &str = "response stream dropped before provider terminal event";
+
+/// Bridge a `codex_api::ResponseStream` (produced by the Chat Completions
+/// client) into a core [`ResponseStream`].
+///
+/// Unlike the Responses-API path, the Chat Completions path is not yet wired
+/// into the inference-trace / last-response tracking machinery
+/// (`map_response_stream` + `InferenceTraceAttempt`), so this is a lightweight
+/// forwarder: it drains the upstream `codex_api` stream, maps
+/// [`ApiError`]s into [`CodexErr`]s, and forwards every [`ResponseEvent`]
+/// onto a core `ResponseStream` channel. The `consumer_dropped` cancellation
+/// token is honoured so that dropping the consumer cancels the bridging task.
+fn bridge_chat_completions_stream(
+    api_stream: codex_api::ResponseStream,
+) -> ResponseStream {
+    let codex_api::ResponseStream {
+        mut rx_event,
+        upstream_request_id,
+    } = api_stream;
+    if let Some(upstream_request_id) = upstream_request_id.as_deref() {
+        feedback_tags!(last_model_request_id = upstream_request_id);
+    }
+    let (tx_event, rx_event_out) =
+        mpsc::channel::<Result<ResponseEvent>>(RESPONSE_STREAM_CHANNEL_CAPACITY);
+    let consumer_dropped = CancellationToken::new();
+    let consumer_dropped_for_stream = consumer_dropped.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = consumer_dropped_for_stream.cancelled() => {
+                    return;
+                }
+                event = rx_event.recv() => {
+                    let Some(event) = event else { break };
+                    match event {
+                        Ok(ev) => {
+                            if tx_event.send(Ok(ev)).await.is_err() {
+                                return;
+                            }
+                        }
+                        Err(err) => {
+                            // Map ApiError → CodexErr best-effort. The provider
+                            // context is not available inside the bridging
+                            // task, so we use the generic mapping rather than
+                            // the provider-specific one; this still covers the
+                            // common cases (stream errors, transport errors,
+                            // status codes).
+                            let err = codex_api::map_api_error(err);
+                            let _ = tx_event.send(Err(err)).await;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    ResponseStream {
+        rx_event: rx_event_out,
+        consumer_dropped,
+    }
+}
 
 fn map_response_stream(
     api_stream: codex_api::ResponseStream,
