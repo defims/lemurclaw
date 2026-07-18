@@ -15,10 +15,19 @@ use std::process::Command;
 
 fn main() {
     // CARGO_MANIFEST_DIR is always set by Cargo when compiling this crate's
-    // build script; it points at `lemurclaw-gui/`.
-    let manifest = PathBuf::from(
-        env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by Cargo"),
-    );
+    // build script; it points at `lemurclaw-gui/`. If it's somehow missing
+    // (shouldn't happen under cargo), emit a warning and bail rather than
+    // panic, since build scripts that abort fail the whole build.
+    let manifest_dir = match env::var("CARGO_MANIFEST_DIR") {
+        Ok(d) => d,
+        Err(_) => {
+            println!(
+                "cargo:warning=lemurclaw-gui: CARGO_MANIFEST_DIR not set; skipping frontend build"
+            );
+            return;
+        }
+    };
+    let manifest = PathBuf::from(manifest_dir);
     let assets = manifest.join("assets");
     let dist = assets.join("dist");
 
