@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "lemurclaw-transport",
+    "lemurclaw",
     "aws-auth",
     "analytics",
     "agent-graph-store",
@@ -139,6 +140,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 # Internal
+lemurclaw-transport = { path = "lemurclaw-transport" }
 app_test_support = { path = "app-server/tests/common" }
 codex-analytics = { path = "analytics" }
 codex-agent-graph-store = { path = "agent-graph-store" }
