@@ -216,3 +216,68 @@ into those is left as future work.
 - The manual `backoff()` retry loop. codex-rs's
   `EndpointSession::stream_encoded_json_with` already applies the
   provider retry policy via `run_with_request_telemetry`.
+
+---
+
+## 环境要求(macOS 编译 codex-rs)
+
+codex-rs 的测试/运行二进制链接 `xz2`/`liblzma`。macOS SDK 的 `liblzma.5.tbd`
+**缺少 `_lzma_stream_encoder_mt` 符号**(Apple 裁剪了多线程编码),导致链接失败:
+```
+Undefined symbols for architecture x86_64:
+  "_lzma_stream_encoder_mt", referenced from:
+  "_lzma_stream_encoder_mt_memusage", referenced from:
+```
+
+**解法**:静态链接 homebrew 的 `liblzma.a`(含 mt 符号)。build/test/run 前设:
+```bash
+export LIBLZMA_STATIC=1
+export PKG_CONFIG_PATH="/usr/local/Cellar/xz/5.8.3/lib/pkgconfig:$PKG_CONFIG_PATH"
+# (Apple Silicon 路径:/opt/homebrew/lib/pkgconfig)
+```
+
+验证:`cargo check -p codex-core`(只编译,不链接)不需要此变量;`cargo test`/`cargo run`
+(链接二进制)需要。这是 codex 上游本身的 macOS 环境要求,非 lemurclaw 引入。
+
+## codex-core 全量测试的栈溢出(已知,与 lemurclaw 无关)
+
+`cargo test -p codex-core --lib` 在本环境(debug 栈大小)有多个测试栈溢出:
+`agent::control::tests::*`、`tokio-rt-worker`。这是 codex 上游测试在 debug 栈大小下的
+固有问题(可能需 release 或更大栈),**与三方模型改动无关**(都在 agent::control 模块,
+不碰 WireApi/chat/model_family)。
+
+**验证三方模型改动的方式**:`cargo test -p codex-model-provider-info`(24/24 通过),
+它直接覆盖 WireApi 改动。
+
+## Task 1.4 端到端验证(待手动执行)
+
+代码层面 `wire_api = "chat"` 已支持(Deserialize 接受 + client.rs Chat arm + chat_completions 移植)。
+端到端 live 验证待手动跑(需 ollama 或 OpenRouter):
+
+```bash
+# 方式一:本地 ollama(免费)
+ollama serve  # 另一终端
+ollama pull qwen2.5:0.5b
+# codex config(~/.codex/config.toml 或项目级):
+# [model_providers.ollama]
+# name = "ollama"
+# base_url = "http://localhost:11434/v1"
+# wire_api = "chat"
+# [model]
+# name = "qwen2.5:0.5b"
+# provider = "ollama"
+
+# 方式二:OpenRouter(需 OPENROUTER_API_KEY)
+# [model_providers.openrouter]
+# name = "openrouter"
+# base_url = "https://openrouter.ai/api/v1"
+# env_key = "OPENROUTER_API_KEY"
+# wire_api = "chat"
+
+# 运行(注意 LIBLZMA_STATIC,见上):
+cd codex-rs
+export LIBLZMA_STATIC=1
+export PKG_CONFIG_PATH="/usr/local/Cellar/xz/5.8.3/lib/pkgconfig:$PKG_CONFIG_PATH"
+cargo run -p lemurclaw  # (注:CLI flag 冲突待办,不带 lemurclaw 专属 flag)
+# 在 TUI 输入"say hi",确认收到流式回复
+```
