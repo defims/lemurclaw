@@ -1,16 +1,15 @@
 //! Lemurclaw launcher.
 //!
 //! A thin entry point that selects a frontend (`tui`, `gui`, or `webui`) and
-//! runs it. Today only the `tui` frontend is implemented: it passes straight
-//! through to `codex_tui::run_main` via `codex_arg0::arg0_dispatch_or_else`,
-//! mirroring `codex-rs/tui/src/main.rs`. The `gui` and `webui` frontends are
-//! stubs that return an error and will be wired up to `lemurclaw_transport`
-//! in later tasks.
+//! runs it. The `tui` frontend passes straight through to `codex_tui::run_main`
+//! via `codex_arg0::arg0_dispatch_or_else`, mirroring `codex-rs/tui/src/main.rs`.
+//! The `gui` frontend opens a wry+tao window via `lemurclaw_gui::run_gui`
+//! (currently an empty placeholder window; later tasks wire up the React
+//! frontend and bidirectional IPC). The `webui` frontend is still a stub and
+//! will be wired up to `lemurclaw_transport` in later tasks.
 //!
-//! [`run`] is intentionally synchronous: `arg0_dispatch_or_else` owns process
-//! exit (spawns its own runtime + thread and calls `process::exit` on fatal),
-//! so the TUI path has no need for an async entry point. The GUI/WebUI paths
-//! will become async later; for now they simply error.
+//! [`run`] is intentionally synchronous: `arg0_dispatch_or_else` (TUI) and the
+//! tao event loop (GUI) both own process exit / the main thread.
 
 pub mod config;
 
@@ -32,15 +31,14 @@ use crate::Frontend::{Gui, Tui, Webui};
 
 /// Run lemurclaw with the given [`RuntimeConfig`].
 ///
-/// Synchronous: the TUI path delegates to `arg0_dispatch_or_else`, which owns
-/// process exit. The GUI/WebUI paths are not implemented yet and return an
-/// error without taking over the process.
+/// Synchronous: the TUI path delegates to `arg0_dispatch_or_else` (owns
+/// process exit), and the GUI path enters the tao event loop inside
+/// `lemurclaw_gui::run_gui` (owns the main thread until the window closes).
+/// The WebUI path is not implemented yet and returns an error.
 pub fn run(config: RuntimeConfig) -> anyhow::Result<()> {
     match config.frontend {
         Tui => run_tui(),
-        Gui => Err(anyhow::anyhow!(
-            "lemurclaw `gui` frontend is not implemented yet"
-        )),
+        Gui => lemurclaw_gui::run_gui(),
         Webui => Err(anyhow::anyhow!(
             "lemurclaw `webui` frontend is not implemented yet"
         )),
@@ -98,14 +96,20 @@ where
         // Compare on the lossy UTF-8 form (our flags are all ASCII).
         let arg_str = arg_owned.to_string_lossy().into_owned();
         // Long value flags: --flag or --flag=...; consume following value if bare.
-        if LEMURCLAW_VALUE_FLAGS.iter().any(|f| matches_long(&arg_str, f)) {
+        if LEMURCLAW_VALUE_FLAGS
+            .iter()
+            .any(|f| matches_long(&arg_str, f))
+        {
             if !arg_str.contains('=') {
                 let _ = iter.next(); // swallow the value token
             }
             continue;
         }
         // Long bool flags: --yolo or --yolo=...
-        if LEMURCLAW_BOOL_FLAGS.iter().any(|f| matches_long(&arg_str, f)) {
+        if LEMURCLAW_BOOL_FLAGS
+            .iter()
+            .any(|f| matches_long(&arg_str, f))
+        {
             continue;
         }
         // Short value flags: -C <dir>, -m <model>
@@ -203,19 +207,6 @@ mod tests {
         assert!(
             err.to_string().contains("webui"),
             "expected webui in error message, got: {err}"
-        );
-    }
-
-    #[test]
-    fn gui_frontend_returns_error() {
-        let cfg = RuntimeConfig {
-            frontend: Frontend::Gui,
-            ..Default::default()
-        };
-        let err = run(cfg).unwrap_err();
-        assert!(
-            err.to_string().contains("gui"),
-            "expected gui in error message, got: {err}"
         );
     }
 }

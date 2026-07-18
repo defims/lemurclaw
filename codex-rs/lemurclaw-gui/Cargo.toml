@@ -13,3 +13,6 @@ workspace = true
 
 [dependencies]
 lemurclaw-transport = { workspace = true }
+anyhow = { workspace = true }
+tao = { workspace = true }
+wry = { workspace = true }

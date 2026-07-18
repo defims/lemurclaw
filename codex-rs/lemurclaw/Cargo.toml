@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 lemurclaw-transport = { workspace = true }
+lemurclaw-gui = { workspace = true }
 codex-tui = { workspace = true }
 codex-arg0 = { workspace = true }
 codex-config = { workspace = true }
