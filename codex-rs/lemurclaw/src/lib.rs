@@ -51,11 +51,12 @@ pub fn run(config: RuntimeConfig) -> anyhow::Result<()> {
 /// `arg0_dispatch_or_else` (which owns process exit on fatal errors).
 fn run_tui() -> anyhow::Result<()> {
     arg0_dispatch_or_else(|arg0_paths: Arg0DispatchPaths| async move {
-        // Re-parse codex_tui::Cli from argv so all codex flags keep working.
-        // (Lemurclaw-specific flags like --frontend/--agent-name are NOT known
-        //  to codex_tui::Cli; callers relying on them should drop them before
-        //  invoking the TUI path. See crate docs.)
-        let cli = TuiCli::parse();
+        // Parse codex_tui::Cli from argv, but first strip lemurclaw-only flags
+        // (--frontend / --agent-name) so codex_tui::Cli doesn't reject them as
+        // unknown arguments. We also strip --cwd/--model/--yolo because lemurclaw
+        // owns them (they'll be passed to codex via config, not argv).
+        let filtered = strip_lemurclaw_args(std::env::args_os());
+        let cli = TuiCli::parse_from(filtered);
         let exit_info = run_main(
             cli,
             arg0_paths,
@@ -66,6 +67,59 @@ fn run_tui() -> anyhow::Result<()> {
         handle_exit_reason(exit_info);
         Ok(())
     })
+}
+
+/// Lemurclaw-owned CLI flags that must be stripped from argv before handing
+/// control to `codex_tui::Cli` (which would reject them as unknown).
+const LEMURCLAW_VALUE_FLAGS: &[&str] = &["--frontend", "--agent-name", "--cwd", "--model"];
+/// Boolean flags (no value follows).
+const LEMURCLAW_BOOL_FLAGS: &[&str] = &["--yolo"];
+
+/// Strip lemurclaw-owned flags from an argv iterator.
+///
+/// Handles both `--flag value` and `--flag=value` forms, plus the short
+/// equivalents `-C` (cwd) and `-m` (model). Unknown args are passed through
+/// untouched so codex_tui::Cli sees exactly its own flags.
+fn strip_lemurclaw_args<I, S>(args: I) -> Vec<std::ffi::OsString>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    use std::ffi::OsString;
+
+    fn matches_long(arg: &str, name: &str) -> bool {
+        arg == name || arg.starts_with(&format!("{name}="))
+    }
+
+    let mut out: Vec<OsString> = Vec::new();
+    let mut iter = args.into_iter().peekable();
+    while let Some(arg) = iter.next() {
+        let arg_owned: OsString = arg.as_ref().into();
+        // Compare on the lossy UTF-8 form (our flags are all ASCII).
+        let arg_str = arg_owned.to_string_lossy().into_owned();
+        // Long value flags: --flag or --flag=...; consume following value if bare.
+        if LEMURCLAW_VALUE_FLAGS.iter().any(|f| matches_long(&arg_str, f)) {
+            if !arg_str.contains('=') {
+                let _ = iter.next(); // swallow the value token
+            }
+            continue;
+        }
+        // Long bool flags: --yolo or --yolo=...
+        if LEMURCLAW_BOOL_FLAGS.iter().any(|f| matches_long(&arg_str, f)) {
+            continue;
+        }
+        // Short value flags: -C <dir>, -m <model>
+        if arg_str == "-C" || arg_str == "-m" {
+            let _ = iter.next();
+            continue;
+        }
+        // Short flags glued to value: -Cdir / -mmodel — drop them.
+        if arg_str.starts_with("-C") || arg_str.starts_with("-m") {
+            continue;
+        }
+        out.push(arg_owned);
+    }
+    out
 }
 
 /// Mirror the exit-reason handling from `codex-rs/tui/src/main.rs`: on `Fatal`,
@@ -87,6 +141,57 @@ fn handle_exit_reason(exit_info: AppExitInfo) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Helper: run strip and stringify the result for easy assertion.
+    fn stripped<I, S>(args: I) -> Vec<String>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<std::ffi::OsStr>,
+    {
+        strip_lemurclaw_args(args)
+            .into_iter()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn strip_removes_frontend_and_value() {
+        let out = stripped(vec!["lemurclaw", "--frontend", "tui", "hello"]);
+        assert_eq!(out, vec!["lemurclaw".to_string(), "hello".to_string()]);
+    }
+
+    #[test]
+    fn strip_removes_equals_form() {
+        let out = stripped(vec!["lemurclaw", "--agent-name=foo", "--yolo", "prompt"]);
+        assert_eq!(out, vec!["lemurclaw".to_string(), "prompt".to_string()]);
+    }
+
+    #[test]
+    fn strip_removes_short_flags() {
+        let out = stripped(vec!["lemurclaw", "-C", "/tmp", "-m", "gpt", "p"]);
+        assert_eq!(out, vec!["lemurclaw".to_string(), "p".to_string()]);
+    }
+
+    #[test]
+    fn strip_passes_through_unknown() {
+        // codex flags like --search / --no-alt-screen must survive.
+        let out = stripped(vec!["lemurclaw", "--search", "--no-alt-screen", "p"]);
+        assert_eq!(
+            out,
+            vec![
+                "lemurclaw".to_string(),
+                "--search".to_string(),
+                "--no-alt-screen".to_string(),
+                "p".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn strip_handles_yolo_bool() {
+        let out = stripped(vec!["lemurclaw", "--yolo", "--frontend=tui"]);
+        assert_eq!(out, vec!["lemurclaw".to_string()]);
+    }
 
     #[test]
     fn webui_frontend_returns_error() {
