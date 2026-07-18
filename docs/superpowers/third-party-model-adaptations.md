@@ -281,3 +281,43 @@ export PKG_CONFIG_PATH="/usr/local/Cellar/xz/5.8.3/lib/pkgconfig:$PKG_CONFIG_PAT
 cargo run -p lemurclaw  # (注:CLI flag 冲突待办,不带 lemurclaw 专属 flag)
 # 在 TUI 输入"say hi",确认收到流式回复
 ```
+
+---
+
+## target/ 磁盘管理
+
+codex-rs 是 ~150 crate workspace,debug 全量编译产物达 **20-40G**。这是 codex
+固有特性(非 lemurclaw 引入),需主动管理 target/ 避免磁盘满。
+
+### 何时清理
+
+- **磁盘可用空间 < 10G**:立即清(磁盘满会卡住所有构建/写入)
+- **merge upstream / 改依赖 / 切分支后**:incremental 缓存失效,全重编更快
+- **长时间不构建后**:累积多个 profile 产物,清掉释放
+
+检查占用:
+```bash
+du -sh codex-rs/target
+df -h /Users/def
+```
+
+### 清理方式(安全)
+
+```bash
+# 全清(最彻底,下次全量重编约 10min)
+rm -rf codex-rs/target
+# 或等价:cd codex-rs && cargo clean
+```
+
+target/ 是纯编译派生产物,删了 cargo 重新生成,**不影响源码或 git 历史**。
+
+### 减少累积(可选)
+
+- 精细清理单 crate:`cargo clean -p codex-core`(只清特定 crate)
+- 外部大盘:`export CARGO_TARGET_DIR=/Volumes/External/lemurclaw-target`
+- sccache 跨清理复用:`brew install sccache && export RUSTC_WRAPPER=sccache`
+
+### 关键认知
+
+codex 的 target 注定大。openai/just-every 的开发者面对同样情况。**接受它会大,
+定期清,不必担心删掉**——最坏情况只是下次构建多等 10 分钟。
