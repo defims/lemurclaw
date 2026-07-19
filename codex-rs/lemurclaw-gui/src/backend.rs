@@ -165,25 +165,48 @@ impl BackendHandles {
                 // field named `id` (typed as `RequestId = string | number`),
                 // but pulling it back out of the enum after deserialization is
                 // awkward; the untyped Value makes it a one-liner.
-                let req_id_json =
-                    value.get("id").cloned().unwrap_or(serde_json::Value::Null);
+                let req_id_json = value.get("id").cloned().unwrap_or(serde_json::Value::Null);
                 match serde_json::from_value::<ClientRequest>(value) {
                     Ok(req) => {
                         match handle.request(req).await {
                             Ok(result) => {
-                                let envelope = match result {
+                                // Build the JSON-RPC envelope. For the error
+                                // arm, `to_value(&err)` honors
+                                // `skip_serializing_if = "Option::is_none"` on
+                                // `JSONRPCErrorError.data`, so an error with no
+                                // `data` emits no `data` field (vs. the naive
+                                // `json!({"data": err.data})` which always
+                                // emits `"data": null`).
+                                let payload = match result {
                                     Ok(val) => serde_json::json!({
                                         "jsonrpc": "2.0", "id": req_id_json, "result": val,
                                     }),
-                                    Err(err) => serde_json::json!({
-                                        "jsonrpc": "2.0", "id": req_id_json,
-                                        "error": { "code": err.code, "message": err.message, "data": err.data },
-                                    }),
-                                };
-                                if let Ok(json) = serde_json::to_string(&envelope) {
-                                    if let Err(e) = proxy.send_event(GuiEvent::Response(json)) {
-                                        eprintln!("[lemurclaw] response proxy closed: {e}");
+                                    Err(err) => {
+                                        let mut e = serde_json::Map::new();
+                                        e.insert("jsonrpc".into(), "2.0".into());
+                                        e.insert("id".into(), req_id_json);
+                                        let mut error_obj = serde_json::Map::new();
+                                        error_obj.insert("code".into(), err.code.into());
+                                        error_obj.insert("message".into(), err.message.into());
+                                        if let Some(data) = err.data {
+                                            error_obj.insert("data".into(), data);
+                                        }
+                                        e.insert(
+                                            "error".into(),
+                                            serde_json::Value::Object(error_obj),
+                                        );
+                                        serde_json::Value::Object(e)
                                     }
+                                };
+                                match serde_json::to_string(&payload) {
+                                    Ok(json) => {
+                                        if let Err(e) = proxy.send_event(GuiEvent::Response(json)) {
+                                            eprintln!("[lemurclaw] response proxy closed: {e}");
+                                        }
+                                    }
+                                    Err(e) => eprintln!(
+                                        "[lemurclaw] failed to serialize response envelope: {e}"
+                                    ),
                                 }
                             }
                             Err(e) => eprintln!("[lemurclaw] backend request failed: {e}"),

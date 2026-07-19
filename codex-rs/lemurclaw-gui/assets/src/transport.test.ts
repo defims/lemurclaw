@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { sendRequest, registerResponseHandler } from './transport';
+import { sendRequest, registerResponseHandler, onEvent } from './transport';
 
 // Transport tests for the typed request channel.
 //
@@ -73,5 +73,24 @@ describe('sendRequest', () => {
     expect(() =>
       responseHandler()(JSON.stringify({ jsonrpc: '2.0', id: 99999, result: {} })),
     ).not.toThrow();
+  });
+
+  it('onEvent preserves a previously installed onResponse (no clobber)', () => {
+    // Regression guard: an earlier version of onEvent reassigned
+    // window.__lemurclaw wholesale, dropping the onResponse handler that
+    // registerResponseHandler had just installed. App.tsx wires both, so
+    // they must coexist regardless of install order.
+    registerResponseHandler();
+    onEvent(() => {});
+    expect(typeof window.__lemurclaw?.onResponse).toBe('function');
+    expect(typeof window.__lemurclaw?.onEvent).toBe('function');
+  });
+
+  it('registerResponseHandler preserves a previously installed onEvent', () => {
+    // Symmetric to the above — install order should not matter.
+    onEvent(() => {});
+    registerResponseHandler();
+    expect(typeof window.__lemurclaw?.onEvent).toBe('function');
+    expect(typeof window.__lemurclaw?.onResponse).toBe('function');
   });
 });

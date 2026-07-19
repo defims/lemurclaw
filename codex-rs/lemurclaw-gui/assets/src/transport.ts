@@ -54,7 +54,12 @@ export function send(msg: unknown): void {
  * rather than thrown — a single malformed event must not break the loop.
  */
 export function onEvent(cb: (ev: unknown) => void): void {
+  // Mutate, don't replace: a sibling `onResponse` may already be installed by
+  // `registerResponseHandler`. Wholesale `window.__lemurclaw = {...}` would
+  // silently drop it (see transport.test.ts "preserves onResponse when ...").
+  const existing = window.__lemurclaw ?? { onEvent: () => {} };
   window.__lemurclaw = {
+    ...existing,
     onEvent: (json: string) => {
       try {
         cb(JSON.parse(json));
@@ -117,9 +122,11 @@ const pendingRequests = new Map<
     timer: ReturnType<typeof setTimeout>;
   }
 >();
-// Monotonic from 1000 so locally-issued request ids never collide with any
-// backend/server-assigned ids in flight at the same time.
-let nextRequestId = 1000;
+// Locally-issued request ids start here so they never collide with any
+// backend/server-assigned ids in flight at the same time. The number itself
+// is arbitrary; it just needs to be high enough to stay clear.
+const MIN_CLIENT_REQUEST_ID = 1000;
+let nextRequestId = MIN_CLIENT_REQUEST_ID;
 
 /**
  * Send a ClientRequest and return a Promise that resolves with the
