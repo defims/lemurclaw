@@ -148,10 +148,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
    single-modal-open, so the layering is belt-and-suspenders, not a real
    conflict. */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 900; }
-.modal-content { width: 480px; max-width: 90vw; max-height: 80vh; background: #fff; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+.modal-content { width: 480px; max-width: 90vw; max-height: 80vh; background: var(--cell-bg); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); }
 .modal-title { font-weight: bold; font-size: 14px; }
-.modal-close { background: none; border: none; cursor: pointer; font-size: 16px; color: #888; }
+.modal-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--muted); }
 .modal-body { padding: 12px; overflow-y: auto; flex: 1; }
 .modal-loading, .modal-empty, .modal-error { color: #888; padding: 12px; }
 

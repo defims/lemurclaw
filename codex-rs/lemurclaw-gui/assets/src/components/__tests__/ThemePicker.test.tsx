@@ -21,7 +21,9 @@ describe('ThemePicker', () => {
   it('Esc closes', () => {
     const onClose = vi.fn();
     render(<ThemePicker current="light" onPick={vi.fn()} onClose={onClose} />);
-    fireEvent.keyDown(screen.getByTestId('theme-picker').querySelector('.modal-content')!, { key: 'Escape' });
+    // Esc is a window listener (matches ModelPicker/TranscriptPager), so
+    // dispatch on window rather than the modal-content node.
+    fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
 

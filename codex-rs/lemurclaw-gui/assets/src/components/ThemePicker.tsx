@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { THEMES, type ThemeName } from '../themes';
 
 interface Props {
@@ -10,19 +11,23 @@ interface Props {
  *  when a theme is selected. The caller (App.tsx) wires onPick to useTheme's
  *  setTheme + closes the modal.
  *
- *  Close: Esc (handled locally via the content div's onKeyDown), backdrop
- *  click, or ✕ button. */
+ *  Close: Esc (window listener — works regardless of focus, matching
+ *  ModelPicker/TranscriptPager), backdrop click, or ✕ button. */
 export function ThemePicker({ current, onPick, onClose }: Props) {
-  const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
-    }
-  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   return (
     <div className="modal-overlay" data-testid="theme-picker" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} onKeyDown={onKey} tabIndex={-1}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <header className="modal-header">
           <span className="modal-title">select theme</span>
           <button className="modal-close" onClick={onClose} aria-label="close">✕</button>
