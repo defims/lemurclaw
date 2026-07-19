@@ -11,6 +11,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/__tests__/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', 'dist', 'src/types/**'],
+    // The `include` glob above already restricts discovery to *.test.* /
+    // *.spec.* files, so the 616 ts-rs generated files under src/types/
+    // (none of which match that pattern) are never collected. We rely on
+    // that rather than excluding src/types/** — a directory exclude would
+    // also hide any future *.test.ts under src/types/, which we don't want.
+    exclude: ['node_modules', 'dist'],
   },
 });
