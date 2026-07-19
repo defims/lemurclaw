@@ -51,22 +51,99 @@ pub struct BackendHandles {
     request_handle: InProcessAppServerRequestHandle,
 }
 
+/// Distinguishes the two envelope kinds handled in `handle_ipc`.
+enum ResolveKind {
+    Resolve,
+    Reject,
+}
+
+/// Resolve or reject a pending ServerRequest on the backend runtime. Pulls
+/// the RequestId / JsonRpcResult / JSONRPCErrorError types from the protocol
+/// crate; falls back to a safe null/error payload on malformed input so a bad
+/// JS envelope never kills the worker.
+async fn spawn_resolve(
+    handle: &InProcessAppServerRequestHandle,
+    request_id: serde_json::Value,
+    payload: serde_json::Value,
+    kind: ResolveKind,
+) {
+    let req_id = match serde_json::from_value::<codex_app_server_protocol::RequestId>(request_id) {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("[lemurclaw] resolve: bad request_id: {e}");
+            return;
+        }
+    };
+    let result = match kind {
+        ResolveKind::Resolve => {
+            // `codex_app_server_protocol::Result` is a type alias for
+            // `serde_json::Value` (the JSON-RPC result payload). On a
+            // malformed envelope fall back to JSON null rather than failing
+            // the resolve, so a bad JS body never hangs an approval flow.
+            let json_result: codex_app_server_protocol::Result =
+                serde_json::from_value(payload).unwrap_or(serde_json::Value::Null);
+            handle.resolve_server_request(req_id, json_result).await
+        }
+        ResolveKind::Reject => {
+            let err: codex_app_server_protocol::JSONRPCErrorError = serde_json::from_value(payload)
+                .unwrap_or_else(|e| codex_app_server_protocol::JSONRPCErrorError {
+                    code: -32000,
+                    message: format!("malformed reject payload: {e}"),
+                    data: None,
+                });
+            handle.reject_server_request(req_id, err).await
+        }
+    };
+    if let Err(e) = result {
+        eprintln!("[lemurclaw] resolve/reject failed: {e}");
+    }
+}
+
 impl BackendHandles {
-    /// Forward a raw JSON `ClientRequest` body (from the JS side) to the
-    /// backend. Deserialization happens on the backend runtime so a malformed
-    /// body only logs, never blocks the UI thread.
+    /// Forward a raw JSON body from JS to the backend. Three shapes:
+    /// - `{"__resolve": id, "result": {...}}` resolves a pending ServerRequest
+    ///   (ApprovalCard accept).
+    /// - `{"__reject": id, "error": {code, message}}` rejects a pending
+    ///   ServerRequest (ApprovalCard decline/cancel).
+    /// - any other JSON is parsed as a ClientRequest (turn/start, thread/list,
+    ///   ...).
+    ///
+    /// All deserialization happens on the backend runtime so malformed bodies
+    /// only log, never block the UI thread.
     pub fn handle_ipc(&self, body: &str) {
-        let req_result = serde_json::from_str::<ClientRequest>(body);
+        let parsed: serde_json::Result<serde_json::Value> = serde_json::from_str(body);
         let handle = self.request_handle.clone();
         self.handle.spawn(async move {
-            match req_result {
-                Ok(req) => {
-                    if let Err(e) = handle.request(req).await {
-                        eprintln!("[lemurclaw] backend request failed: {e}");
-                    }
-                }
+            let value = match parsed {
+                Ok(v) => v,
                 Err(e) => {
-                    eprintln!("[lemurclaw] ipc body not a valid ClientRequest: {e}");
+                    eprintln!("[lemurclaw] ipc body not valid JSON: {e}");
+                    return;
+                }
+            };
+            if let Some(req_id) = value.get("__resolve") {
+                if let Some(result) = value.get("result") {
+                    spawn_resolve(
+                        &handle,
+                        req_id.clone(),
+                        result.clone(),
+                        ResolveKind::Resolve,
+                    )
+                    .await;
+                }
+            } else if let Some(req_id) = value.get("__reject") {
+                if let Some(error) = value.get("error") {
+                    spawn_resolve(&handle, req_id.clone(), error.clone(), ResolveKind::Reject)
+                        .await;
+                }
+            } else {
+                match serde_json::from_value::<ClientRequest>(value) {
+                    Ok(req) => {
+                        if let Err(e) = handle.request(req).await {
+                            eprintln!("[lemurclaw] backend request failed: {e}");
+                        }
+                    }
+                    Err(e) => eprintln!("[lemurclaw] ipc body not a valid ClientRequest: {e}"),
                 }
             }
         });
