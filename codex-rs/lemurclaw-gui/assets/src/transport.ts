@@ -16,11 +16,17 @@
 
 // Bridge surfaces injected by Rust. `ipc` comes from wry's `with_ipc_handler`
 // plumbing; `__lemurclaw.onEvent` is installed by the initialization script in
-// `run_gui` (and reassigned here via `onEvent`).
+// `run_gui` (and reassigned here via `onEvent`). `onResponse` is installed by
+// `registerResponseHandler` to receive JSON-RPC response envelopes pushed back
+// from the backend after each ClientRequest (matched by id in
+// `pendingRequests`).
 declare global {
   interface Window {
     ipc?: { postMessage: (s: string) => void };
-    __lemurclaw?: { onEvent: (json: string) => void };
+    __lemurclaw?: {
+      onEvent: (json: string) => void;
+      onResponse?: (json: string) => void;
+    };
   }
 }
 
@@ -93,4 +99,85 @@ export function rejectServerRequest(
   code: number = -32000,
 ): void {
   send({ __reject: requestId, error: { code, message } });
+}
+
+// ---------------------------------------------------------------------------
+// Typed request channel: send a ClientRequest and await its JSON-RPC response.
+//
+// The Rust backend (backend.rs::handle_ipc) wraps every ClientRequest's
+// RequestResult in a `{jsonrpc:"2.0", id, result|error}` envelope and pushes
+// it back via window.__lemurclaw.onResponse. We match by id to settle the
+// pending promise.
+
+const pendingRequests = new Map<
+  string | number,
+  {
+    resolve: (v: unknown) => void;
+    reject: (e: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }
+>();
+// Monotonic from 1000 so locally-issued request ids never collide with any
+// backend/server-assigned ids in flight at the same time.
+let nextRequestId = 1000;
+
+/**
+ * Send a ClientRequest and return a Promise that resolves with the
+ * JSON-RPC `result`, or rejects with the error message.
+ *
+ * The id is assigned locally and the response is matched by id via
+ * `onResponse`. Auto-rejects after 30s to avoid leaked promises on dropped
+ * responses (e.g. the backend goes away mid-request).
+ */
+export function sendRequest<T = unknown>(method: string, params: unknown): Promise<T> {
+  const id = nextRequestId++;
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (pendingRequests.has(id)) {
+        pendingRequests.delete(id);
+        reject(new Error(`request ${method} (id=${id}) timed out after 30s`));
+      }
+    }, 30_000);
+    pendingRequests.set(id, { resolve: (v) => resolve(v as T), reject, timer });
+    send({ method, id, params });
+  });
+}
+
+/**
+ * Install the `onResponse` handler. Should be called once by App on mount.
+ *
+ * Each JSON-RPC response envelope from the backend is parsed, matched against
+ * `pendingRequests` by id, and the pending promise is settled (resolved with
+ * `result` or rejected with `error.message`). Envelopes with an unknown id,
+ * non-string/non-number id, or unparseable JSON are silently dropped — they
+ * are usually late responses to already-timed-out requests.
+ */
+export function registerResponseHandler(): void {
+  if (!window.__lemurclaw) window.__lemurclaw = { onEvent: () => {} };
+  window.__lemurclaw.onResponse = (json: string) => {
+    let envelope: {
+      id?: unknown;
+      result?: unknown;
+      error?: { code?: number; message?: string };
+    };
+    try {
+      envelope = JSON.parse(json);
+    } catch (e) {
+      console.error('transport.onResponse: parse failed', e);
+      return;
+    }
+    const id = envelope.id;
+    if (id === undefined || (typeof id !== 'string' && typeof id !== 'number')) return;
+    const pending = pendingRequests.get(id);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingRequests.delete(id);
+    if (envelope.error) {
+      pending.reject(
+        new Error(envelope.error.message ?? `request failed (code ${envelope.error.code})`),
+      );
+    } else {
+      pending.resolve(envelope.result);
+    }
+  };
 }

@@ -30,9 +30,15 @@ use tao::window::WindowBuilder;
 /// 经 `EventLoopProxy::send_event(GuiEvent::ServerEvent(json))` 投递回主线程;主线程在
 /// `Event::UserEvent` 分支里把 JSON 经 `evaluate_script("window.__lemurclaw.onEvent(json)")`
 /// 推给前端。
+///
+/// `Response(json)` carries a JSON-RPC `{jsonrpc, id, result|error}` envelope for a
+/// ClientRequest that `handle_ipc` previously forwarded to the backend. It's pushed
+/// to JS via `window.__lemurclaw.onResponse`, where transport.ts matches it by id
+/// against the pending promise.
 #[derive(Clone, Debug)]
 enum GuiEvent {
     ServerEvent(String),
+    Response(String),
 }
 
 /// Open the lemurclaw GUI window.
@@ -62,11 +68,11 @@ pub fn run_gui() -> anyhow::Result<()> {
 
     let entry_url = assets::entry_url();
 
-    // Install the onEvent bridge up front so any Rust-driven evaluate_script
-    // (including the next_event loop) always has a handler. JS in transport.ts
-    // may overwrite this with a JSON.parse-ing wrapper; both signatures are
+    // Install the onEvent/onResponse bridges up front so any Rust-driven
+    // evaluate_script always has a handler. JS in transport.ts may overwrite
+    // these with JSON.parse-ing wrappers; both signatures are
     // `(json: string) => void`.
-    let init_script = "window.__lemurclaw = { onEvent: function(json) { console.log('[lemurclaw] onEvent (stub)', json); } };";
+    let init_script = "window.__lemurclaw = { onEvent: function(json) { console.log('[lemurclaw] onEvent (stub)', json); }, onResponse: function(json) { console.log('[lemurclaw] onResponse (stub)', json); } };";
 
     let webview = wry::WebViewBuilder::new()
         .with_url(&entry_url)
@@ -97,6 +103,16 @@ pub fn run_gui() -> anyhow::Result<()> {
                 // we're concatenating into a `"...{}"` template.
                 let escaped = escape_js_string(&json);
                 let script = format!("window.__lemurclaw.onEvent(\"{escaped}\")");
+                if let Err(e) = webview.evaluate_script(&script) {
+                    eprintln!("[lemurclaw] evaluate_script failed: {e}");
+                }
+            }
+            Event::UserEvent(GuiEvent::Response(json)) => {
+                // Same escape dance as the ServerEvent arm. transport.ts's
+                // onResponse handler parses the envelope and matches it
+                // against pendingRequests by id.
+                let escaped = escape_js_string(&json);
+                let script = format!("window.__lemurclaw.onResponse(\"{escaped}\")");
                 if let Err(e) = webview.evaluate_script(&script) {
                     eprintln!("[lemurclaw] evaluate_script failed: {e}");
                 }
