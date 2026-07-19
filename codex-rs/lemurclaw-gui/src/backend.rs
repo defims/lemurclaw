@@ -57,11 +57,12 @@ enum ResolveKind {
     Reject,
 }
 
-/// Resolve or reject a pending ServerRequest on the backend runtime. Pulls
-/// the RequestId / JsonRpcResult / JSONRPCErrorError types from the protocol
-/// crate; falls back to a safe null/error payload on malformed input so a bad
-/// JS envelope never kills the worker.
-async fn spawn_resolve(
+/// Respond to (resolve or reject) a pending ServerRequest on the backend
+/// runtime. Awaited inside the task spawned by `handle_ipc` (does not spawn
+/// anything itself). Pulls the RequestId / JsonRpcResult / JSONRPCErrorError
+/// types from the protocol crate; falls back to a safe null/error payload on
+/// malformed input so a bad JS envelope never kills the worker.
+async fn respond_to_server_request(
     handle: &InProcessAppServerRequestHandle,
     request_id: serde_json::Value,
     payload: serde_json::Value,
@@ -123,18 +124,27 @@ impl BackendHandles {
             };
             if let Some(req_id) = value.get("__resolve") {
                 if let Some(result) = value.get("result") {
-                    spawn_resolve(
+                    respond_to_server_request(
                         &handle,
                         req_id.clone(),
                         result.clone(),
                         ResolveKind::Resolve,
                     )
                     .await;
+                } else {
+                    eprintln!("[lemurclaw] __resolve envelope missing 'result' field, dropping");
                 }
             } else if let Some(req_id) = value.get("__reject") {
                 if let Some(error) = value.get("error") {
-                    spawn_resolve(&handle, req_id.clone(), error.clone(), ResolveKind::Reject)
-                        .await;
+                    respond_to_server_request(
+                        &handle,
+                        req_id.clone(),
+                        error.clone(),
+                        ResolveKind::Reject,
+                    )
+                    .await;
+                } else {
+                    eprintln!("[lemurclaw] __reject envelope missing 'error' field, dropping");
                 }
             } else {
                 match serde_json::from_value::<ClientRequest>(value) {
