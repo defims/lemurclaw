@@ -60,4 +60,24 @@ describe('ModelPicker', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('backdrop click closes', async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ data: [], nextCursor: null });
+    const onClose = vi.fn();
+    const { container } = render(<ModelPicker threadId="t1" onClose={onClose} />);
+    fireEvent.click(container.querySelector('.modal-overlay')!);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows error state', async () => {
+    vi.mocked(sendRequest).mockRejectedValue(new Error('model service down'));
+    render(<ModelPicker threadId="t1" onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/model service down/)).toBeInTheDocument());
+  });
+
+  it('shows empty state when no models configured', async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ data: [], nextCursor: null });
+    render(<ModelPicker threadId="t1" onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('no models configured')).toBeInTheDocument());
+  });
 });
