@@ -2,6 +2,8 @@ import { useConversation } from './useConversation';
 import { Scrollback } from '../components/Scrollback';
 import { Composer } from '../components/Composer';
 import { ApprovalCard } from '../components/ApprovalCard';
+import { Sidebar } from '../components/Sidebar';
+import { SessionPicker } from '../components/sidebar/SessionPicker';
 
 /** Top-level GUI application. Wires the transport stream into the ViewModel
  *  reducer via `useConversation`, then lays out the main conversation region
@@ -29,6 +31,11 @@ export function App() {
         )}
         <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} />
       </main>
+      <Sidebar
+        sections={[
+          { key: 'sessions', title: 'Sessions', body: <SessionPicker activeThreadId={threadId} /> },
+        ]}
+      />
     </div>
   );
 }
