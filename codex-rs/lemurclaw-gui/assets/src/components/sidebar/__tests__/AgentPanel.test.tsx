@@ -17,13 +17,15 @@ describe('AgentPanel', () => {
   });
 
   it('shows active status with flags', () => {
+    // ThreadActiveFlag is "waitingOnApproval" | "waitingOnUserInput" per
+    // types/v2/ThreadActiveFlag.ts — use a real value the reducer can emit.
     const state: ConversationState = {
       ...initialState,
-      status: { type: 'active', activeFlags: ['executing'] } as never,
+      status: { type: 'active', activeFlags: ['waitingOnApproval'] } as never,
     };
     render(<AgentPanel state={state} />);
     expect(screen.getByText(/active/)).toBeInTheDocument();
-    expect(screen.getByText(/executing/)).toBeInTheDocument();
+    expect(screen.getByText(/waitingOnApproval/)).toBeInTheDocument();
   });
 
   it('shows deferral hint for sub-agents', () => {
