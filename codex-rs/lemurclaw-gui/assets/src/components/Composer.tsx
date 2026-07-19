@@ -13,8 +13,8 @@ interface Props {
 
 /** Composer: textarea + send button. Enter sends (shift+enter newline).
  *  Sends a `turn/start` ClientRequest with a single text UserInput.
- *  Subproject 3 limitation: no slash popup, no @-mention popup, no file
- *  upload — those land in subproject 4. */
+ *  Limitation: no slash popup, no @-mention popup, no file upload — those
+ *  land in subproject 5 (SettingsModal + popups). */
 export function Composer({ threadId, turnActive, onInterrupt }: Props) {
   const [text, setText] = useState('');
   const seqRef = useRef(1);

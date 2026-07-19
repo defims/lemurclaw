@@ -151,15 +151,27 @@ export function sendRequest<T = unknown>(method: string, params: unknown): Promi
 }
 
 /**
- * Install the `onResponse` handler. Should be called once by App on mount.
+ * Install the `onResponse` handler.
  *
  * Each JSON-RPC response envelope from the backend is parsed, matched against
  * `pendingRequests` by id, and the pending promise is settled (resolved with
  * `result` or rejected with `error.message`). Envelopes with an unknown id,
  * non-string/non-number id, or unparseable JSON are silently dropped — they
  * are usually late responses to already-timed-out requests.
+ *
+ * This is **also installed automatically at module import time** (see the
+ * `installResponseRouter()` call at the bottom of this module) so the handler
+ * is live before any React component mounts. React runs child effects before
+ * parent effects, so relying on a parent's `useEffect` to call this before a
+ * child's `useEffect` fires `sendRequest` would be fragile — the module-level
+ * install sidesteps that entirely. The public function is retained for
+ * explicit re-install in tests and any future caller that wants it.
  */
 export function registerResponseHandler(): void {
+  installResponseRouter();
+}
+
+function installResponseRouter(): void {
   if (!window.__lemurclaw) window.__lemurclaw = { onEvent: () => {} };
   window.__lemurclaw.onResponse = (json: string) => {
     let envelope: {
@@ -187,4 +199,12 @@ export function registerResponseHandler(): void {
       pending.resolve(envelope.result);
     }
   };
+}
+
+// Install the response router at module import time so it's live before any
+// React component mounts and fires a sendRequest. Idempotent — re-assigns
+// window.__lemurclaw.onResponse. Guarded for non-browser environments (tests
+// without jsdom, SSR) where `window` may be undefined at import time.
+if (typeof window !== 'undefined') {
+  installResponseRouter();
 }

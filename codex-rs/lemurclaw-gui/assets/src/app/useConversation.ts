@@ -19,9 +19,10 @@ export function useConversation() {
   const threadIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Install the onResponse handler so sendRequest promises can settle.
-    // Must run before any component fires a sendRequest (Onboarding does on
-    // its own mount, but useConversation mounts first as the App root hook).
+    // registerResponseHandler is also auto-installed at transport.ts module
+    // import time, so this call is a defensive re-install (idempotent) rather
+    // than load-bearing. Kept so a future refactor that removes the
+    // module-level install doesn't silently break response routing.
     registerResponseHandler();
     onEvent((ev) => {
       // Track the latest threadId. We deliberately do NOT guard with
