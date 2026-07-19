@@ -392,15 +392,23 @@ export function useThreadList(limit: number = 20) {
 
 Create `assets/src/hooks/__tests__/useRequest.test.ts`:
 ```ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useRequestLazy } from '../useRequest';
 
 vi.mock('../../transport', () => ({ sendRequest: vi.fn() }));
 import { sendRequest } from '../../transport';
 
+// NOTE: use `afterEach`, not `beforeEach`, for `mockReset()` here.
+// Vitest 2.1.9 has a false-positive unhandled-rejection failure when
+// `beforeEach(() => mockReset())` is combined with `mockRejectedValue`:
+// the reset runs before the test body, and Vitest's mock/unhandled-rejection
+// interaction attributes the rejected promise to the `new Error(...)` site
+// even though the hook's `.catch` consumes it. `afterEach` runs cleanup
+// *after* the test body, so the rejection is already settled. This applies
+// to ALL transport-mocked tests in this subproject (Tasks 4.2/4.4/4.7/4.8).
 describe('useRequestLazy', () => {
-  beforeEach(() => vi.mocked(sendRequest).mockReset());
+  afterEach(() => vi.mocked(sendRequest).mockReset());
 
   it('transitions through loading → data on success', async () => {
     vi.mocked(sendRequest).mockResolvedValue({ ok: true } as never);
@@ -431,7 +439,7 @@ describe('useRequestLazy', () => {
 
 Create `assets/src/hooks/__tests__/useThreadList.test.ts`:
 ```ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useThreadList } from '../useThreadList';
 
@@ -446,7 +454,8 @@ function makeThread(id: string) {
 }
 
 describe('useThreadList', () => {
-  beforeEach(() => vi.mocked(sendRequest).mockReset());
+  // See useRequest.test.ts for why this is `afterEach` not `beforeEach`.
+  afterEach(() => vi.mocked(sendRequest).mockReset());
 
   it('auto-loads first page on mount', async () => {
     vi.mocked(sendRequest).mockResolvedValue({ data: [makeThread('1'), makeThread('2')], nextCursor: null, backwardsCursor: null });
@@ -622,7 +631,7 @@ export function SessionPicker({ activeThreadId, onSelect }: Props) {
 
 Create `assets/src/components/sidebar/__tests__/SessionPicker.test.tsx`:
 ```tsx
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SessionPicker } from '../SessionPicker';
 
@@ -645,7 +654,8 @@ function makeThread(over: Partial<Thread> = {}): Thread {
 }
 
 describe('SessionPicker', () => {
-  beforeEach(() => {
+  // `afterEach` for consistency with other transport-mocked tests (see Task 4.2).
+  afterEach(() => {
     vi.mocked(useThreadList).mockReset();
     vi.mocked(send).mockClear();
   });
@@ -924,7 +934,7 @@ function FlatScrollback({ cells }: { cells: CellModel[] }) {
 
 Create `assets/src/components/__tests__/TranscriptPager.test.tsx`:
 ```tsx
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TranscriptPager } from '../TranscriptPager';
 
@@ -949,7 +959,8 @@ const FULL_THREAD = {
 };
 
 describe('TranscriptPager', () => {
-  beforeEach(() => vi.mocked(sendRequest).mockReset());
+  // See useRequest.test.ts (Task 4.2) for why this is `afterEach` not `beforeEach`.
+  afterEach(() => vi.mocked(sendRequest).mockReset());
 
   it('loads thread on mount and renders cells', async () => {
     vi.mocked(sendRequest).mockResolvedValue({ thread: FULL_THREAD });
@@ -1146,7 +1157,7 @@ export function ModelPicker({ threadId, currentModel, onClose }: Props) {
 
 Create `assets/src/components/__tests__/ModelPicker.test.tsx`:
 ```tsx
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ModelPicker } from '../ModelPicker';
 
@@ -1154,7 +1165,8 @@ vi.mock('../../transport', () => ({ sendRequest: vi.fn(), send: vi.fn() }));
 import { sendRequest, send } from '../../transport';
 
 describe('ModelPicker', () => {
-  beforeEach(() => {
+  // See useRequest.test.ts (Task 4.2) for why this is `afterEach` not `beforeEach`.
+  afterEach(() => {
     vi.mocked(sendRequest).mockReset();
     vi.mocked(send).mockClear();
   });
@@ -1499,7 +1511,7 @@ export function Onboarding({ children }: Props) {
 
 Create `assets/src/components/__tests__/Onboarding.test.tsx`:
 ```tsx
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { Onboarding } from '../Onboarding';
 
@@ -1507,7 +1519,8 @@ vi.mock('../../transport', () => ({ sendRequest: vi.fn() }));
 import { sendRequest } from '../../transport';
 
 describe('Onboarding', () => {
-  beforeEach(() => vi.mocked(sendRequest).mockReset());
+  // See useRequest.test.ts (Task 4.2) for why this is `afterEach` not `beforeEach`.
+  afterEach(() => vi.mocked(sendRequest).mockReset());
 
   it('renders children when authed (authMethod set)', async () => {
     vi.mocked(sendRequest).mockResolvedValue({ authMethod: 'chatgpt', authToken: null, requiresOpenaiAuth: false } as never);
