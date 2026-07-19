@@ -42,8 +42,13 @@ describe('Scrollback', () => {
         ],
       }],
     };
-    render(<Scrollback state={state} />);
+    const { container } = render(<Scrollback state={state} />);
     expect(screen.getByTestId('user-message')).toBeInTheDocument();
     expect(screen.getByTestId('agent-message')).toBeInTheDocument();
+    // Verify DOM order: user-message must come before agent-message (catches
+    // a regression where turns[].items is reversed or flattened wrong).
+    const cells = container.querySelectorAll('[data-testid="user-message"], [data-testid="agent-message"]');
+    expect(cells[0]).toHaveAttribute('data-testid', 'user-message');
+    expect(cells[1]).toHaveAttribute('data-testid', 'agent-message');
   });
 });
