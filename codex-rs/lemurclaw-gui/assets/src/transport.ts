@@ -67,3 +67,30 @@ export function onEvent(cb: (ev: unknown) => void): void {
 export function hasBridge(): boolean {
   return typeof window.ipc !== 'undefined';
 }
+
+/**
+ * Resolve a pending ServerRequest by id. Used by ApprovalCard's [accept] /
+ * [approve] buttons. Sends the `__resolve` envelope consumed by
+ * `backend.rs::handle_ipc`.
+ *
+ * `result` is the JSON-RPC result payload — its shape depends on the
+ * ServerRequest method (see the `*ApprovalResponse` types in
+ * `assets/src/types/v2/`). For exec/file approvals, a `{ decision: "accept" }`
+ * object; for mcp elicitation, a `{ value: ... }` object.
+ */
+export function resolveServerRequest(requestId: string | number, result: unknown): void {
+  send({ __resolve: requestId, result });
+}
+
+/**
+ * Reject a pending ServerRequest by id. Used by ApprovalCard's [decline] /
+ * [cancel] buttons. `code` defaults to -32000 (JSON-RPC server error);
+ * `message` is required.
+ */
+export function rejectServerRequest(
+  requestId: string | number,
+  message: string,
+  code: number = -32000,
+): void {
+  send({ __reject: requestId, error: { code, message } });
+}
