@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useCallback } from 'react';
-import { onEvent, send } from '../transport';
+import { onEvent, send, registerResponseHandler } from '../transport';
 import { reducer } from '../viewModel/reducer';
 import { initialState } from '../viewModel/types';
 
@@ -19,6 +19,10 @@ export function useConversation() {
   const threadIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Install the onResponse handler so sendRequest promises can settle.
+    // Must run before any component fires a sendRequest (Onboarding does on
+    // its own mount, but useConversation mounts first as the App root hook).
+    registerResponseHandler();
     onEvent((ev) => {
       // Track the latest threadId. We deliberately do NOT guard with
       // `!threadIdRef.current` — that would pin the ref to the first thread

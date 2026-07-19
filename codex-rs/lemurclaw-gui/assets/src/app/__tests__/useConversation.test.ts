@@ -9,6 +9,7 @@ vi.mock('../../transport', () => ({
     onEventCb = cb;
   },
   send: vi.fn(),
+  registerResponseHandler: vi.fn(),
 }));
 
 import { useConversation } from '../useConversation';
