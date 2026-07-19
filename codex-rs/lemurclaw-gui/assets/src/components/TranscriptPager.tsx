@@ -1,0 +1,84 @@
+import { useEffect, useState } from 'react';
+import { sendRequest } from '../transport';
+import type { Thread } from '../types/v2';
+import type { CellModel } from '../viewModel/types';
+import { threadItemToCell } from '../viewModel/reducer';
+import { CellRenderer } from './Scrollback';
+
+interface Props {
+  /** Thread to load. The pager fetches its turns on mount. */
+  threadId: string;
+  /** Close handler (Esc or backdrop click). */
+  onClose: () => void;
+}
+
+interface ReadState {
+  loading: boolean;
+  error: string | null;
+  cells: CellModel[];
+  thread: Thread | null;
+}
+
+/** Full-screen transcript pager (codex TUI's Ctrl+T equivalent).
+ *
+ *  Loads the thread's full turn history via `thread/read { includeTurns: true }`
+ *  and renders all items flat (no turn boundaries) using the same cell
+ *  components as Scrollback (via the shared CellRenderer). Read-only — no
+ *  input, no approvals.
+ *
+ *  Close: Esc key or backdrop click. */
+export function TranscriptPager({ threadId, onClose }: Props) {
+  const [state, setState] = useState<ReadState>({ loading: true, error: null, cells: [], thread: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ loading: true, error: null, cells: [], thread: null });
+    sendRequest<{ thread: Thread }>('thread/read', { threadId, includeTurns: true })
+      .then((resp) => {
+        if (cancelled) return;
+        const cells = resp.thread.turns.flatMap((t) => t.items.map(threadItemToCell));
+        setState({ loading: false, error: null, cells, thread: resp.thread });
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setState({ loading: false, error: e instanceof Error ? e.message : String(e), cells: [], thread: null });
+      });
+    return () => { cancelled = true; };
+  }, [threadId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="transcript-pager-overlay" data-testid="transcript-pager" onClick={onClose}>
+      <div className="transcript-pager-content" onClick={(e) => e.stopPropagation()}>
+        <header className="transcript-pager-header">
+          <span className="transcript-pager-title">
+            transcript · {state.thread?.name ?? state.thread?.preview ?? threadId}
+          </span>
+          <button className="transcript-pager-close" onClick={onClose} aria-label="close">✕</button>
+        </header>
+        <div className="transcript-pager-body">
+          {state.loading && <div className="transcript-pager-loading">loading…</div>}
+          {state.error && <div className="transcript-pager-error">failed: {state.error}</div>}
+          {!state.loading && !state.error && state.cells.length === 0 && (
+            <div className="transcript-pager-empty">(no items in transcript)</div>
+          )}
+          {!state.loading && !state.error && state.cells.length > 0 && (
+            <div className="transcript-pager-cells">
+              {state.cells.map((c, i) => <CellRenderer key={`${c.kind}-${i}`} cell={c} />)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

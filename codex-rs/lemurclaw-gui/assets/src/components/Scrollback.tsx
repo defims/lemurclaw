@@ -54,7 +54,7 @@ export function Scrollback({ state }: Props) {
   );
 }
 
-function CellRenderer({ cell }: { cell: CellModel }) {
+export function CellRenderer({ cell }: { cell: CellModel }) {
   switch (cell.kind) {
     case 'userMessage': return <UserMessageCell model={cell} />;
     case 'agentMessage': return <AgentMessageCell model={cell} />;
