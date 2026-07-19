@@ -780,8 +780,10 @@ git commit -m "feat(gui): sidebar + SessionPicker (thread/list + thread/resume)"
 
 **核心设计:**
 - 全屏 fixed-position overlay,Esc 关闭。
-- mount 时发 `thread/read` 拿 thread.turns(每 turn 有 items: ThreadItem[])。
+- mount 时发 `thread/read { includeTurns: true }` 拿 thread.turns(每 turn 有 items: ThreadItem[])。
 - 复用子项目 3 的 `threadItemToCell`(已经是 export 的)把 ThreadItem 转 CellModel,然后 Scrollback 风格渲染(但只读,不分 turn,纯平铺 + 单一 auto-scroll)。
+
+> **分页 known-limitation:** codex 协议下没有 ClientRequest 方法返回分页 turns(`TurnsPage`/`ThreadResumeInitialTurnsPageParams` 类型存在但无对应 RPC,已核实 `ClientRequest.ts`)。`thread/read` 一次拿全量 `thread.turns`。对典型 agent 会话(< 500 items)够用;超大历史的真分页需等 codex upstream 开放,本 task 不实现。
 
 **Files:**
 - Create: `assets/src/components/TranscriptPager.tsx`
@@ -1122,7 +1124,7 @@ export function ModelPicker({ threadId, currentModel, onClose }: Props) {
                   className={`model-item${m.id === currentModel ? ' model-item-active' : ''}`}
                 >
                   <button onClick={() => handlePick(m)} className="model-item-button" disabled={!threadId}>
-                    <span className="model-item-name">{m.name ?? m.id}</span>
+                    <span className="model-item-name">{m.displayName || m.id}</span>
                     <span className="model-item-id">{m.id}</span>
                   </button>
                 </li>
@@ -1136,7 +1138,7 @@ export function ModelPicker({ threadId, currentModel, onClose }: Props) {
 }
 ```
 
-> **注:** `Model` 的实际字段以 Step 1 核实为准。codex 协议里 `Model` 一般有 `id`/`name`/`provider` 等。如果字段名不同,把 `m.name ?? m.id` 改成实际字段。
+> **注:** `Model` 的字段已核实(`types/v2/Model.ts`):有 `id`(模型标识)、`displayName`(用户可读名)、`description`、`isDefault`、`hidden` 等。**没有 `name` 字段** —— 渲染用 `m.displayName || m.id`(fallback 到 id 因为 displayName 不应为空但兜底)。Step 1 的 cat 核实可跳过(已确认)。
 >
 > **handlePick 的简化:** 真正的"切模型"理想做法是不发 turn,只更新 thread 的 model。但 codex 协议没有现成的 `thread/model/set` 方法,只有 `thread/metadata/update`(改 metadata,不改运行时 model)和 `turn/start { model }`(下个 turn 用这个 model)。本 task 用后者(发空 input turn)。这是个 known limitation —— 真实切换需要用户在 Composer 里再输入一句话触发 turn。文档化即可。
 
@@ -1160,8 +1162,8 @@ describe('ModelPicker', () => {
   it('loads models and renders list', async () => {
     vi.mocked(sendRequest).mockResolvedValue({
       data: [
-        { id: 'gpt-4', name: 'GPT-4' } as never,
-        { id: 'gpt-3.5-turbo', name: 'GPT-3.5' } as never,
+        { id: 'gpt-4', displayName: 'GPT-4' } as never,
+        { id: 'gpt-3.5-turbo', displayName: 'GPT-3.5' } as never,
       ],
       nextCursor: null,
     });
@@ -1172,7 +1174,7 @@ describe('ModelPicker', () => {
 
   it('picking a model sends turn/start with model override', async () => {
     vi.mocked(sendRequest).mockResolvedValue({
-      data: [{ id: 'claude-3', name: 'Claude 3' } as never], nextCursor: null,
+      data: [{ id: 'claude-3', displayName: 'Claude 3' } as never], nextCursor: null,
     });
     const onClose = vi.fn();
     render(<ModelPicker threadId="t1" onClose={onClose} />);
@@ -1190,7 +1192,7 @@ describe('ModelPicker', () => {
 
   it('disables picking when threadId is null', async () => {
     vi.mocked(sendRequest).mockResolvedValue({
-      data: [{ id: 'm1', name: 'M1' } as never], nextCursor: null,
+      data: [{ id: 'm1', displayName: 'M1' } as never], nextCursor: null,
     });
     render(<ModelPicker threadId={null} onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('M1')).toBeInTheDocument());
@@ -1394,15 +1396,19 @@ git commit -m "feat(gui): AgentPanel sidebar section (main agent status, sub-age
 - Create: `assets/src/components/__tests__/Onboarding.test.tsx`
 - Modify: `assets/src/styles.css`(加 `.onboarding` 样式)
 
-- [ ] **Step 1: 先核实 getAuthStatus 返回结构**
+- [ ] **Step 1: getAuthStatus 返回结构(已核实)**
 
-```bash
-cat codex-rs/lemurclaw-gui/assets/src/types/GetAuthStatusParams.ts
-cat codex-rs/lemurclaw-gui/assets/src/types/GetAuthStatusResponse.ts 2>&1 || \
-  find codex-rs/lemurclaw-gui/assets/src/types -iname 'GetAuthStatus*'
+`types/GetAuthStatusResponse.ts`(在顶层 types/,非 v2/):
+```ts
+export type GetAuthStatusResponse = {
+  authMethod: AuthMode | null,   // null = 未配置 auth;非 null = 已配置
+  authToken: string | null,
+  requiresOpenaiAuth: boolean | null,
+};
 ```
+`AuthMode`(`types/AuthMode.ts`):`"apikey" | "chatgpt" | "chatgptAuthTokens" | "headers" | "agentIdentity" | "personalAccessToken" | "bedrockApiKey"`。
 
-预期:返回当前 auth 状态(logged_in / logged_out / mode)。实际字段名以文件为准。
+**判定逻辑(本 task 用):** `authMethod !== null` → 已配置某种 auth(可能是 apikey/chatgpt/...)→ 视为 "authed",放行。`authMethod === null && requiresOpenaiAuth === true` → 需要 OpenAI auth 但没配 → "unauthed",显示引导。`authMethod === null && requiresOpenaiAuth !== true` → 既没配 auth 也不要求 → 放行(本地 only 模式)。Step 1 的 cat 可跳过(已核实)。
 
 - [ ] **Step 2: Onboarding.tsx**
 
@@ -1419,30 +1425,30 @@ interface Props {
 type Phase = 'checking' | 'authed' | 'unauthed' | 'dismissed';
 
 /** Minimal onboarding gate. On mount, calls `getAuthStatus`. If the response
- *  indicates the user is not authenticated, shows a welcome screen that
- *  directs them to the CLI to run `codex login` (or the configured login
- *  command). If authed, renders children directly.
+ *  indicates no auth method is configured AND OpenAI auth is required, shows a
+ *  welcome screen directing the user to the CLI to run `codex login`. Otherwise
+ *  renders children directly.
  *
  *  Subproject 4 deliberately does NOT implement in-GUI OAuth — that's codex-
  *  api's WebSocket auth flow and is far heavier. The CLI handles login; the
  *  GUI just detects the result. */
 export function Onboarding({ children }: Props) {
   const [phase, setPhase] = useState<Phase>('checking');
-  const [authMode, setAuthMode] = useState<string | null>(null);
+  const [authMethod, setAuthMethod] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    sendRequest<{ loggedIn: boolean; mode?: string } | { status: string }>('getAuthStatus', {})
+    // Shape verified against types/GetAuthStatusResponse.ts:
+    //   { authMethod: AuthMode | null, authToken: string | null, requiresOpenaiAuth: boolean | null }
+    sendRequest<{ authMethod: string | null; requiresOpenaiAuth: boolean | null }>('getAuthStatus', {})
       .then((resp) => {
         if (cancelled) return;
-        // Tolerate both possible shapes (verified in Step 1 — adjust as needed)
-        const loggedIn = (resp as { loggedIn?: boolean }).loggedIn
-          ?? (resp as { status?: string }).status === 'logged_in'
-          ?? (resp as { status?: string }).status === 'ok';
-        const mode = (resp as { mode?: string }).mode
-          ?? (resp as { status?: string }).status ?? null;
-        setAuthMode(mode);
-        setPhase(loggedIn ? 'authed' : 'unauthed');
+        setAuthMethod(resp.authMethod);
+        // "authed" = some auth method is configured (apikey/chatgpt/...).
+        // "unauthed" = no method AND the server says OpenAI auth is required.
+        // Otherwise (no method, not required) pass through — local-only mode.
+        const authed = resp.authMethod !== null || resp.requiresOpenaiAuth !== true;
+        setPhase(authed ? 'authed' : 'unauthed');
       })
       .catch(() => {
         // If getAuthStatus fails entirely, assume authed — don't block the UI
@@ -1465,7 +1471,7 @@ export function Onboarding({ children }: Props) {
         <h2>welcome to lemurclaw</h2>
         <p>
           you're not signed in. lemurclaw needs a configured model provider
-          {authMode ? ` (current mode: ${authMode})` : ''}.
+          {authMethod ? ` (current mode: ${authMethod})` : ''}.
         </p>
         <p>
           open a terminal in this project and run:
@@ -1484,7 +1490,7 @@ export function Onboarding({ children }: Props) {
 ```
 
 > **实现注:**
-> 1. `getAuthStatus` 的真实返回 shape 以 Step 1 核实为准。代码用了"双 shape 兼容"兜底,实际接入时如果 shape 明确可以简化。
+> 1. `getAuthStatus` 返回 shape 已核实(Step 1):`{authMethod, authToken, requiresOpenaiAuth}`。判定逻辑:有 authMethod → authed;无 authMethod 但 requiresOpenaiAuth=true → unauthed;无 authMethod 且不要求 → authed(本地模式放行)。
 > 2. `codex login` 是 codex CLI 的命令(lemurclaw 复用),用户在系统终端跑,不是 GUI 里。
 > 3. "continue anyway" 让用户能跳过 —— 应对 auth 检测误报或者用户用 apikey 配置(没走 OAuth)的情况。
 > 4. 不显示 children 直到 authed/dismissed —— 用 Onboarding 包 App 的主内容做 gate(Task 4.9 装配)。
@@ -1503,15 +1509,21 @@ import { sendRequest } from '../../transport';
 describe('Onboarding', () => {
   beforeEach(() => vi.mocked(sendRequest).mockReset());
 
-  it('renders children when authed', async () => {
-    vi.mocked(sendRequest).mockResolvedValue({ loggedIn: true, mode: 'chatgpt' } as never);
+  it('renders children when authed (authMethod set)', async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ authMethod: 'chatgpt', authToken: null, requiresOpenaiAuth: false } as never);
     render(<Onboarding><div data-testid="app-content">app</div></Onboarding>);
     await waitFor(() => expect(screen.getByTestId('app-content')).toBeInTheDocument());
     expect(screen.queryByTestId('onboarding-unauthed')).toBeNull();
   });
 
-  it('shows welcome screen when unauthed', async () => {
-    vi.mocked(sendRequest).mockResolvedValue({ loggedIn: false, mode: null } as never);
+  it('renders children when no authMethod but OpenAI auth not required (local mode)', async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ authMethod: null, authToken: null, requiresOpenaiAuth: false } as never);
+    render(<Onboarding><div data-testid="app-content">app</div></Onboarding>);
+    await waitFor(() => expect(screen.getByTestId('app-content')).toBeInTheDocument());
+  });
+
+  it('shows welcome screen when unauthed (no method + requiresOpenaiAuth)', async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ authMethod: null, authToken: null, requiresOpenaiAuth: true } as never);
     render(<Onboarding><div data-testid="app-content">app</div></Onboarding>);
     await waitFor(() => expect(screen.getByTestId('onboarding-unauthed')).toBeInTheDocument());
     expect(screen.queryByTestId('app-content')).toBeNull();
@@ -1519,7 +1531,7 @@ describe('Onboarding', () => {
   });
 
   it('"continue anyway" dismisses and shows children', async () => {
-    vi.mocked(sendRequest).mockResolvedValue({ loggedIn: false, mode: null } as never);
+    vi.mocked(sendRequest).mockResolvedValue({ authMethod: null, authToken: null, requiresOpenaiAuth: true } as never);
     render(<Onboarding><div data-testid="app-content">app</div></Onboarding>);
     await waitFor(() => expect(screen.getByTestId('onboarding-unauthed')).toBeInTheDocument());
     fireEvent.click(screen.getByText('continue anyway'));
@@ -1902,8 +1914,8 @@ export function App() {
     <Onboarding>
       <div className="app-root">
         <TopBar
-          cwd={state.turns.length > 0 ? null : null /* TODO: surface thread.cwd */}
-          model={null /* TODO: surface current model from state */}
+          cwd={null /* TODO: surface thread.cwd — needs reducer extension to capture from thread/started */}
+          model={null /* TODO: surface current model — needs reducer extension */}
           onOpenModelPicker={() => setModal('model')}
           onOpenThemePicker={() => setModal('theme')}
           onOpenTranscript={() => setModal('transcript')}
