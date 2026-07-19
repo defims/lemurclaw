@@ -54,6 +54,12 @@ export function Scrollback({ state }: Props) {
   );
 }
 
+/** Render a single CellModel via the shared cell-component switch.
+ *
+ *  Used by Scrollback (live conversation region) and TranscriptPager (read-only
+ *  full-transcript overlay). Both render the same CellModel shape produced by
+ *  `viewModel/reducer.ts::threadItemToCell`, so the visual output is identical
+ *  between the live view and the historical review. */
 export function CellRenderer({ cell }: { cell: CellModel }) {
   switch (cell.kind) {
     case 'userMessage': return <UserMessageCell model={cell} />;
@@ -79,7 +85,10 @@ export function CellRenderer({ cell }: { cell: CellModel }) {
   }
 }
 
-function cellKey(cell: CellModel): string {
+/** Stable React key for a CellModel. Prefers the cell's `itemId` (unique per
+ *  thread); hook cells key off their run id. Shared so TranscriptPager produces
+ *  the same keys as Scrollback for the same items. */
+export function cellKey(cell: CellModel): string {
   if (cell.kind === 'hook') return `hook:${cell.run.id}`;
   return `${cell.kind}:${cell.itemId}`;
 }

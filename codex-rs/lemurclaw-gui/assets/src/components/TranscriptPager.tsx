@@ -3,7 +3,7 @@ import { sendRequest } from '../transport';
 import type { Thread } from '../types/v2';
 import type { CellModel } from '../viewModel/types';
 import { threadItemToCell } from '../viewModel/reducer';
-import { CellRenderer } from './Scrollback';
+import { CellRenderer, cellKey } from './Scrollback';
 
 interface Props {
   /** Thread to load. The pager fetches its turns on mount. */
@@ -74,7 +74,7 @@ export function TranscriptPager({ threadId, onClose }: Props) {
           )}
           {!state.loading && !state.error && state.cells.length > 0 && (
             <div className="transcript-pager-cells">
-              {state.cells.map((c, i) => <CellRenderer key={`${c.kind}-${i}`} cell={c} />)}
+              {state.cells.map((c) => <CellRenderer key={cellKey(c)} cell={c} />)}
             </div>
           )}
         </div>
