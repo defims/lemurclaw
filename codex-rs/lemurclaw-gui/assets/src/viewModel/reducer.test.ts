@@ -112,4 +112,88 @@ describe('reducer', () => {
     expect(afterComplete.turns[0].status).toBe('completed');
     expect(afterComplete.activeTurnId).toBeNull();
   });
+
+  // ---- Edge cases (added per Task 3.4 code review) ---------------------
+
+  it('item/*/delta for an unknown itemId silently no-ops (does not crash or invent a cell)', () => {
+    // Codex's next_event contract guarantees item/started precedes any delta,
+    // but if the contract is ever violated the reducer must degrade gracefully.
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterDelta = reducer(afterTurn, {
+      method: 'item/agentMessage/delta',
+      params: { threadId: 't1', turnId: 'tu1', itemId: 'never-started', delta: 'orphan' },
+    });
+    // No cell added, state structure unchanged in items length.
+    expect(afterDelta.turns[0].items).toHaveLength(0);
+    // State reference changes (immutable update through turn rebuild) but no
+    // data loss beyond the dropped delta.
+    expect(afterDelta).not.toBe(afterTurn);
+  });
+
+  it('multiple pendingApprovals coexist; serverRequest/resolved removes only the matching one', () => {
+    const base = {
+      threadId: 't1', turnId: 'tu1', itemId: 'i1', startedAtMs: 1,
+      environmentId: null, command: 'ls', cwd: { path: '/x' }, commandActions: null,
+    };
+    const afterFirst = reducer(st(), {
+      method: 'item/commandExecution/requestApproval', id: 42, params: base,
+    });
+    const afterSecond = reducer(afterFirst, {
+      method: 'item/commandExecution/requestApproval', id: 'abc', params: { ...base, itemId: 'i2' },
+    });
+    expect(afterSecond.pendingApprovals.map((a) => a.requestId)).toEqual([42, 'abc']);
+    // Resolve the numeric one; the string one must remain.
+    const afterResolveNum = reducer(afterSecond, {
+      method: 'serverRequest/resolved',
+      params: { requestId: 42 },
+    });
+    expect(afterResolveNum.pendingApprovals.map((a) => a.requestId)).toEqual(['abc']);
+    // Resolve the string one by String-normalized match (RequestId = string|number).
+    const afterResolveStr = reducer(afterResolveNum, {
+      method: 'serverRequest/resolved',
+      params: { requestId: 'abc' },
+    });
+    expect(afterResolveStr.pendingApprovals).toHaveLength(0);
+  });
+
+  it('hook/started then hook/completed coalesce by run.id into a single cell', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const startedRun = {
+      id: 'h1', eventName: 'PreToolUse', handlerType: 'command', executionMode: 'blocking',
+      scope: 'session', sourcePath: { path: '/h/.codex/hook.sh' }, source: 'project',
+      displayOrder: 0n, status: 'inProgress', statusMessage: null,
+      startedAt: 1n, completedAt: null, durationMs: null, entries: [],
+    };
+    const afterStarted = reducer(afterTurn, {
+      method: 'hook/started',
+      params: { threadId: 't1', turnId: 'tu1', run: startedRun },
+    });
+    expect(afterStarted.turns[0].items).toHaveLength(1);
+    expect(afterStarted.turns[0].items[0].kind).toBe('hook');
+
+    const completedRun = { ...startedRun, status: 'completed', completedAt: 2n, durationMs: 1n };
+    const afterCompleted = reducer(afterStarted, {
+      method: 'hook/completed',
+      params: { threadId: 't1', turnId: 'tu1', run: completedRun },
+    });
+    // Same cell (upsert by run.id), not a new one.
+    expect(afterCompleted.turns[0].items).toHaveLength(1);
+    const cell = afterCompleted.turns[0].items[0];
+    if (cell.kind !== 'hook') throw new Error('expected hook cell');
+    expect(cell.run.status).toBe('completed');
+  });
+
+  it('hook events with null turnId are dropped (no Scrollback anchor pre-first-turn)', () => {
+    const before = st();
+    const next = reducer(before, {
+      method: 'hook/started',
+      params: { threadId: 't1', turnId: null, run: {
+        id: 'h1', eventName: 'PreToolUse', handlerType: 'command', executionMode: 'blocking',
+        scope: 'session', sourcePath: { path: '/h/.codex/hook.sh' }, source: 'project',
+        displayOrder: 0n, status: 'inProgress', statusMessage: null,
+        startedAt: 1n, completedAt: null, durationMs: null, entries: [],
+      } },
+    });
+    expect(next).toBe(before); // state unchanged (reference equality — reducer returns state as-is)
+  });
 });
