@@ -41,14 +41,23 @@ describe('ApprovalCard', () => {
     expect(rejectServerRequest).toHaveBeenCalledWith(99, 'user declined');
   });
 
-  it('patch approval renders file list and sends acceptForSession', () => {
+  it('patch approval renders reason/grantRoot and sends acceptForSession', () => {
+    // NOTE: FileChangeRequestApprovalParams carries only threadId/turnId/itemId/
+    // startedAtMs/reason/grantRoot — NO changes list. Those arrive via
+    // `item/fileChange/patchUpdated` (Task 3.4 reducer captures them in the
+    // fileChange CellModel). This test verifies what the approval envelope
+    // actually exposes today.
     const approval: PendingApproval = {
       requestId: 7,
       kind: 'fileChange',
-      raw: { method: 'item/fileChange/requestApproval', id: 7, params: { threadId: 't', turnId: 'tu', itemId: 'i', startedAtMs: 1, changes: [{ path: 'a.rs', kind: { type: 'add' }, diff: '+x' }] } } as never,
+      raw: {
+        method: 'item/fileChange/requestApproval', id: 7,
+        params: { threadId: 't', turnId: 'tu', itemId: 'i', startedAtMs: 1, reason: 'needs write access', grantRoot: '/proj' },
+      } as never,
     };
     render(<ApprovalCard approval={approval} />);
-    expect(screen.getByText('a.rs')).toBeInTheDocument();
+    expect(screen.getByText('needs write access')).toBeInTheDocument();
+    expect(screen.getByText('/proj')).toBeInTheDocument();
     fireEvent.click(screen.getByText('always this session'));
     expect(resolveServerRequest).toHaveBeenCalledWith(7, { decision: 'acceptForSession' });
   });

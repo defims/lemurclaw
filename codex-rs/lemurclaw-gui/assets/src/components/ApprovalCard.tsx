@@ -60,20 +60,26 @@ function ExecApproval({ approval }: { approval: PendingApproval }) {
 }
 
 function FileChangeApproval({ approval }: { approval: PendingApproval }) {
+  // NOTE: FileChangeRequestApprovalParams only carries threadId/turnId/itemId/
+  // startedAtMs/reason/grantRoot — it does NOT include the actual file change
+  // list. Those arrive separately via `item/fileChange/patchUpdated`
+  // notifications and land in the fileChange CellModel (Task 3.4 reducer).
+  // Subproject 3 renders what the approval envelope actually exposes; a
+  // future task can cross-reference the matching fileChange cell by itemId
+  // to show the affected paths here.
   const params = approval.raw.params as {
-    changes?: Array<{ path: string; kind: { type: string }; diff?: string }> | null;
+    reason?: string | null;
+    grantRoot?: string | null;
   };
-  const changes = params.changes ?? [];
   return (
     <div className="approval approval-patch" data-testid="approval-patch">
       <div className="approval-title">📝 file change approval</div>
-      <ul className="approval-files">
-        {changes.map((c, i) => (
-          <li key={i} className={`approval-file approval-file-${c.kind.type}`}>
-            <code>{c.path}</code>
-          </li>
-        ))}
-      </ul>
+      {params.reason && <div className="approval-reason">{params.reason}</div>}
+      {params.grantRoot && (
+        <div className="approval-grant-root">
+          grants writes under: <code>{params.grantRoot}</code>
+        </div>
+      )}
       <div className="approval-buttons">
         <button onClick={() => resolveServerRequest(approval.requestId, { decision: 'accept' })}>apply once</button>
         <button onClick={() => resolveServerRequest(approval.requestId, { decision: 'acceptForSession' })}>always this session</button>
