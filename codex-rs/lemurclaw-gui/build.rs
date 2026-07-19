@@ -31,10 +31,22 @@ fn main() {
     let assets = manifest.join("assets");
     let dist = assets.join("dist");
 
-    println!("cargo:rerun-if-changed={}", assets.join("package.json").display());
-    println!("cargo:rerun-if-changed={}", assets.join("index.html").display());
-    println!("cargo:rerun-if-changed={}", assets.join("vite.config.ts").display());
-    println!("cargo:rerun-if-changed={}", assets.join("tsconfig.json").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        assets.join("package.json").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        assets.join("index.html").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        assets.join("vite.config.ts").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        assets.join("tsconfig.json").display()
+    );
     // Source tree (src/ + types/) — coarse-grained: any change under it reruns.
     println!("cargo:rerun-if-changed={}", assets.join("src").display());
 

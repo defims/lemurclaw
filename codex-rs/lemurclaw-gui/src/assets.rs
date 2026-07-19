@@ -18,8 +18,8 @@
 use std::borrow::Cow;
 
 use include_dir::{Dir, include_dir};
-use wry::http::{HeaderMap, HeaderValue, Request, Response, StatusCode};
 use wry::WebViewId;
+use wry::http::{HeaderMap, HeaderValue, Request, Response, StatusCode};
 
 /// The Vite-built React frontend, embedded at compile time.
 ///

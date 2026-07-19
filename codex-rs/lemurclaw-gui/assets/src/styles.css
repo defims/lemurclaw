@@ -1,0 +1,77 @@
+/* lemurclaw GUI base styles. Subproject 3 keeps it intentionally plain —
+   visual polish is out of scope. Layout follows spec §4.3: vertical main
+   column (scrollback + approvals + composer). */
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; background: #fafafa; font-size: 14px; }
+
+.app-root { display: flex; height: 100vh; }
+.app-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.app-scrollback { flex: 1; overflow: hidden; display: flex; }
+.scrollback { flex: 1; overflow-y: auto; padding: 12px; }
+.scrollback-empty { display: flex; align-items: center; justify-content: center; }
+.scrollback-placeholder { color: #888; }
+
+.cell { margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; background: #fff; border: 1px solid #eee; }
+.cell-role { font-size: 11px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.cell-text { margin: 0; font-family: 'SF Mono', Menlo, monospace; font-size: 13px; white-space: pre-wrap; word-wrap: break-word; }
+.cell-user { border-left: 3px solid #4a90e2; }
+.cell-agent { border-left: 3px solid #2eb872; }
+.cell-agent-final { background: #f0fff4; }
+.cell-reasoning { border-left: 3px solid #b8a02e; background: #fffdf3; }
+.cell-reasoning-toggle { background: none; border: none; cursor: pointer; color: #b8a02e; font-size: 12px; padding: 0; }
+.cell-reasoning-summary { opacity: 0.9; font-size: 12px; }
+.cell-reasoning-content { opacity: 0.7; font-size: 12px; border-top: 1px dashed #ddd; margin-top: 4px; padding-top: 4px; }
+
+.cell-exec { border-left: 3px solid #6c757d; }
+.cell-exec-header { display: flex; align-items: center; gap: 8px; }
+.cell-exec-command { font-family: 'SF Mono', Menlo, monospace; font-size: 13px; flex: 1; }
+.cell-exec-status { font-size: 11px; color: #666; }
+.cell-exec-cwd { font-size: 11px; color: #999; margin-top: 2px; }
+.cell-exec-output { margin-top: 6px; padding: 6px; background: #f4f4f4; font-size: 12px; max-height: 300px; overflow: auto; }
+.cell-exec-completed .cell-exec-status { color: #2eb872; }
+.cell-exec-failed .cell-exec-status { color: #d9534f; }
+
+.cell-patch { border-left: 3px solid #9b59b6; }
+.cell-patch-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.cell-patch-files { list-style: none; padding: 0; margin: 0; }
+.cell-patch-file { padding: 2px 0; }
+.cell-patch-file-toggle { background: none; border: none; cursor: pointer; padding: 0; font-size: 13px; }
+.cell-patch-kind { display: inline-block; width: 16px; font-weight: bold; }
+.cell-patch-file-add .cell-patch-kind { color: #2eb872; }
+.cell-patch-file-delete .cell-patch-kind { color: #d9534f; }
+.cell-patch-file-update .cell-patch-kind { color: #b8a02e; }
+.cell-patch-diff { margin: 4px 0; padding: 6px; background: #f4f4f4; font-size: 12px; max-height: 300px; overflow: auto; }
+
+.cell-mcp { border-left: 3px solid #e67e22; }
+.cell-mcp-header { display: flex; align-items: center; gap: 8px; }
+.cell-mcp-progress { margin: 4px 0 0 0; padding-left: 16px; font-size: 12px; color: #888; }
+
+.cell-plan { border-left: 3px solid #3498db; background: #f0f8ff; }
+.cell-plan-text { font-size: 13px; white-space: pre-wrap; }
+
+.cell-hook { border-left: 3px solid #95a5a6; background: #f8f8f8; font-size: 12px; }
+.cell-websearch { padding: 4px 10px; color: #888; font-size: 12px; }
+
+.composer { border-top: 1px solid #ddd; padding: 8px; background: #fff; display: flex; flex-direction: column; gap: 6px; }
+.composer-input { width: 100%; resize: vertical; min-height: 48px; padding: 6px; font-family: inherit; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+.composer-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.composer-send, .composer-interrupt { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.composer-send { background: #4a90e2; color: #fff; }
+.composer-send:disabled { background: #aaa; cursor: not-allowed; }
+.composer-interrupt { background: #d9534f; color: #fff; }
+
+.approvals-queue { padding: 8px; background: #fff8e1; border-top: 1px solid #ffe082; max-height: 40vh; overflow-y: auto; }
+.approval { background: #fff; border: 1px solid #ffe082; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; }
+.approval-title { font-weight: bold; margin-bottom: 4px; font-size: 13px; }
+.approval-detail { margin-bottom: 6px; font-size: 13px; }
+.approval-command { font-family: 'SF Mono', Menlo, monospace; background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+.approval-cwd { font-size: 11px; color: #888; margin-top: 2px; }
+.approval-files { list-style: none; padding: 0; margin: 0 0 6px 0; }
+.approval-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.approval-buttons button { padding: 4px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 12px; }
+.approval-buttons button:first-child { background: #2eb872; color: #fff; border-color: #2eb872; }
+.approval-buttons button:nth-child(2) { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+.approval-input { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; }
+.approval-raw { font-size: 11px; max-height: 150px; overflow: auto; background: #f4f4f4; padding: 4px; }
