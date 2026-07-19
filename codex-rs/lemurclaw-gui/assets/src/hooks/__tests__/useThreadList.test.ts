@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useThreadList } from '../useThreadList';
 
@@ -12,7 +12,9 @@ function makeThread(id: string) {
     threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, turns: [] } as never;
 }
 
+// See useRequest.test.ts for why this is `afterEach` not `beforeEach`.
 describe('useThreadList', () => {
+  afterEach(() => vi.mocked(sendRequest).mockReset());
   it('auto-loads first page on mount', async () => {
     vi.mocked(sendRequest).mockResolvedValue({ data: [makeThread('1'), makeThread('2')], nextCursor: null, backwardsCursor: null });
     const { result } = renderHook(() => useThreadList());

@@ -1,11 +1,21 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useRequestLazy } from '../useRequest';
 
 vi.mock('../../transport', () => ({ sendRequest: vi.fn() }));
 import { sendRequest } from '../../transport';
 
+// NOTE: use `afterEach`, not `beforeEach`, for `mockReset()` here.
+// Vitest 2.1.9 has a false-positive unhandled-rejection failure when
+// `beforeEach(() => mockReset())` is combined with `mockRejectedValue`:
+// the reset runs before the test body, and Vitest's mock/unhandled-rejection
+// interaction attributes the rejected promise to the `new Error(...)` site
+// even though the hook's `.catch` consumes it. `afterEach` runs cleanup
+// *after* the test body, so the rejection is already settled. This rule
+// applies to all transport-mocked tests in this subproject.
 describe('useRequestLazy', () => {
+  afterEach(() => vi.mocked(sendRequest).mockReset());
+
   it('transitions through loading → data on success', async () => {
     vi.mocked(sendRequest).mockResolvedValue({ ok: true } as never);
     const { result } = renderHook(() => useRequestLazy());
