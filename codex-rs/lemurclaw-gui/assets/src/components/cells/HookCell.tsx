@@ -8,8 +8,13 @@ interface Props {
 /** Hook cell. Shows hook event + handler + status; entries collapsible.
  *
  *  NOTE: HookRunSummary fields marked `bigint` in ts-rs types are actually
- *  serialized by codex as JSON numbers (serde i64 → number). We render them
- *  through Number()/String() defensively in case an engine preserves bigint. */
+ *  serialized by codex as JSON numbers (serde i64 → number), so JS sees plain
+ *  numbers at runtime. This subproject's UI only renders the string-typed
+ *  fields (eventName/handlerType/status/scope/statusMessage) and the entries
+ *  list (via JSON.stringify); it does not yet surface the numeric fields
+ *  (startedAt/durationMs/etc.), so no bigint coercion is needed yet. If/when
+ *  those fields are rendered, wrap them in Number() defensively in case an
+ *  engine ever preserves bigint. */
 export function HookCell({ model }: Props) {
   const [expanded, setExpanded] = useState(false);
   const r = model.run;
