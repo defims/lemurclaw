@@ -2,9 +2,45 @@
    visual polish is out of scope. Layout follows spec §4.3: vertical main
    column (scrollback + approvals + composer). */
 
+/* Theme variables (Task 4.8). Subproject 4 only variables the handful of
+   root colors that most affect the "first glance" feel when switching
+   themes — full var-ification of every hardcoded color is deferred to a
+   later subproject. The `:root` block sets the light defaults; [data-theme]
+   blocks override for dark / high-contrast (set on <html> by useTheme). */
+:root, [data-theme="light"] {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --border: #ddd;
+  --accent: #4a90e2;
+  --accent-bg: #e8f0fe;
+  --muted: #888;
+  --cell-bg: #fff;
+  --hover-bg: #f0f0f0;
+}
+[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --fg: #e0e0e0;
+  --border: #333;
+  --accent: #5b9bf5;
+  --accent-bg: #2a3a4f;
+  --muted: #888;
+  --cell-bg: #252525;
+  --hover-bg: #2f2f2f;
+}
+[data-theme="high-contrast"] {
+  --bg: #000;
+  --fg: #fff;
+  --border: #fff;
+  --accent: #ffff00;
+  --accent-bg: #333;
+  --muted: #ccc;
+  --cell-bg: #111;
+  --hover-bg: #222;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; background: #fafafa; font-size: 14px; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--fg); background: var(--bg); font-size: 14px; }
 
 .app-root { display: flex; height: 100vh; }
 .app-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -13,8 +49,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .scrollback-empty { display: flex; align-items: center; justify-content: center; }
 .scrollback-placeholder { color: #888; }
 
-.cell { margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; background: #fff; border: 1px solid #eee; }
-.cell-role { font-size: 11px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.cell { margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; background: var(--cell-bg); border: 1px solid var(--border); }
+.cell-role { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
 .cell-text { margin: 0; font-family: 'SF Mono', Menlo, monospace; font-size: 13px; white-space: pre-wrap; word-wrap: break-word; }
 .cell-user { border-left: 3px solid #4a90e2; }
 .cell-agent { border-left: 3px solid #2eb872; }
@@ -54,7 +90,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .cell-hook { border-left: 3px solid #95a5a6; background: #f8f8f8; font-size: 12px; }
 .cell-websearch { padding: 4px 10px; color: #888; font-size: 12px; }
 
-.composer { border-top: 1px solid #ddd; padding: 8px; background: #fff; display: flex; flex-direction: column; gap: 6px; }
+.composer { border-top: 1px solid var(--border); padding: 8px; background: var(--cell-bg); display: flex; flex-direction: column; gap: 6px; }
 .composer-input { width: 100%; resize: vertical; min-height: 48px; padding: 6px; font-family: inherit; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
 .composer-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .composer-send, .composer-interrupt { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
@@ -78,7 +114,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 
 /* Sidebar (spec §4.3 right rail). Subproject 4 fills in SessionPicker only;
    AgentPanel (Task 4.6) and Plan (subproject 5+) will reuse the same shell. */
-.app-sidebar { width: 260px; flex-shrink: 0; border-left: 1px solid #ddd; background: #fff; padding: 8px; overflow-y: auto; }
+.app-sidebar { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--cell-bg); padding: 8px; overflow-y: auto; }
 .sidebar-section { margin-bottom: 16px; }
 .sidebar-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin: 0 0 6px 0; }
 .sidebar-section-body { display: flex; flex-direction: column; gap: 4px; }
@@ -88,9 +124,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .session-item { padding: 0; }
 .session-item-button { width: 100%; text-align: left; background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
 .session-item-button:hover { background: #f0f0f0; }
-.session-item-active .session-item-button { background: #e8f0fe; }
+.session-item-active .session-item-button { background: var(--accent-bg); }
 .session-item-preview { font-size: 13px; color: #1a1a1a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-item-meta { font-size: 11px; color: #888; }
+.session-item-meta { font-size: 11px; color: var(--muted); }
 .session-load-more { background: none; border: 1px solid #ddd; padding: 4px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 .session-picker-loading, .session-picker-empty, .session-picker-error { font-size: 13px; color: #888; padding: 8px; }
 .session-picker-error button { margin-top: 4px; padding: 2px 8px; }
@@ -133,7 +169,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .agent-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; background: #f8f8f8; font-size: 12px; }
 .agent-row-main { background: #e8f0fe; }
 .agent-name { font-weight: 500; }
-.agent-status { color: #666; font-size: 11px; }
+.agent-status { color: var(--muted); font-size: 11px; }
 .agent-empty-hint { font-size: 11px; color: #aaa; padding: 4px 8px; font-style: italic; }
 
 /* Onboarding (Task 4.7) — welcome screen when no auth configured. */
@@ -145,3 +181,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .onboarding-cmd { background: #f4f4f4; padding: 8px 12px; border-radius: 4px; font-family: 'SF Mono', Menlo, monospace; font-size: 13px; }
 .onboarding-dismiss-hint { margin-top: 16px; font-size: 12px; color: #888; }
 .onboarding-dismiss { background: none; border: none; color: #4a90e2; cursor: pointer; text-decoration: underline; padding: 0; font: inherit; }
+
+/* ThemePicker (Task 4.8) — modal theme list. */
+.theme-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.theme-item-button { width: 100%; text-align: left; background: none; border: 1px solid var(--border); cursor: pointer; padding: 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
+.theme-item-button:hover { background: var(--hover-bg); }
+.theme-item-active .theme-item-button { border-color: var(--accent); background: var(--accent-bg); }
+.theme-item-name { font-size: 14px; }
+.theme-item-desc { font-size: 11px; color: var(--muted); }
