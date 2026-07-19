@@ -54,7 +54,11 @@ export function SessionPicker({ activeThreadId, onSelect }: Props) {
             key={t.id}
             className={`session-item${t.id === activeThreadId ? ' session-item-active' : ''}`}
           >
-            <button onClick={() => handleSelect(t)} className="session-item-button">
+            <button
+              onClick={() => handleSelect(t)}
+              className="session-item-button"
+              aria-current={t.id === activeThreadId ? 'true' : undefined}
+            >
               <span className="session-item-preview">{t.preview || t.name || '(untitled)'}</span>
               <span className="session-item-meta">
                 {t.modelProvider} · {new Date((t.recencyAt ?? t.updatedAt) * 1000).toLocaleDateString()}
