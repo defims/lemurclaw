@@ -4,6 +4,7 @@ import { Composer } from '../components/Composer';
 import { ApprovalCard } from '../components/ApprovalCard';
 import { Sidebar } from '../components/Sidebar';
 import { SessionPicker } from '../components/sidebar/SessionPicker';
+import { AgentPanel } from '../components/sidebar/AgentPanel';
 
 /** Top-level GUI application. Wires the transport stream into the ViewModel
  *  reducer via `useConversation`, then lays out the main conversation region
@@ -34,6 +35,7 @@ export function App() {
       <Sidebar
         sections={[
           { key: 'sessions', title: 'Sessions', body: <SessionPicker activeThreadId={threadId} /> },
+          { key: 'agents', title: 'Agent', body: <AgentPanel state={state} /> },
         ]}
       />
     </div>

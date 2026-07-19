@@ -127,3 +127,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .model-item-active .model-item-button { border-color: #4a90e2; background: #e8f0fe; }
 .model-item-name { font-size: 14px; }
 .model-item-id { font-size: 11px; color: #888; font-family: 'SF Mono', Menlo, monospace; }
+
+/* AgentPanel (Task 4.6) — sidebar "Agent" section. */
+.agent-panel { display: flex; flex-direction: column; gap: 4px; }
+.agent-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; background: #f8f8f8; font-size: 12px; }
+.agent-row-main { background: #e8f0fe; }
+.agent-name { font-weight: 500; }
+.agent-status { color: #666; font-size: 11px; }
+.agent-empty-hint { font-size: 11px; color: #aaa; padding: 4px 8px; font-style: italic; }
