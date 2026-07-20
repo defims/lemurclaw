@@ -15,6 +15,11 @@ vi.mock('../useConversation', () => ({
     state: conversationState,
     threadId: conversationState.status === null ? null : 't1',
     interrupt: vi.fn(),
+    // App.tsx passes these to Composer/ModelPicker/SessionPicker. Include
+    // them in the mock so any future test that triggers those components
+    // doesn't crash on `undefined is not a function`.
+    startTurn: vi.fn().mockResolvedValue(undefined),
+    resumeThread: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 

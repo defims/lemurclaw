@@ -64,8 +64,12 @@ export function useConversation() {
   const resumeThread = useCallback(async (threadId: string): Promise<void> => {
     try {
       const resp = await sendRequest<{ model: string; cwd: string }>('thread/resume', { threadId });
-      // Switch threadIdRef immediately so the composer + sidebar highlight
-      // follow the switch before the response comes back.
+      // Assign threadIdRef AFTER the await succeeds — if sendRequest rejects,
+      // the ref stays on the old thread (no inconsistency window). The
+      // eventual thread/started ServerNotification for the new thread will
+      // also flow through onEvent, but setting the ref here makes the
+      // composer + sidebar highlight follow the switch without waiting for
+      // that notification.
       threadIdRef.current = threadId;
       dispatch({ kind: 'responseMeta', model: resp.model, cwd: resp.cwd });
     } catch (e) {
