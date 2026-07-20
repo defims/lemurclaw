@@ -6,6 +6,7 @@ import { McpPanel } from './McpPanel';
 import { SkillsPanel } from './SkillsPanel';
 import { AppsPanel } from './AppsPanel';
 import { PluginsPanel } from './PluginsPanel';
+import { ExperimentalPanel } from './ExperimentalPanel';
 
 /** Identifiers for the settings surfaces. Each one maps to a panel file
  *  populated in Tasks 4-7. Order here = order in the left nav.
@@ -74,7 +75,8 @@ export function SettingsModal({ onClose }: Props) {
           {surface === 'skills' && <SkillsPanel />}
           {surface === 'apps' && <AppsPanel />}
           {surface === 'plugins' && <PluginsPanel />}
-          {(surface === 'memories' || surface === 'model' || surface === 'experimental') && (
+          {surface === 'experimental' && <ExperimentalPanel />}
+          {(surface === 'memories' || surface === 'model') && (
             <Placeholder surface={surface} />
           )}
         </div>

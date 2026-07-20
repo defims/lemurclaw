@@ -229,6 +229,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .settings-list-item-action { padding-right: 12px; }
 .settings-action-button { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: var(--muted); }
 .settings-action-button:hover { color: inherit; border-color: var(--muted); }
+.experimental-feature-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; flex: 1; }
+.experimental-feature-stage { color: var(--muted); font-size: 11px; }
 
 /* SettingsModal layout (subproject 5-A). */
 .settings-modal-body { display: flex; min-height: 420px; gap: 0; margin: -12px; }
