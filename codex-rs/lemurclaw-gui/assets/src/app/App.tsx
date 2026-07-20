@@ -55,8 +55,8 @@ export function App() {
     <Onboarding>
       <div className="app-root">
         <TopBar
-          cwd={null /* TODO: surface thread.cwd — needs reducer extension */}
-          model={null /* TODO: surface current model — needs reducer extension */}
+          cwd={state.cwd}
+          model={state.currentModel}
           onOpenModelPicker={() => setModal('model')}
           onOpenThemePicker={() => setModal('theme')}
           onOpenTranscript={() => setModal('transcript')}
