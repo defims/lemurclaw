@@ -28,7 +28,7 @@ type ModalKind = 'none' | 'model' | 'theme' | 'transcript';
  *    but needs revisiting for webui mode (subproject 6) where Cmd+T is the
  *    browser new-tab shortcut. */
 export function App() {
-  const { state, threadId, interrupt } = useConversation();
+  const { state, threadId, interrupt, startTurn, resumeThread } = useConversation();
   const { theme, setTheme } = useTheme();
   const [modal, setModal] = useState<ModalKind>('none');
   const turnActive = state.activeTurnId !== null;
@@ -73,11 +73,11 @@ export function App() {
                 ))}
               </div>
             )}
-            <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} />
+            <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} startTurn={startTurn} />
           </main>
           <Sidebar
             sections={[
-              { key: 'sessions', title: 'Sessions', body: <SessionPicker activeThreadId={threadId} /> },
+              { key: 'sessions', title: 'Sessions', body: <SessionPicker activeThreadId={threadId} onResume={resumeThread} /> },
               { key: 'agents', title: 'Agent', body: <AgentPanel state={state} /> },
             ]}
           />
@@ -88,7 +88,7 @@ export function App() {
         <TranscriptPager threadId={threadId} onClose={() => setModal('none')} />
       )}
       {modal === 'model' && (
-        <ModelPicker threadId={threadId} onClose={() => setModal('none')} />
+        <ModelPicker threadId={threadId} onClose={() => setModal('none')} startTurn={startTurn} />
       )}
       {modal === 'theme' && (
         <ThemePicker current={theme} onPick={(t) => setTheme(t)} onClose={() => setModal('none')} />

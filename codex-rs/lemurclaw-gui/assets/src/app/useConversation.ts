@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useCallback } from 'react';
-import { onEvent, send, registerResponseHandler } from '../transport';
+import { onEvent, send, registerResponseHandler, sendRequest } from '../transport';
 import { reducer } from '../viewModel/reducer';
 import { initialState } from '../viewModel/types';
 
@@ -48,5 +48,30 @@ export function useConversation() {
     });
   }, [state.activeTurnId]);
 
-  return { state, threadId: threadIdRef.current, interrupt };
+  const startTurn = useCallback(async (input: unknown[], modelOverride?: string): Promise<void> => {
+    const threadId = threadIdRef.current;
+    if (!threadId) return;
+    const params: Record<string, unknown> = { threadId, input };
+    if (modelOverride) params.model = modelOverride;
+    try {
+      const resp = await sendRequest<{ model: string; cwd: string }>('turn/start', params);
+      dispatch({ kind: 'responseMeta', model: resp.model, cwd: resp.cwd });
+    } catch (e) {
+      console.error('useConversation.startTurn failed', e);
+    }
+  }, []);
+
+  const resumeThread = useCallback(async (threadId: string): Promise<void> => {
+    try {
+      const resp = await sendRequest<{ model: string; cwd: string }>('thread/resume', { threadId });
+      // Switch threadIdRef immediately so the composer + sidebar highlight
+      // follow the switch before the response comes back.
+      threadIdRef.current = threadId;
+      dispatch({ kind: 'responseMeta', model: resp.model, cwd: resp.cwd });
+    } catch (e) {
+      console.error('useConversation.resumeThread failed', e);
+    }
+  }, []);
+
+  return { state, threadId: threadIdRef.current, interrupt, startTurn, resumeThread };
 }

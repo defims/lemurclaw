@@ -126,3 +126,17 @@ export function summarizeCommandActions(actions: Array<CommandAction> | null | u
   // CommandAction.name only exists on the `read` variant; fall back to type tag.
   return actions.map((a) => ('name' in a && a.name ? a.name : a.type)).join(' | ');
 }
+
+/**
+ * Synthetic action dispatched by useConversation when a turn/start or
+ * thread/resume ClientRequest's JSON-RPC response arrives. The response
+ * (ThreadStartResponse / ThreadResumeResponse) carries authoritative cwd +
+ * model that the reducer can't get from ServerNotifications alone. This is
+ * NOT a ServerNotification — it's a local dispatch used to fold response
+ * data into ConversationState.
+ */
+export interface ResponseMetaAction {
+  kind: 'responseMeta';
+  cwd: string | null;
+  model: string | null;
+}

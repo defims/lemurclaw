@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sendRequest, send } from '../transport';
+import { sendRequest } from '../transport';
 import type { Model } from '../types/v2';
 import type { ModelListResponse } from '../types/v2/ModelListResponse';
 
@@ -9,6 +9,9 @@ interface Props {
   /** Currently selected model id (for highlight). Optional. */
   currentModel?: string | null;
   onClose: () => void;
+  /** Send a turn/start ClientRequest via sendRequest (with model override) and
+   *  fold the response's cwd/model into state. */
+  startTurn: (input: unknown[], modelOverride?: string) => Promise<void>;
 }
 
 interface LoadState {
@@ -23,7 +26,7 @@ interface LoadState {
  *  method — the override takes effect on the next turn).
  *
  *  Close: Esc, backdrop click, or ✕ button. */
-export function ModelPicker({ threadId, currentModel, onClose }: Props) {
+export function ModelPicker({ threadId, currentModel, onClose, startTurn }: Props) {
   const [state, setState] = useState<LoadState>({ loading: true, error: null, models: [] });
 
   useEffect(() => {
@@ -49,19 +52,9 @@ export function ModelPicker({ threadId, currentModel, onClose }: Props) {
 
   const handlePick = (model: Model) => {
     if (!threadId) return;
-    // Switch model via next-turn override. Empty input means "no new user
-    // message, just switch model" — codex treats empty input as a no-op turn,
-    // so we add a minimal steering placeholder if needed. For now, send an
-    // empty text; user can type in Composer after.
-    send({
-      method: 'turn/start',
-      id: Date.now(),
-      params: {
-        threadId,
-        input: [{ type: 'text', text: '', text_elements: [] }],
-        model: model.id,
-      },
-    });
+    // Switch model via next-turn override. Empty input = no new user message;
+    // codex treats this as a no-op turn, model still takes effect next turn.
+    startTurn([{ type: 'text', text: '', text_elements: [] }], model.id);
     onClose();
   };
 

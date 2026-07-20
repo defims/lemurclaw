@@ -14,7 +14,7 @@
 // Item lookup: O(n) over active turn items. Conversation lengths in normal
 // agent runs are < 500 items; if this becomes hot, switch to a Map index.
 
-import type { ConversationState, TurnModel, CellModel, PendingApproval, ApprovalKind } from './types';
+import type { ConversationState, TurnModel, CellModel, PendingApproval, ApprovalKind, ResponseMetaAction } from './types';
 import { isServerNotification, isServerRequest } from '../types/guards';
 import type { ServerNotification } from '../types/ServerNotification';
 import type { ServerRequest } from '../types/ServerRequest';
@@ -26,6 +26,9 @@ export function reducer(state: ConversationState, event: unknown): ConversationS
   }
   if (isServerRequest(event)) {
     return applyServerRequest(state, event);
+  }
+  if (isResponseMetaAction(event)) {
+    return applyResponseMeta(state, event);
   }
   // Unknown event shape (e.g. backend's `{lagged, skipped}` envelope).
   return state;
@@ -128,6 +131,20 @@ function applyServerRequest(state: ConversationState, r: ServerRequest): Convers
   const kind = approvalKindFor(r);
   const approval: PendingApproval = { requestId: r.id, kind, raw: r };
   return { ...state, pendingApprovals: [...state.pendingApprovals, approval] };
+}
+
+function isResponseMetaAction(x: unknown): x is ResponseMetaAction {
+  if (typeof x !== 'object' || x === null) return false;
+  return (x as { kind?: unknown }).kind === 'responseMeta';
+}
+
+function applyResponseMeta(state: ConversationState, action: ResponseMetaAction): ConversationState {
+  // Only overwrite when the response carries a non-null value — lets later
+  // responses update cwd/model without clobbering with nulls on partial fails.
+  const next = { ...state };
+  if (action.cwd !== null) next.cwd = action.cwd;
+  if (action.model !== null) next.currentModel = action.model;
+  return next;
 }
 
 function approvalKindFor(r: ServerRequest): ApprovalKind {

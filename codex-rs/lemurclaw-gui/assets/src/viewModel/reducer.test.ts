@@ -129,6 +129,19 @@ describe('reducer', () => {
     expect(next.currentModel).toBe('gpt-4o');
   });
 
+  it('responseMeta action folds cwd + model into state', () => {
+    const next = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
+    expect(next.cwd).toBe('/proj');
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
+  it('responseMeta with null fields preserves existing cwd/model', () => {
+    const after = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
+    const next = reducer(after, { kind: 'responseMeta', cwd: null, model: null });
+    expect(next.cwd).toBe('/proj'); // not clobbered
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
   // ---- Edge cases (added per Task 3.4 code review) ---------------------
 
   it('item/*/delta for an unknown itemId silently no-ops (does not crash or invent a cell)', () => {

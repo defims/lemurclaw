@@ -10,10 +10,11 @@ vi.mock('../../transport', () => ({
   },
   send: vi.fn(),
   registerResponseHandler: vi.fn(),
+  sendRequest: vi.fn(),
 }));
 
 import { useConversation } from '../useConversation';
-import { send } from '../../transport';
+import { send, sendRequest } from '../../transport';
 
 function emit(ev: unknown): void {
   if (!onEventCb) throw new Error('onEvent not installed');
@@ -25,6 +26,7 @@ function emit(ev: unknown): void {
 describe('useConversation', () => {
   afterEach(() => {
     vi.mocked(send).mockClear();
+    vi.mocked(sendRequest).mockReset();
     onEventCb = null;
   });
 
@@ -62,5 +64,26 @@ describe('useConversation', () => {
         params: { threadId: 't2', turnId: 'tu2' },
       }),
     );
+  });
+
+  it('startTurn dispatches responseMeta with cwd + model from response', async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ model: 'gpt-4o', cwd: '/proj' } as never);
+    const { result } = renderHook(() => useConversation());
+    emit({ method: 'turn/started', params: { threadId: 't1', turn: { id: 'tu1', items: [] } } });
+    await act(async () => {
+      await result.current.startTurn([{ type: 'text', text: 'hi', text_elements: [] }]);
+    });
+    expect(result.current.state.cwd).toBe('/proj');
+    expect(result.current.state.currentModel).toBe('gpt-4o');
+  });
+
+  it('resumeThread sets threadId and dispatches responseMeta', async () => {
+    vi.mocked(sendRequest).mockResolvedValue({ model: 'claude-3', cwd: '/other' } as never);
+    const { result } = renderHook(() => useConversation());
+    emit({ method: 'turn/started', params: { threadId: 't1', turn: { id: 'tu1', items: [] } } });
+    await act(async () => { await result.current.resumeThread('t2'); });
+    expect(result.current.threadId).toBe('t2');
+    expect(result.current.state.cwd).toBe('/other');
+    expect(result.current.state.currentModel).toBe('claude-3');
   });
 });

@@ -3,10 +3,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { SessionPicker } from '../SessionPicker';
 
 vi.mock('../../../hooks/useThreadList', () => ({ useThreadList: vi.fn() }));
-vi.mock('../../../transport', () => ({ send: vi.fn() }));
 
 import { useThreadList } from '../../../hooks/useThreadList';
-import { send } from '../../../transport';
 import type { Thread } from '../../../types/v2';
 
 function makeThread(over: Partial<Thread> = {}): Thread {
@@ -26,7 +24,6 @@ describe('SessionPicker', () => {
   // false-positive unhandled-rejection failure with that combination.
   afterEach(() => {
     vi.mocked(useThreadList).mockReset();
-    vi.mocked(send).mockClear();
   });
 
   it('renders threads and highlights active', () => {
@@ -34,29 +31,28 @@ describe('SessionPicker', () => {
       threads: [makeThread({ id: 't1', preview: 'first' }), makeThread({ id: 't2', preview: 'second' })],
       loading: false, error: null, nextCursor: null, loadMore: vi.fn(), refresh: vi.fn(),
     } as never);
-    render(<SessionPicker activeThreadId="t1" />);
+    render(<SessionPicker activeThreadId="t1" onResume={vi.fn()} />);
     expect(screen.getByText('first')).toBeInTheDocument();
     expect(screen.getByText('second')).toBeInTheDocument();
     expect(screen.getByText('first').closest('.session-item')).toHaveClass('session-item-active');
   });
 
-  it('clicking a session sends thread/resume', () => {
+  it('clicking a session calls onResume with the thread id', () => {
     vi.mocked(useThreadList).mockReturnValue({
       threads: [makeThread({ id: 't9', preview: 'click me' })],
       loading: false, error: null, nextCursor: null, loadMore: vi.fn(), refresh: vi.fn(),
     } as never);
-    render(<SessionPicker activeThreadId={null} />);
+    const onResume = vi.fn();
+    render(<SessionPicker activeThreadId={null} onResume={onResume} />);
     fireEvent.click(screen.getByText('click me'));
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({
-      method: 'thread/resume', params: { threadId: 't9' },
-    }));
+    expect(onResume).toHaveBeenCalledWith('t9');
   });
 
   it('shows empty state', () => {
     vi.mocked(useThreadList).mockReturnValue({
       threads: [], loading: false, error: null, nextCursor: null, loadMore: vi.fn(), refresh: vi.fn(),
     } as never);
-    render(<SessionPicker activeThreadId={null} />);
+    render(<SessionPicker activeThreadId={null} onResume={vi.fn()} />);
     expect(screen.getByText('no sessions yet')).toBeInTheDocument();
   });
 
@@ -65,7 +61,7 @@ describe('SessionPicker', () => {
     vi.mocked(useThreadList).mockReturnValue({
       threads: [], loading: false, error: 'network down', nextCursor: null, loadMore: vi.fn(), refresh,
     } as never);
-    render(<SessionPicker activeThreadId={null} />);
+    render(<SessionPicker activeThreadId={null} onResume={vi.fn()} />);
     expect(screen.getByText(/network down/)).toBeInTheDocument();
     fireEvent.click(screen.getByText('retry'));
     expect(refresh).toHaveBeenCalled();
