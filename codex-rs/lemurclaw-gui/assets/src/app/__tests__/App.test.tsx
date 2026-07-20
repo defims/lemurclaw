@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ConversationState } from '../../viewModel/types';
 import { initialState } from '../../viewModel/types';
+import { sendRequest } from '../../transport';
 
 // Mock useConversation so App renders without a backend. We expose a setter
 // so individual tests can drive the ConversationState (e.g. give it a
@@ -109,5 +110,106 @@ describe('App (integration)', () => {
     fireEvent.click(screen.getByLabelText('theme'));
     expect(screen.queryByTestId('model-picker')).toBeNull();
     expect(screen.getByTestId('theme-picker')).toBeInTheDocument();
+  });
+
+  // ----- SettingsModal integration (subproject 5-A) -----
+  // These exercise the full App → TopBar gear → SettingsModal → surface panel
+  // → RPC chain in one mounted tree. The single-panel tests cover leaf
+  // behavior; these guard against routing/wiring regressions across the
+  // component boundary.
+
+  it('gear button (⚙) opens SettingsModal and defaults to Permissions', () => {
+    render(<App />);
+    expect(screen.queryByTestId('settings-modal')).toBeNull();
+    fireEvent.click(screen.getByLabelText('settings'));
+    expect(screen.getByTestId('settings-modal')).toBeInTheDocument();
+    // First surface is Permissions and its pane is rendered.
+    expect(screen.getByText('Permissions').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
+    expect(screen.getByTestId('settings-pane-permissions')).toBeInTheDocument();
+  });
+
+  it('Esc closes the SettingsModal', () => {
+    render(<App />);
+    fireEvent.click(screen.getByLabelText('settings'));
+    expect(screen.getByTestId('settings-modal')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('settings-modal')).toBeNull();
+  });
+
+  it('switching to Plugins renders the plugin list with install actions', async () => {
+    // Route responses by method name so the PermissionsPanel mount (default
+    // surface) doesn't consume the plugin/list fixture via mockResolvedValueOnce.
+    const pluginFixture = {
+      marketplaces: [
+        {
+          name: 'local-market',
+          path: { path: '/home/.codex/marketplaces/local.json' },
+          interface: null,
+          plugins: [
+            {
+              id: 'p1', remotePluginId: null, version: null, localVersion: null,
+              name: 'Plugin One', shareContext: null, source: 'marketplace',
+              installed: false, enabled: false, installPolicy: 'allow',
+              installPolicySource: null, mustShowInstallationInterstitial: null,
+              authPolicy: 'never', availability: 'available', interface: null, keywords: [],
+            },
+          ],
+        },
+      ],
+      marketplaceLoadErrors: [],
+      featuredPluginIds: [],
+    };
+    vi.mocked(sendRequest).mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return pluginFixture as never;
+      return { data: [], nextCursor: null } as never;
+    });
+    render(<App />);
+    fireEvent.click(screen.getByLabelText('settings'));
+    fireEvent.click(screen.getByText('Plugins'));
+    // Plugins nav is active and the row rendered.
+    expect(screen.getByText('Plugins').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
+    await waitFor(() => expect(screen.getByText('Plugin One')).toBeInTheDocument());
+    // Uninstalled plugin offers install.
+    expect(screen.getByRole('button', { name: (n) => n === 'install' })).toBeInTheDocument();
+  });
+
+  it('clicking install fires plugin/install with marketplace context', async () => {
+    let installed = false;
+    const buildFixture = () => ({
+      marketplaces: [
+        {
+          name: 'local-market',
+          path: { path: '/home/.codex/marketplaces/local.json' },
+          interface: null,
+          plugins: [
+            {
+              id: 'p1', remotePluginId: null, version: null, localVersion: null,
+              name: 'Plugin One', shareContext: null, source: 'marketplace',
+              installed, enabled: installed, installPolicy: 'allow',
+              installPolicySource: null, mustShowInstallationInterstitial: null,
+              authPolicy: 'never', availability: 'available', interface: null, keywords: [],
+            },
+          ],
+        },
+      ],
+      marketplaceLoadErrors: [],
+      featuredPluginIds: [],
+    });
+    vi.mocked(sendRequest).mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return buildFixture() as never;
+      if (method === 'plugin/install') { installed = true; return { authPolicy: 'never', appsNeedingAuth: [] } as never; }
+      return { data: [], nextCursor: null } as never;
+    });
+    render(<App />);
+    fireEvent.click(screen.getByLabelText('settings'));
+    fireEvent.click(screen.getByText('Plugins'));
+    await waitFor(() => expect(screen.getByText('Plugin One')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: (n) => n === 'install' }));
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('plugin/install', {
+        marketplacePath: { path: '/home/.codex/marketplaces/local.json' },
+        pluginName: 'Plugin One',
+      });
+    });
   });
 });
