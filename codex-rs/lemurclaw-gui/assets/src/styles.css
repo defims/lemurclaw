@@ -16,6 +16,25 @@
   --muted: #888;
   --cell-bg: #fff;
   --hover-bg: #f0f0f0;
+  /* Status + neutral variants + cell accents (Task 5.5) */
+  --ok: #2eb872;
+  --err: #d9534f;
+  --warn: #b8a02e;
+  --warn-bg: #fff8e1;
+  --warn-border: #ffe082;
+  --muted-strong: #666;
+  --muted-weak: #aaa;
+  --border-strong: #ccc;
+  --border-weak: #eee;
+  --code-bg: #f4f4f4;
+  --cell-bg-alt: #f8f8f8;
+  --exec-accent: #6c757d;
+  --patch-accent: #9b59b6;
+  --mcp-accent: #e67e22;
+  --plan-accent: #3498db;
+  --plan-bg: #f0f8ff;
+  --hook-accent: #95a5a6;
+  --agent-final-bg: #f0fff4;
 }
 [data-theme="dark"] {
   --bg: #1a1a1a;
@@ -26,6 +45,25 @@
   --muted: #888;
   --cell-bg: #252525;
   --hover-bg: #2f2f2f;
+  /* Status + neutral variants + cell accents (Task 5.5) */
+  --ok: #4ec98a;
+  --err: #e0655f;
+  --warn: #d4b04e;
+  --warn-bg: #3a3520;
+  --warn-border: #5a5028;
+  --muted-strong: #999;
+  --muted-weak: #666;
+  --border-strong: #444;
+  --border-weak: #2a2a2a;
+  --code-bg: #2a2a2a;
+  --cell-bg-alt: #1f1f1f;
+  --exec-accent: #8a9398;
+  --patch-accent: #b06fd0;
+  --mcp-accent: #e89b4e;
+  --plan-accent: #4fa8da;
+  --plan-bg: #1a2838;
+  --hook-accent: #a5b0b6;
+  --agent-final-bg: #1a3024;
 }
 [data-theme="high-contrast"] {
   --bg: #000;
@@ -36,6 +74,25 @@
   --muted: #ccc;
   --cell-bg: #111;
   --hover-bg: #222;
+  /* Status + neutral variants + cell accents (Task 5.5) */
+  --ok: #00ff00;
+  --err: #ff5555;
+  --warn: #ffff00;
+  --warn-bg: #333300;
+  --warn-border: #ffff00;
+  --muted-strong: #ddd;
+  --muted-weak: #aaa;
+  --border-strong: #fff;
+  --border-weak: #ccc;
+  --code-bg: #1a1a1a;
+  --cell-bg-alt: #0a0a0a;
+  --exec-accent: #ccc;
+  --patch-accent: #ff00ff;
+  --mcp-accent: #ffaa00;
+  --plan-accent: #00ffff;
+  --plan-bg: #001a33;
+  --hook-accent: #aaa;
+  --agent-final-bg: #003300;
 }
 
 * { box-sizing: border-box; }
@@ -50,100 +107,100 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .app-scrollback { flex: 1; overflow: hidden; display: flex; }
 .scrollback { flex: 1; overflow-y: auto; padding: 12px; }
 .scrollback-empty { display: flex; align-items: center; justify-content: center; }
-.scrollback-placeholder { color: #888; }
+.scrollback-placeholder { color: var(--muted); }
 
 .cell { margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; background: var(--cell-bg); border: 1px solid var(--border); }
 .cell-role { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
 .cell-text { margin: 0; font-family: 'SF Mono', Menlo, monospace; font-size: 13px; white-space: pre-wrap; word-wrap: break-word; }
-.cell-user { border-left: 3px solid #4a90e2; }
-.cell-agent { border-left: 3px solid #2eb872; }
-.cell-agent-final { background: #f0fff4; }
-.cell-reasoning { border-left: 3px solid #b8a02e; background: #fffdf3; }
-.cell-reasoning-toggle { background: none; border: none; cursor: pointer; color: #b8a02e; font-size: 12px; padding: 0; }
+.cell-user { border-left: 3px solid var(--accent); }
+.cell-agent { border-left: 3px solid var(--ok); }
+.cell-agent-final { background: var(--agent-final-bg); }
+.cell-reasoning { border-left: 3px solid var(--warn); background: var(--cell-bg-alt); }
+.cell-reasoning-toggle { background: none; border: none; cursor: pointer; color: var(--warn); font-size: 12px; padding: 0; }
 .cell-reasoning-summary { opacity: 0.9; font-size: 12px; }
-.cell-reasoning-content { opacity: 0.7; font-size: 12px; border-top: 1px dashed #ddd; margin-top: 4px; padding-top: 4px; }
+.cell-reasoning-content { opacity: 0.7; font-size: 12px; border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 4px; }
 
-.cell-exec { border-left: 3px solid #6c757d; }
+.cell-exec { border-left: 3px solid var(--exec-accent); }
 .cell-exec-header { display: flex; align-items: center; gap: 8px; }
 .cell-exec-command { font-family: 'SF Mono', Menlo, monospace; font-size: 13px; flex: 1; }
-.cell-exec-status { font-size: 11px; color: #666; }
-.cell-exec-cwd { font-size: 11px; color: #999; margin-top: 2px; }
-.cell-exec-output { margin-top: 6px; padding: 6px; background: #f4f4f4; font-size: 12px; max-height: 300px; overflow: auto; }
-.cell-exec-completed .cell-exec-status { color: #2eb872; }
-.cell-exec-failed .cell-exec-status { color: #d9534f; }
+.cell-exec-status { font-size: 11px; color: var(--muted-strong); }
+.cell-exec-cwd { font-size: 11px; color: var(--muted-strong); margin-top: 2px; }
+.cell-exec-output { margin-top: 6px; padding: 6px; background: var(--code-bg); font-size: 12px; max-height: 300px; overflow: auto; }
+.cell-exec-completed .cell-exec-status { color: var(--ok); }
+.cell-exec-failed .cell-exec-status { color: var(--err); }
 
-.cell-patch { border-left: 3px solid #9b59b6; }
+.cell-patch { border-left: 3px solid var(--patch-accent); }
 .cell-patch-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .cell-patch-files { list-style: none; padding: 0; margin: 0; }
 .cell-patch-file { padding: 2px 0; }
 .cell-patch-file-toggle { background: none; border: none; cursor: pointer; padding: 0; font-size: 13px; }
 .cell-patch-kind { display: inline-block; width: 16px; font-weight: bold; }
-.cell-patch-file-add .cell-patch-kind { color: #2eb872; }
-.cell-patch-file-delete .cell-patch-kind { color: #d9534f; }
-.cell-patch-file-update .cell-patch-kind { color: #b8a02e; }
-.cell-patch-diff { margin: 4px 0; padding: 6px; background: #f4f4f4; font-size: 12px; max-height: 300px; overflow: auto; }
+.cell-patch-file-add .cell-patch-kind { color: var(--ok); }
+.cell-patch-file-delete .cell-patch-kind { color: var(--err); }
+.cell-patch-file-update .cell-patch-kind { color: var(--warn); }
+.cell-patch-diff { margin: 4px 0; padding: 6px; background: var(--code-bg); font-size: 12px; max-height: 300px; overflow: auto; }
 
-.cell-mcp { border-left: 3px solid #e67e22; }
+.cell-mcp { border-left: 3px solid var(--mcp-accent); }
 .cell-mcp-header { display: flex; align-items: center; gap: 8px; }
-.cell-mcp-progress { margin: 4px 0 0 0; padding-left: 16px; font-size: 12px; color: #888; }
+.cell-mcp-progress { margin: 4px 0 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
 
-.cell-plan { border-left: 3px solid #3498db; background: #f0f8ff; }
+.cell-plan { border-left: 3px solid var(--plan-accent); background: var(--plan-bg); }
 .cell-plan-text { font-size: 13px; white-space: pre-wrap; }
 
-.cell-hook { border-left: 3px solid #95a5a6; background: #f8f8f8; font-size: 12px; }
-.cell-websearch { padding: 4px 10px; color: #888; font-size: 12px; }
+.cell-hook { border-left: 3px solid var(--hook-accent); background: var(--cell-bg-alt); font-size: 12px; }
+.cell-websearch { padding: 4px 10px; color: var(--muted); font-size: 12px; }
 
 .composer { border-top: 1px solid var(--border); padding: 8px; background: var(--cell-bg); display: flex; flex-direction: column; gap: 6px; }
-.composer-input { width: 100%; resize: vertical; min-height: 48px; padding: 6px; font-family: inherit; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+.composer-input { width: 100%; resize: vertical; min-height: 48px; padding: 6px; font-family: inherit; font-size: 14px; border: 1px solid var(--border-strong); border-radius: 4px; }
 .composer-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .composer-send, .composer-interrupt { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
-.composer-send { background: #4a90e2; color: #fff; }
-.composer-send:disabled { background: #aaa; cursor: not-allowed; }
-.composer-interrupt { background: #d9534f; color: #fff; }
+.composer-send { background: var(--accent); color: var(--cell-bg); }
+.composer-send:disabled { background: var(--muted-weak); cursor: not-allowed; }
+.composer-interrupt { background: var(--err); color: var(--cell-bg); }
 
-.approvals-queue { padding: 8px; background: #fff8e1; border-top: 1px solid #ffe082; max-height: 40vh; overflow-y: auto; }
-.approval { background: #fff; border: 1px solid #ffe082; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; }
+.approvals-queue { padding: 8px; background: var(--warn-bg); border-top: 1px solid var(--warn-border); max-height: 40vh; overflow-y: auto; }
+.approval { background: var(--cell-bg); border: 1px solid var(--warn-border); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; }
 .approval-title { font-weight: bold; margin-bottom: 4px; font-size: 13px; }
 .approval-detail { margin-bottom: 6px; font-size: 13px; }
-.approval-command { font-family: 'SF Mono', Menlo, monospace; background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
-.approval-cwd { font-size: 11px; color: #888; margin-top: 2px; }
+.approval-command { font-family: 'SF Mono', Menlo, monospace; background: var(--code-bg); padding: 2px 4px; border-radius: 3px; }
+.approval-cwd { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .approval-files { list-style: none; padding: 0; margin: 0 0 6px 0; }
 .approval-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
-.approval-buttons button { padding: 4px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 12px; }
-.approval-buttons button:first-child { background: #2eb872; color: #fff; border-color: #2eb872; }
-.approval-buttons button:nth-child(2) { background: #4a90e2; color: #fff; border-color: #4a90e2; }
-.approval-input { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 4px; }
-.approval-raw { font-size: 11px; max-height: 150px; overflow: auto; background: #f4f4f4; padding: 4px; }
+.approval-buttons button { padding: 4px 12px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--cell-bg); cursor: pointer; font-size: 12px; }
+.approval-buttons button:first-child { background: var(--ok); color: var(--cell-bg); border-color: var(--ok); }
+.approval-buttons button:nth-child(2) { background: var(--accent); color: var(--cell-bg); border-color: var(--accent); }
+.approval-input { width: 100%; padding: 4px; margin-bottom: 6px; border: 1px solid var(--border-strong); border-radius: 4px; }
+.approval-raw { font-size: 11px; max-height: 150px; overflow: auto; background: var(--code-bg); padding: 4px; }
 
 /* Sidebar (spec §4.3 right rail). Subproject 4 fills in SessionPicker only;
    AgentPanel (Task 4.6) and Plan (subproject 5+) will reuse the same shell. */
 .app-sidebar { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--cell-bg); padding: 8px; overflow-y: auto; }
 .sidebar-section { margin-bottom: 16px; }
-.sidebar-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin: 0 0 6px 0; }
+.sidebar-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin: 0 0 6px 0; }
 .sidebar-section-body { display: flex; flex-direction: column; gap: 4px; }
 
 .session-picker { display: flex; flex-direction: column; gap: 6px; }
 .session-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .session-item { padding: 0; }
 .session-item-button { width: 100%; text-align: left; background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
-.session-item-button:hover { background: #f0f0f0; }
+.session-item-button:hover { background: var(--hover-bg); }
 .session-item-active .session-item-button { background: var(--accent-bg); }
-.session-item-preview { font-size: 13px; color: #1a1a1a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-item-preview { font-size: 13px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-item-meta { font-size: 11px; color: var(--muted); }
-.session-load-more { background: none; border: 1px solid #ddd; padding: 4px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-.session-picker-loading, .session-picker-empty, .session-picker-error { font-size: 13px; color: #888; padding: 8px; }
+.session-load-more { background: none; border: 1px solid var(--border); padding: 4px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.session-picker-loading, .session-picker-empty, .session-picker-error { font-size: 13px; color: var(--muted); padding: 8px; }
 .session-picker-error button { margin-top: 4px; padding: 2px 8px; }
 
 /* TranscriptPager: full-screen overlay (Ctrl+T pager). Cells render via the
    existing .cell classes from Scrollback's cell components, so only the
    overlay chrome needs styling here. */
 .transcript-pager-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.transcript-pager-content { width: 90vw; height: 90vh; background: #fff; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
-.transcript-pager-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+.transcript-pager-content { width: 90vw; height: 90vh; background: var(--cell-bg); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+.transcript-pager-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); }
 .transcript-pager-title { font-weight: bold; font-size: 14px; }
-.transcript-pager-close { background: none; border: none; cursor: pointer; font-size: 16px; color: #888; }
+.transcript-pager-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--muted); }
 .transcript-pager-body { flex: 1; overflow-y: auto; padding: 12px; }
-.transcript-pager-loading, .transcript-pager-empty, .transcript-pager-error { color: #888; padding: 12px; }
+.transcript-pager-loading, .transcript-pager-empty, .transcript-pager-error { color: var(--muted); padding: 12px; }
 .transcript-pager-cells { display: flex; flex-direction: column; gap: 8px; }
 
 /* Generic modal shell (shared by ModelPicker and other Task 4.x modals).
@@ -156,24 +213,24 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .modal-title { font-weight: bold; font-size: 14px; }
 .modal-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--muted); }
 .modal-body { padding: 12px; overflow-y: auto; flex: 1; }
-.modal-loading, .modal-empty, .modal-error { color: #888; padding: 12px; }
+.modal-loading, .modal-empty, .modal-error { color: var(--muted); padding: 12px; }
 
 /* ModelPicker list (Task 4.5). */
 .model-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.model-item-button { width: 100%; text-align: left; background: none; border: 1px solid #eee; cursor: pointer; padding: 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
-.model-item-button:hover:not(:disabled) { background: #f0f0f0; }
+.model-item-button { width: 100%; text-align: left; background: none; border: 1px solid var(--border-weak); cursor: pointer; padding: 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
+.model-item-button:hover:not(:disabled) { background: var(--hover-bg); }
 .model-item-button:disabled { opacity: 0.5; cursor: not-allowed; }
-.model-item-active .model-item-button { border-color: #4a90e2; background: #e8f0fe; }
+.model-item-active .model-item-button { border-color: var(--accent); background: var(--accent-bg); }
 .model-item-name { font-size: 14px; }
-.model-item-id { font-size: 11px; color: #888; font-family: 'SF Mono', Menlo, monospace; }
+.model-item-id { font-size: 11px; color: var(--muted); font-family: 'SF Mono', Menlo, monospace; }
 
 /* AgentPanel (Task 4.6) — sidebar "Agent" section. */
 .agent-panel { display: flex; flex-direction: column; gap: 4px; }
-.agent-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; background: #f8f8f8; font-size: 12px; }
-.agent-row-main { background: #e8f0fe; }
+.agent-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; background: var(--cell-bg-alt); font-size: 12px; }
+.agent-row-main { background: var(--accent-bg); }
 .agent-name { font-weight: 500; }
 .agent-status { color: var(--muted); font-size: 11px; }
-.agent-empty-hint { font-size: 11px; color: #aaa; padding: 4px 8px; font-style: italic; }
+.agent-empty-hint { font-size: 11px; color: var(--muted-weak); padding: 4px 8px; font-style: italic; }
 
 /* Sub-agent rows (Task 5.3) — one per collabAgentToolCall.agentsStates entry.
    Status values are CollabAgentStatus: pendingInit | running | interrupted |
@@ -181,21 +238,21 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
    others fall through to the default muted .agent-status. */
 .agent-sub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .agent-row-sub { background: var(--cell-bg); padding: 3px 8px; font-size: 11px; }
-.agent-row-sub-running .agent-status { color: #2eb872; }      /* TODO Task 5.5: var(--ok) */
-.agent-row-sub-completed .agent-status { color: #2eb872; }    /* TODO Task 5.5: var(--ok) */
-.agent-row-sub-interrupted .agent-status { color: #b8a02e; }  /* TODO Task 5.5: var(--warn) */
-.agent-row-sub-errored .agent-status { color: #d9534f; }      /* TODO Task 5.5: var(--err) */
-.agent-row-sub-shutdown .agent-status { color: #888; }        /* TODO Task 5.5: var(--muted) */
+.agent-row-sub-running .agent-status { color: var(--ok); }
+.agent-row-sub-completed .agent-status { color: var(--ok); }
+.agent-row-sub-interrupted .agent-status { color: var(--warn); }
+.agent-row-sub-errored .agent-status { color: var(--err); }
+.agent-row-sub-shutdown .agent-status { color: var(--muted); }
 
 /* Onboarding (Task 4.7) — welcome screen when no auth configured. */
 .onboarding { display: flex; align-items: center; justify-content: center; height: 100vh; padding: 24px; }
-.onboarding-checking { color: #888; font-size: 14px; }
-.onboarding-card { max-width: 480px; background: #fff; padding: 24px; border-radius: 8px; border: 1px solid #ddd; }
+.onboarding-checking { color: var(--muted); font-size: 14px; }
+.onboarding-card { max-width: 480px; background: var(--cell-bg); padding: 24px; border-radius: 8px; border: 1px solid var(--border); }
 .onboarding-card h2 { margin: 0 0 12px 0; }
 .onboarding-card p { margin: 8px 0; line-height: 1.5; }
-.onboarding-cmd { background: #f4f4f4; padding: 8px 12px; border-radius: 4px; font-family: 'SF Mono', Menlo, monospace; font-size: 13px; }
-.onboarding-dismiss-hint { margin-top: 16px; font-size: 12px; color: #888; }
-.onboarding-dismiss { background: none; border: none; color: #4a90e2; cursor: pointer; text-decoration: underline; padding: 0; font: inherit; }
+.onboarding-cmd { background: var(--code-bg); padding: 8px 12px; border-radius: 4px; font-family: 'SF Mono', Menlo, monospace; font-size: 13px; }
+.onboarding-dismiss-hint { margin-top: 16px; font-size: 12px; color: var(--muted); }
+.onboarding-dismiss { background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; padding: 0; font: inherit; }
 
 /* ThemePicker (Task 4.8) — modal theme list. */
 .theme-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
