@@ -24,12 +24,35 @@ describe('AgentPanel', () => {
       status: { type: 'active', activeFlags: ['waitingOnApproval'] } as never,
     };
     render(<AgentPanel state={state} />);
-    expect(screen.getByText(/active/)).toBeInTheDocument();
+    // Anchored to "^active ·" so it doesn't also match the "no sub-agents
+    // active" empty-hint (Task 5.3) in the same render.
+    expect(screen.getByText(/^active ·/)).toBeInTheDocument();
     expect(screen.getByText(/waitingOnApproval/)).toBeInTheDocument();
   });
 
-  it('shows deferral hint for sub-agents', () => {
+  it('shows empty hint when no sub-agents', () => {
     render(<AgentPanel state={initialState} />);
-    expect(screen.getByText(/sub-agent control deferred/)).toBeInTheDocument();
+    expect(screen.getByText(/no sub-agents active/)).toBeInTheDocument();
+  });
+
+  it('renders sub-agent rows from state.subAgents', () => {
+    const state: ConversationState = {
+      ...initialState,
+      status: { type: 'idle' },
+      subAgents: [
+        { threadId: 'sub1', status: 'running', message: null },
+        { threadId: 'sub2', status: 'completed', message: 'done' },
+      ],
+    };
+    render(<AgentPanel state={state} />);
+    expect(screen.getByText('sub1')).toBeInTheDocument();
+    expect(screen.getByText('sub2')).toBeInTheDocument();
+    expect(screen.getByText('running')).toBeInTheDocument();
+    expect(screen.getByText('completed')).toBeInTheDocument();
+  });
+
+  it('shows "no sub-agents active" when subAgents is empty', () => {
+    render(<AgentPanel state={initialState} />);
+    expect(screen.getByText(/no sub-agents active/)).toBeInTheDocument();
   });
 });

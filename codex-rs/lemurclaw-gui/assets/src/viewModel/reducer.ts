@@ -14,7 +14,7 @@
 // Item lookup: O(n) over active turn items. Conversation lengths in normal
 // agent runs are < 500 items; if this becomes hot, switch to a Map index.
 
-import type { ConversationState, TurnModel, CellModel, PendingApproval, ApprovalKind, ResponseMetaAction } from './types';
+import type { ConversationState, TurnModel, CellModel, PendingApproval, ApprovalKind, ResponseMetaAction, SubAgentModel } from './types';
 import { isServerNotification, isServerRequest } from '../types/guards';
 import type { ServerNotification } from '../types/ServerNotification';
 import type { ServerRequest } from '../types/ServerRequest';
@@ -166,7 +166,8 @@ function applyTurnStarted(state: ConversationState, turn: Turn): ConversationSta
     startedAt: turn.startedAt,
     completedAt: turn.completedAt,
   };
-  return { ...state, turns: [...state.turns, turnModel], activeTurnId: turn.id };
+  const subAgents = extractSubAgents(turn.items);
+  return { ...state, turns: [...state.turns, turnModel], activeTurnId: turn.id, subAgents: mergeSubAgents(state.subAgents, subAgents) };
 }
 
 function applyTurnCompleted(state: ConversationState, turn: Turn): ConversationState {
@@ -175,7 +176,9 @@ function applyTurnCompleted(state: ConversationState, turn: Turn): ConversationS
       ? { ...t, status: turn.status, completedAt: turn.completedAt, items: turn.items.map(threadItemToCell) }
       : t,
   );
-  return { ...state, turns, activeTurnId: null };
+  // turn.items is the raw ThreadItem[] from the notification; extract directly.
+  const newSubAgents = extractSubAgents(turn.items);
+  return { ...state, turns, activeTurnId: null, subAgents: mergeSubAgents(state.subAgents, newSubAgents) };
 }
 
 function applyItemEvent(state: ConversationState, turnId: string, item: ThreadItem): ConversationState {
@@ -190,7 +193,10 @@ function applyItemEvent(state: ConversationState, turnId: string, item: ThreadIt
     }
     return { ...t, items: [...t.items, cell] };
   });
-  return { ...state, turns };
+  // We don't store raw ThreadItems per turn (only CellModels), so extract from
+  // the incoming item only; mergeSubAgents accumulates across item events.
+  const newSubAgents = extractSubAgents([item]);
+  return { ...state, turns, subAgents: mergeSubAgents(state.subAgents, newSubAgents) };
 }
 
 function applyItemDelta(state: ConversationState, turnId: string, itemId: string, mutate: (cell: CellModel) => CellModel): ConversationState {
@@ -293,4 +299,29 @@ export function threadItemToCell(item: ThreadItem): CellModel {
     case 'contextCompaction':
       return { kind: 'generic', itemId: 'id' in item ? item.id : '', rawType: item.type };
   }
+}
+
+/** Extract sub-agent rows from a turn's items' collabAgentToolCall.agentsStates.
+ *  Later items override earlier (last write wins per threadId). */
+function extractSubAgents(items: ThreadItem[]): SubAgentModel[] {
+  const agents = new Map<string, SubAgentModel>();
+  for (const item of items) {
+    if (item.type !== 'collabAgentToolCall') continue;
+    for (const [threadId, state] of Object.entries(item.agentsStates)) {
+      if (!state) continue;
+      agents.set(threadId, {
+        threadId,
+        status: String(state.status),
+        message: state.message,
+      });
+    }
+  }
+  return Array.from(agents.values());
+}
+
+/** Merge by threadId — incoming overrides existing. */
+function mergeSubAgents(existing: SubAgentModel[], incoming: SubAgentModel[]): SubAgentModel[] {
+  const map = new Map(existing.map((a) => [a.threadId, a]));
+  for (const a of incoming) map.set(a.threadId, a);
+  return Array.from(map.values());
 }

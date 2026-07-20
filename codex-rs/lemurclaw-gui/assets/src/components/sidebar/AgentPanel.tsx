@@ -4,12 +4,9 @@ interface Props {
   state: ConversationState;
 }
 
-/** Sidebar "Agent" section. Shows the main agent's status (sub-agent activity
- *  is deferred — see the hint rendered below).
- *
- *  Subproject 4 minimal: this is read-only — no spawn/control UI. The multi-
- *  agent control surface (spawn, message, interrupt sub-agents) is reserved
- *  for a later subproject. */
+/** Sidebar "Agent" section. Shows main agent status + one row per sub-agent
+ *  observed in collabAgentToolCall items (via state.subAgents). Read-only —
+ *  no spawn/control UI (deferred to a later subproject). */
 export function AgentPanel({ state }: Props) {
   const mainStatus = state.status;
   const mainLabel =
@@ -25,11 +22,18 @@ export function AgentPanel({ state }: Props) {
         <span className="agent-name">main</span>
         <span className="agent-status">{mainLabel}</span>
       </div>
-      {/* Sub-agent rows deferred — lemurclaw-gui doesn't yet surface
-          collab/subAgent items with structure (they go to CellModel 'generic'
-          in Task 3.4). Add rows here once Task 3.4's reducer exports a typed
-          sub-agent view. */}
-      <div className="agent-empty-hint">sub-agent control deferred to a later subproject</div>
+      {state.subAgents.length === 0 ? (
+        <div className="agent-empty-hint">no sub-agents active</div>
+      ) : (
+        <ul className="agent-sub-list" data-testid="agent-sub-list">
+          {state.subAgents.map((s) => (
+            <li key={s.threadId} className={`agent-row agent-row-sub agent-row-sub-${s.status}`}>
+              <span className="agent-name">{s.threadId}</span>
+              <span className="agent-status">{s.status}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

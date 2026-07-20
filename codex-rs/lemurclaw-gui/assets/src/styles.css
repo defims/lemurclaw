@@ -175,6 +175,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .agent-status { color: var(--muted); font-size: 11px; }
 .agent-empty-hint { font-size: 11px; color: #aaa; padding: 4px 8px; font-style: italic; }
 
+/* Sub-agent rows (Task 5.3) — one per collabAgentToolCall.agentsStates entry. */
+.agent-sub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.agent-row-sub { background: var(--cell-bg); padding: 3px 8px; font-size: 11px; }
+.agent-row-sub-running .agent-status { color: #2eb872; }  /* TODO Task 5.5: var(--ok) */
+.agent-row-sub-completed .agent-status { color: #2eb872; }  /* TODO Task 5.5: var(--ok) */
+.agent-row-sub-failed .agent-status { color: #d9534f; }  /* TODO Task 5.5: var(--err) */
+
 /* Onboarding (Task 4.7) — welcome screen when no auth configured. */
 .onboarding { display: flex; align-items: center; justify-content: center; height: 100vh; padding: 24px; }
 .onboarding-checking { color: #888; font-size: 14px; }

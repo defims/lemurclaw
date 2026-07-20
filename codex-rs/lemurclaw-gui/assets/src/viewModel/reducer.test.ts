@@ -225,4 +225,61 @@ describe('reducer', () => {
     });
     expect(next).toBe(before); // state unchanged (reference equality — reducer returns state as-is)
   });
+
+  // ---- Sub-agent extraction (Task 5.3) — collabAgentToolCall.agentsStates ----
+
+  it('collabAgentToolCall items populate state.subAgents from agentsStates', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: {
+      threadId: 't1',
+      turn: {
+        ...EMPTY_TURN,
+        items: [{
+          type: 'collabAgentToolCall', id: 'col1',
+          tool: 'spawn' as never, status: 'running' as never,
+          senderThreadId: 't1', receiverThreadIds: ['sub1'],
+          prompt: null, model: null, reasoningEffort: null,
+          agentsStates: { sub1: { status: 'running' as never, message: 'working' } },
+        } as never],
+      },
+    } });
+    expect(afterTurn.subAgents).toHaveLength(1);
+    expect(afterTurn.subAgents[0].threadId).toBe('sub1');
+    expect(afterTurn.subAgents[0].status).toBe('running');
+    expect(afterTurn.subAgents[0].message).toBe('working');
+  });
+
+  it('item/started with a collabAgentToolCall updates subAgents', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterItem = reducer(afterTurn, {
+      method: 'item/started',
+      params: {
+        threadId: 't1', turnId: 'tu1', startedAtMs: 5,
+        item: {
+          type: 'collabAgentToolCall', id: 'col1',
+          tool: 'spawn' as never, status: 'running' as never,
+          senderThreadId: 't1', receiverThreadIds: ['sub1'],
+          prompt: null, model: null, reasoningEffort: null,
+          agentsStates: { sub1: { status: 'idle' as never, message: null } },
+        } as never,
+      },
+    });
+    expect(afterItem.subAgents).toHaveLength(1);
+    expect(afterItem.subAgents[0].threadId).toBe('sub1');
+  });
+
+  it('multiple collabAgentToolCall items merge sub-agents by threadId (last wins)', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: {
+      threadId: 't1',
+      turn: {
+        ...EMPTY_TURN,
+        items: [
+          { type: 'collabAgentToolCall', id: 'c1', tool: 'spawn' as never, status: 'running' as never, senderThreadId: 't1', receiverThreadIds: ['a','b'], prompt: null, model: null, reasoningEffort: null, agentsStates: { a: { status: 'running' as never, message: null }, b: { status: 'idle' as never, message: null } } } as never,
+          { type: 'collabAgentToolCall', id: 'c2', tool: 'spawn' as never, status: 'running' as never, senderThreadId: 't1', receiverThreadIds: ['b','c'], prompt: null, model: null, reasoningEffort: null, agentsStates: { b: { status: 'completed' as never, message: 'done' }, c: { status: 'running' as never, message: null } } } as never,
+        ],
+      },
+    } });
+    expect(afterTurn.subAgents.map((s) => s.threadId).sort()).toEqual(['a','b','c']);
+    const b = afterTurn.subAgents.find((s) => s.threadId === 'b')!;
+    expect(b.status).toBe('completed');
+  });
 });

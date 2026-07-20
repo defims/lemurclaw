@@ -28,6 +28,10 @@ export interface ConversationState {
    *  (and from the turn/start / thread/resume response — Task 5.2). Null until
    *  the first reroute or a sendRequest-backed start. */
   currentModel: string | null;
+  /** Sub-agent rows for the sidebar AgentPanel. Derived from
+   *  collabAgentToolCall items' agentsStates. Empty when no sub-agents
+   *  observed in the active thread. */
+  subAgents: SubAgentModel[];
   /** Pending ServerRequests awaiting user decision (ApprovalCard queue). */
   pendingApprovals: PendingApproval[];
 }
@@ -106,6 +110,7 @@ export const initialState: ConversationState = {
   status: null,
   cwd: null,
   currentModel: null,
+  subAgents: [],
   pendingApprovals: [],
 };
 
@@ -139,4 +144,16 @@ export interface ResponseMetaAction {
   kind: 'responseMeta';
   cwd: string | null;
   model: string | null;
+}
+
+/** One row in the sidebar AgentPanel's sub-agent list. Derived from
+ *  collabAgentToolCall.agentsStates (the per-agent status map). */
+export interface SubAgentModel {
+  /** Thread id of the sub-agent (key in agentsStates). */
+  threadId: string;
+  /** Status string from CollabAgentState.status (e.g. 'running', 'completed').
+   *  Kept as string for display simplicity. */
+  status: string;
+  /** Optional message from the sub-agent's last state update. */
+  message: string | null;
 }
