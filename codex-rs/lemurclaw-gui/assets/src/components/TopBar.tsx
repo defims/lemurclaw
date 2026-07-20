@@ -9,9 +9,11 @@ interface Props {
 /** Top bar (spec §4.3 "顶栏 目录+模型+菜单"). Shows cwd + current model +
  *  buttons for model picker, theme picker, transcript pager.
  *
- *  Task 4.9 limitation: cwd/model are hardcoded null for now — surfacing them
- *  requires a reducer extension to capture thread.cwd / current model from
- *  thread/started. Tracked as a follow-up. */
+ *  cwd comes from ConversationState.cwd (reducer captures thread.cwd from
+ *  thread/started + the turn/start / thread/resume JSON-RPC response).
+ *  model comes from ConversationState.currentModel (reducer captures
+ *  model/rerouted.toModel + the same JSON-RPC response). Both are null
+ *  until the first turn/start or a model/rerouted event. */
 export function TopBar({ cwd, model, onOpenModelPicker, onOpenThemePicker, onOpenTranscript }: Props) {
   return (
     <header className="app-topbar" data-testid="topbar">

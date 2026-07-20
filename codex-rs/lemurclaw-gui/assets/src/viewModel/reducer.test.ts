@@ -142,6 +142,16 @@ describe('reducer', () => {
     expect(next.currentModel).toBe('gpt-4o');
   });
 
+  it('responseMeta with undefined fields (malformed response) preserves existing', () => {
+    // Guards against a malformed JSON-RPC response that resolves with a
+    // result missing model/cwd — the dispatch would carry undefined, which
+    // must NOT sneak through the null check and write undefined into state.
+    const after = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
+    const next = reducer(after, { kind: 'responseMeta', cwd: undefined as unknown as null, model: undefined as unknown as null });
+    expect(next.cwd).toBe('/proj');
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
   // ---- Edge cases (added per Task 3.4 code review) ---------------------
 
   it('item/*/delta for an unknown itemId silently no-ops (does not crash or invent a cell)', () => {

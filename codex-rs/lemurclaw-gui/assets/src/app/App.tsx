@@ -21,12 +21,9 @@ type ModalKind = 'none' | 'model' | 'theme' | 'transcript';
  *  auth is resolved. Modal host overlays (TranscriptPager / ModelPicker /
  *  ThemePicker) render above the main layout.
  *
- *  Task 4.9 limitations (tracked as TODOs):
- *  - TopBar cwd/model are null until the reducer is extended to capture
- *    thread.cwd / current model from thread/started.
- *  - Ctrl+T uses ctrl OR meta — safe in the wry webview (no browser chrome),
- *    but needs revisiting for webui mode (subproject 6) where Cmd+T is the
- *    browser new-tab shortcut. */
+ *  Remaining limitation: Ctrl+T uses ctrl OR meta — safe in the wry webview
+ *  (no browser chrome), but needs revisiting for webui mode (subproject 6)
+ *  where Cmd+T is the browser new-tab shortcut. */
 export function App() {
   const { state, threadId, interrupt, startTurn, resumeThread } = useConversation();
   const { theme, setTheme } = useTheme();

@@ -139,11 +139,13 @@ function isResponseMetaAction(x: unknown): x is ResponseMetaAction {
 }
 
 function applyResponseMeta(state: ConversationState, action: ResponseMetaAction): ConversationState {
-  // Only overwrite when the response carries a non-null value — lets later
-  // responses update cwd/model without clobbering with nulls on partial fails.
+  // Only overwrite when the response carries a real string value. The guard
+  // is `typeof === 'string'` (not `!== null`) so a malformed response that
+  // dispatches `undefined` doesn't sneak through and write undefined into
+  // state — which would then render as the literal "undefined" in TopBar.
   const next = { ...state };
-  if (action.cwd !== null) next.cwd = action.cwd;
-  if (action.model !== null) next.currentModel = action.model;
+  if (typeof action.cwd === 'string') next.cwd = action.cwd;
+  if (typeof action.model === 'string') next.currentModel = action.model;
   return next;
 }
 
