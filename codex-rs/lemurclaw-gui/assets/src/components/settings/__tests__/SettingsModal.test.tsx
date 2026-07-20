@@ -20,12 +20,11 @@ describe('SettingsModal', () => {
     expect(screen.getByTestId('settings-pane-permissions')).toBeInTheDocument();
   });
 
-  it('clicking a not-yet-implemented surface shows its placeholder', () => {
+  it('clicking a different surface swaps the right pane', () => {
     render(<SettingsModal onClose={vi.fn()} />);
-    // "memories" panel arrives in Task 7; until then it shows the placeholder.
-    fireEvent.click(screen.getByText('Memories'));
-    expect(screen.getByText('Memories').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
-    expect(screen.getByText(/memories panel/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Model'));
+    expect(screen.getByText('Model').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
+    expect(screen.getByTestId('settings-pane-model')).toBeInTheDocument();
   });
 
   it('Esc closes (via shared <Modal>)', () => {

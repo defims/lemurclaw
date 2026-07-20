@@ -7,6 +7,8 @@ import { SkillsPanel } from './SkillsPanel';
 import { AppsPanel } from './AppsPanel';
 import { PluginsPanel } from './PluginsPanel';
 import { ExperimentalPanel } from './ExperimentalPanel';
+import { MemoriesPanel } from './MemoriesPanel';
+import { ModelPanel } from './ModelPanel';
 
 /** Identifiers for the settings surfaces. Each one maps to a panel file
  *  populated in Tasks 4-7. Order here = order in the left nav.
@@ -76,17 +78,10 @@ export function SettingsModal({ onClose }: Props) {
           {surface === 'apps' && <AppsPanel />}
           {surface === 'plugins' && <PluginsPanel />}
           {surface === 'experimental' && <ExperimentalPanel />}
-          {(surface === 'memories' || surface === 'model') && (
-            <Placeholder surface={surface} />
-          )}
+          {surface === 'memories' && <MemoriesPanel />}
+          {surface === 'model' && <ModelPanel />}
         </div>
       </div>
     </Modal>
   );
-}
-
-/** Placeholder shown until each surface's real panel lands (Tasks 4-7). Each
- *  real panel replaces the matching case. */
-function Placeholder({ surface }: { surface: SettingsSurface }) {
-  return <div className="modal-empty">{surface} panel — coming soon</div>;
 }

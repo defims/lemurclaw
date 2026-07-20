@@ -232,6 +232,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .experimental-feature-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; flex: 1; }
 .experimental-feature-stage { color: var(--muted); font-size: 11px; }
 
+/* SettingsForm (subproject 5-A Task 7). */
+.settings-form { display: flex; flex-direction: column; gap: 8px; }
+.settings-form-label { font-size: 13px; font-weight: 600; }
+.settings-form-hint { font-size: 11px; color: var(--muted); }
+.settings-form-textarea { width: 100%; font-family: var(--mono, monospace); font-size: 12px; padding: 8px; background: var(--cell-bg); color: inherit; border: 1px solid var(--border); border-radius: 4px; resize: vertical; }
+.settings-form-actions { display: flex; gap: 8px; }
+.settings-form-actions .settings-action-button:disabled { opacity: 0.4; cursor: default; }
+.settings-form-stack { display: flex; flex-direction: column; gap: 16px; }
+
 /* SettingsModal layout (subproject 5-A). */
 .settings-modal-body { display: flex; min-height: 420px; gap: 0; margin: -12px; }
 .settings-nav { width: 160px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 4px 0; }
