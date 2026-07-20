@@ -6,24 +6,26 @@ describe('SettingsModal', () => {
   it('renders surface list in left nav', () => {
     render(<SettingsModal onClose={vi.fn()} />);
     expect(screen.getByText('Permissions')).toBeInTheDocument();
-    expect(screen.getByText('Keymap')).toBeInTheDocument();
+    expect(screen.getByText('Memories')).toBeInTheDocument();
+    expect(screen.getByText('Model')).toBeInTheDocument();
     expect(screen.getByText('Skills')).toBeInTheDocument();
     expect(screen.getByText('Plugins')).toBeInTheDocument();
     expect(screen.getByText('Experimental')).toBeInTheDocument();
   });
 
-  it('defaults to first surface selected with its placeholder', () => {
+  it('defaults to first surface selected with its panel rendered', () => {
     render(<SettingsModal onClose={vi.fn()} />);
-    // First surface is "Permissions"
+    // First surface is "Permissions" — its panel renders (no placeholder).
     expect(screen.getByText('Permissions').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
-    expect(screen.getByText(/permissions panel/i)).toBeInTheDocument();
+    expect(screen.getByTestId('settings-pane-permissions')).toBeInTheDocument();
   });
 
-  it('clicking a surface swaps the right pane placeholder', () => {
+  it('clicking a not-yet-implemented surface shows its placeholder', () => {
     render(<SettingsModal onClose={vi.fn()} />);
-    fireEvent.click(screen.getByText('Plugins'));
-    expect(screen.getByText('Plugins').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
-    expect(screen.getByText(/plugins panel/i)).toBeInTheDocument();
+    // "memories" panel arrives in Task 7; until then it shows the placeholder.
+    fireEvent.click(screen.getByText('Memories'));
+    expect(screen.getByText('Memories').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
+    expect(screen.getByText(/memories panel/i)).toBeInTheDocument();
   });
 
   it('Esc closes (via shared <Modal>)', () => {

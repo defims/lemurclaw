@@ -1,19 +1,26 @@
 import { useState } from 'react';
 import { Modal } from '../Modal';
+import { PermissionsPanel } from './PermissionsPanel';
+import { HooksPanel } from './HooksPanel';
+import { McpPanel } from './McpPanel';
 
 /** Identifiers for the settings surfaces. Each one maps to a panel file
- *  populated in Tasks 4-7. Order here = order in the left nav. */
+ *  populated in Tasks 4-7. Order here = order in the left nav.
+ *
+ *  Scope note: keymap/status-line/terminal-title are TUI-only config keys
+ *  (under [tui]) that the app-server's config/read API does not expose, so
+ *  they are intentionally absent from this list — they can't be edited from
+ *  the GUI. See plan 2026-07-20-settings-modal.md Task 7 revision. */
 export type SettingsSurface =
   | 'permissions'
-  | 'keymap'
   | 'memories'
+  | 'model'
   | 'skills'
   | 'hooks'
   | 'mcp'
   | 'apps'
   | 'plugins'
-  | 'experimental'
-  | 'statusline';
+  | 'experimental';
 
 interface SurfaceDef {
   key: SettingsSurface;
@@ -22,15 +29,14 @@ interface SurfaceDef {
 
 const SURFACES: SurfaceDef[] = [
   { key: 'permissions', label: 'Permissions' },
-  { key: 'keymap', label: 'Keymap' },
   { key: 'memories', label: 'Memories' },
+  { key: 'model', label: 'Model' },
   { key: 'skills', label: 'Skills' },
   { key: 'hooks', label: 'Hooks' },
   { key: 'mcp', label: 'MCP' },
   { key: 'apps', label: 'Apps' },
   { key: 'plugins', label: 'Plugins' },
   { key: 'experimental', label: 'Experimental' },
-  { key: 'statusline', label: 'Status line' },
 ];
 
 interface Props {
@@ -59,7 +65,13 @@ export function SettingsModal({ onClose }: Props) {
           ))}
         </nav>
         <div className="settings-pane" data-testid={`settings-pane-${surface}`}>
-          <Placeholder surface={surface} />
+          {surface === 'permissions' && <PermissionsPanel />}
+          {surface === 'hooks' && <HooksPanel />}
+          {surface === 'mcp' && <McpPanel />}
+          {(surface === 'memories' || surface === 'model' || surface === 'skills'
+            || surface === 'apps' || surface === 'plugins' || surface === 'experimental') && (
+            <Placeholder surface={surface} />
+          )}
         </div>
       </div>
     </Modal>
