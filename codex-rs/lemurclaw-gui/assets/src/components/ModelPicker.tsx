@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sendRequest } from '../transport';
+import { Modal } from './Modal';
 import type { Model } from '../types/v2';
 import type { ModelListResponse } from '../types/v2/ModelListResponse';
 
@@ -23,9 +24,7 @@ interface LoadState {
 /** Modal model picker. On open, calls `model/list` to enumerate available
  *  models; selecting one fires a `turn/start` with `model` override on the
  *  active thread (codex doesn't have a dedicated "switch model mid-thread"
- *  method — the override takes effect on the next turn).
- *
- *  Close: Esc, backdrop click, or ✕ button. */
+ *  method — the override takes effect on the next turn). */
 export function ModelPicker({ threadId, currentModel, onClose, startTurn }: Props) {
   const [state, setState] = useState<LoadState>({ loading: true, error: null, models: [] });
 
@@ -42,14 +41,6 @@ export function ModelPicker({ threadId, currentModel, onClose, startTurn }: Prop
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const handlePick = (model: Model) => {
     if (!threadId) return;
     // Switch model via next-turn override. Empty input = no new user message;
@@ -59,35 +50,27 @@ export function ModelPicker({ threadId, currentModel, onClose, startTurn }: Prop
   };
 
   return (
-    <div className="modal-overlay" data-testid="model-picker" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <span className="modal-title">select model</span>
-          <button className="modal-close" onClick={onClose} aria-label="close">✕</button>
-        </header>
-        <div className="modal-body">
-          {state.loading && <div className="modal-loading">loading…</div>}
-          {state.error && <div className="modal-error">failed: {state.error}</div>}
-          {!state.loading && !state.error && state.models.length === 0 && (
-            <div className="modal-empty">no models configured</div>
-          )}
-          {!state.loading && !state.error && state.models.length > 0 && (
-            <ul className="model-list">
-              {state.models.map((m) => (
-                <li
-                  key={m.id}
-                  className={`model-item${m.id === currentModel ? ' model-item-active' : ''}`}
-                >
-                  <button onClick={() => handlePick(m)} className="model-item-button" disabled={!threadId}>
-                    <span className="model-item-name">{m.displayName || m.id}</span>
-                    <span className="model-item-id">{m.id}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
+    <Modal title="select model" onClose={onClose} testId="model-picker">
+      {state.loading && <div className="modal-loading">loading…</div>}
+      {state.error && <div className="modal-error">failed: {state.error}</div>}
+      {!state.loading && !state.error && state.models.length === 0 && (
+        <div className="modal-empty">no models configured</div>
+      )}
+      {!state.loading && !state.error && state.models.length > 0 && (
+        <ul className="model-list">
+          {state.models.map((m) => (
+            <li
+              key={m.id}
+              className={`model-item${m.id === currentModel ? ' model-item-active' : ''}`}
+            >
+              <button onClick={() => handlePick(m)} className="model-item-button" disabled={!threadId}>
+                <span className="model-item-name">{m.displayName || m.id}</span>
+                <span className="model-item-id">{m.id}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   );
 }

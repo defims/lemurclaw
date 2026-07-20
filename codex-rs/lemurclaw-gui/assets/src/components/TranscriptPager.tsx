@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sendRequest } from '../transport';
+import { Modal } from './Modal';
 import type { Thread } from '../types/v2';
 import type { CellModel } from '../viewModel/types';
 import { threadItemToCell } from '../viewModel/reducer';
@@ -26,7 +27,8 @@ interface ReadState {
  *  components as Scrollback (via the shared CellRenderer). Read-only — no
  *  input, no approvals.
  *
- *  Close: Esc key or backdrop click. */
+ *  Uses <Modal>'s `*ClassName` props to keep its bespoke full-screen sizing
+ *  (90vw × 90vh, z-index 1000) while sharing the Esc/backdrop/✕ logic. */
 export function TranscriptPager({ threadId, onClose }: Props) {
   const [state, setState] = useState<ReadState>({ loading: true, error: null, cells: [], thread: null });
 
@@ -46,39 +48,28 @@ export function TranscriptPager({ threadId, onClose }: Props) {
     return () => { cancelled = true; };
   }, [threadId]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <div className="transcript-pager-overlay" data-testid="transcript-pager" onClick={onClose}>
-      <div className="transcript-pager-content" onClick={(e) => e.stopPropagation()}>
-        <header className="transcript-pager-header">
-          <span className="transcript-pager-title">
-            transcript · {state.thread?.name ?? state.thread?.preview ?? threadId}
-          </span>
-          <button className="transcript-pager-close" onClick={onClose} aria-label="close">✕</button>
-        </header>
-        <div className="transcript-pager-body">
-          {state.loading && <div className="transcript-pager-loading">loading…</div>}
-          {state.error && <div className="transcript-pager-error">failed: {state.error}</div>}
-          {!state.loading && !state.error && state.cells.length === 0 && (
-            <div className="transcript-pager-empty">(no items in transcript)</div>
-          )}
-          {!state.loading && !state.error && state.cells.length > 0 && (
-            <div className="transcript-pager-cells">
-              {state.cells.map((c) => <CellRenderer key={cellKey(c)} cell={c} />)}
-            </div>
-          )}
+    <Modal
+      title={`transcript · ${state.thread?.name ?? state.thread?.preview ?? threadId}`}
+      onClose={onClose}
+      testId="transcript-pager"
+      overlayClassName="transcript-pager-overlay"
+      contentClassName="transcript-pager-content"
+      headerClassName="transcript-pager-header"
+      titleClassName="transcript-pager-title"
+      closeClassName="transcript-pager-close"
+      bodyClassName="transcript-pager-body"
+    >
+      {state.loading && <div className="transcript-pager-loading">loading…</div>}
+      {state.error && <div className="transcript-pager-error">failed: {state.error}</div>}
+      {!state.loading && !state.error && state.cells.length === 0 && (
+        <div className="transcript-pager-empty">(no items in transcript)</div>
+      )}
+      {!state.loading && !state.error && state.cells.length > 0 && (
+        <div className="transcript-pager-cells">
+          {state.cells.map((c) => <CellRenderer key={cellKey(c)} cell={c} />)}
         </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }
