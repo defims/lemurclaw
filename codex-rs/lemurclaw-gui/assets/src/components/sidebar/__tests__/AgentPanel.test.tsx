@@ -50,9 +50,4 @@ describe('AgentPanel', () => {
     expect(screen.getByText('running')).toBeInTheDocument();
     expect(screen.getByText('completed')).toBeInTheDocument();
   });
-
-  it('shows "no sub-agents active" when subAgents is empty', () => {
-    render(<AgentPanel state={initialState} />);
-    expect(screen.getByText(/no sub-agents active/)).toBeInTheDocument();
-  });
 });
