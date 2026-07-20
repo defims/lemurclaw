@@ -12,8 +12,9 @@ import { Onboarding } from '../components/Onboarding';
 import { TranscriptPager } from '../components/TranscriptPager';
 import { ModelPicker } from '../components/ModelPicker';
 import { ThemePicker } from '../components/ThemePicker';
+import { SettingsModal } from '../components/settings/SettingsModal';
 
-type ModalKind = 'none' | 'model' | 'theme' | 'transcript';
+type ModalKind = 'none' | 'model' | 'theme' | 'transcript' | 'settings';
 
 /** Top-level GUI application. Spec §4.3 layout: top bar (cwd + model + menu)
  *  over a main column (scrollback + approvals + composer) sitting beside a
@@ -57,6 +58,7 @@ export function App() {
           onOpenModelPicker={() => setModal('model')}
           onOpenThemePicker={() => setModal('theme')}
           onOpenTranscript={() => setModal('transcript')}
+          onOpenSettings={() => setModal('settings')}
         />
         <div className="app-body">
           <main className="app-main">
@@ -89,6 +91,9 @@ export function App() {
       )}
       {modal === 'theme' && (
         <ThemePicker current={theme} onPick={(t) => setTheme(t)} onClose={() => setModal('none')} />
+      )}
+      {modal === 'settings' && (
+        <SettingsModal onClose={() => setModal('none')} />
       )}
     </Onboarding>
   );
