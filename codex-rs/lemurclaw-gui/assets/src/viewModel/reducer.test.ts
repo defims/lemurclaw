@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { reducer } from './reducer';
 import { initialState } from './types';
 import type { ConversationState } from './types';
+import type { Thread } from '../types/v2';
 
 function st(over: Partial<ConversationState> = {}): ConversationState {
   return { ...initialState, ...over };
@@ -114,7 +115,7 @@ describe('reducer', () => {
   });
 
   it('thread/started captures cwd from thread.cwd', () => {
-    const thread = { ...FULL_THREAD, cwd: '/home/user/proj' } as never;
+    const thread = { ...FULL_THREAD, cwd: '/home/user/proj' } as unknown as Thread;
     const next = reducer(st(), { method: 'thread/started', params: { thread } });
     expect(next.cwd).toBe('/home/user/proj');
   });
@@ -123,7 +124,7 @@ describe('reducer', () => {
     const afterTurn = reducer(st(), { method: 'thread/started', params: { thread: FULL_THREAD } });
     const next = reducer(afterTurn, {
       method: 'model/rerouted',
-      params: { threadId: 't1', turnId: 'tu1', fromModel: 'gpt-4', toModel: 'gpt-4o', reason: 'unavailable' },
+      params: { threadId: 't1', turnId: 'tu1', fromModel: 'gpt-4', toModel: 'gpt-4o', reason: 'highRiskCyberActivity' },
     });
     expect(next.currentModel).toBe('gpt-4o');
   });

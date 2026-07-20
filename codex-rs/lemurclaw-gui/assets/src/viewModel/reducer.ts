@@ -35,12 +35,16 @@ function applyNotification(state: ConversationState, n: ServerNotification): Con
   switch (n.method) {
     case 'thread/started': {
       const thread = n.params.thread;
-      const cwdRaw = thread.cwd as unknown;
+      // AbsolutePathBuf is a ts-rs `string` alias at the wire level, so
+      // thread.cwd is already a string. Trusting the type (no defensive
+      // coercion) — a previous version tried `String(cwdRaw ?? '')` for
+      // schema drift, but that degrades the realistic { path: '/x' } drift
+      // shape to "[object Object]", which is worse than crashing loudly.
       return {
         ...state,
         status: thread.status,
         activeTurnId: null,
-        cwd: typeof cwdRaw === 'string' ? cwdRaw : String(cwdRaw ?? ''),
+        cwd: thread.cwd,
       };
     }
     case 'thread/status/changed':
