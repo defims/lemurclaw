@@ -20,6 +20,14 @@ export interface ConversationState {
   activeTurnId: string | null;
   /** Current thread status, or null pre-thread/started. */
   status: ThreadStatusModel | null;
+  /** Working directory of the active thread, from thread/started's thread.cwd
+   *  (and turn/start / thread/resume responses — Task 5.2). Null pre-thread/started.
+   *  Displayed in TopBar. */
+  cwd: string | null;
+  /** Current model id for the active thread. Set from model/rerouted's toModel
+   *  (and from the turn/start / thread/resume response — Task 5.2). Null until
+   *  the first reroute or a sendRequest-backed start. */
+  currentModel: string | null;
   /** Pending ServerRequests awaiting user decision (ApprovalCard queue). */
   pendingApprovals: PendingApproval[];
 }
@@ -96,6 +104,8 @@ export const initialState: ConversationState = {
   turns: [],
   activeTurnId: null,
   status: null,
+  cwd: null,
+  currentModel: null,
   pendingApprovals: [],
 };
 

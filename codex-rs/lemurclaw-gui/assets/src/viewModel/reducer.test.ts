@@ -113,6 +113,21 @@ describe('reducer', () => {
     expect(afterComplete.activeTurnId).toBeNull();
   });
 
+  it('thread/started captures cwd from thread.cwd', () => {
+    const thread = { ...FULL_THREAD, cwd: '/home/user/proj' } as never;
+    const next = reducer(st(), { method: 'thread/started', params: { thread } });
+    expect(next.cwd).toBe('/home/user/proj');
+  });
+
+  it('model/rerouted sets currentModel to toModel', () => {
+    const afterTurn = reducer(st(), { method: 'thread/started', params: { thread: FULL_THREAD } });
+    const next = reducer(afterTurn, {
+      method: 'model/rerouted',
+      params: { threadId: 't1', turnId: 'tu1', fromModel: 'gpt-4', toModel: 'gpt-4o', reason: 'unavailable' },
+    });
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
   // ---- Edge cases (added per Task 3.4 code review) ---------------------
 
   it('item/*/delta for an unknown itemId silently no-ops (does not crash or invent a cell)', () => {

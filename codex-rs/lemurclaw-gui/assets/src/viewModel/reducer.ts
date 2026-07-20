@@ -33,8 +33,16 @@ export function reducer(state: ConversationState, event: unknown): ConversationS
 
 function applyNotification(state: ConversationState, n: ServerNotification): ConversationState {
   switch (n.method) {
-    case 'thread/started':
-      return { ...state, status: n.params.thread.status, activeTurnId: null };
+    case 'thread/started': {
+      const thread = n.params.thread;
+      const cwdRaw = thread.cwd as unknown;
+      return {
+        ...state,
+        status: thread.status,
+        activeTurnId: null,
+        cwd: typeof cwdRaw === 'string' ? cwdRaw : String(cwdRaw ?? ''),
+      };
+    }
     case 'thread/status/changed':
       return { ...state, status: n.params.status };
     case 'turn/started':
@@ -100,6 +108,10 @@ function applyNotification(state: ConversationState, n: ServerNotification): Con
           (a) => String(a.requestId) !== String(n.params.requestId),
         ),
       };
+    case 'model/rerouted':
+      // Backend rerouted the model (e.g. chosen model unavailable → fallback).
+      // toModel is the now-current model id; fromModel is informational only.
+      return { ...state, currentModel: n.params.toModel };
     default:
       // Many notification methods (rawResponseItem/completed, model/*,
       // thread/realtime/*, account/*, ...) are not yet rendered in subproject
