@@ -216,6 +216,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .modal-body { padding: 12px; overflow-y: auto; flex: 1; }
 .modal-loading, .modal-empty, .modal-error { color: var(--muted); padding: 12px; }
 
+/* Generic settings list (subproject 5-A). Used by every list-style settings
+   panel built on <SettingsListPicker>. */
+.settings-list { list-style: none; margin: 0; padding: 0; }
+.settings-list-item { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
+.settings-list-item-active { background: var(--cell-bg-alt, rgba(127,127,127,0.08)); }
+.settings-list-item-disabled { opacity: 0.5; }
+.settings-list-item-button { flex: 1; display: flex; flex-direction: column; gap: 2px; text-align: left; background: none; border: none; padding: 8px 12px; cursor: pointer; color: inherit; }
+.settings-list-item-button:disabled { cursor: default; }
+.settings-list-item-label { font-size: 13px; }
+.settings-list-item-sub { font-size: 11px; color: var(--muted); }
+.settings-list-item-action { padding-right: 12px; }
+
 /* ModelPicker list (Task 4.5). */
 .model-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .model-item-button { width: 100%; text-align: left; background: none; border: 1px solid var(--border-weak); cursor: pointer; padding: 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
