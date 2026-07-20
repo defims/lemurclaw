@@ -3,6 +3,9 @@ import { Modal } from '../Modal';
 import { PermissionsPanel } from './PermissionsPanel';
 import { HooksPanel } from './HooksPanel';
 import { McpPanel } from './McpPanel';
+import { SkillsPanel } from './SkillsPanel';
+import { AppsPanel } from './AppsPanel';
+import { PluginsPanel } from './PluginsPanel';
 
 /** Identifiers for the settings surfaces. Each one maps to a panel file
  *  populated in Tasks 4-7. Order here = order in the left nav.
@@ -68,8 +71,10 @@ export function SettingsModal({ onClose }: Props) {
           {surface === 'permissions' && <PermissionsPanel />}
           {surface === 'hooks' && <HooksPanel />}
           {surface === 'mcp' && <McpPanel />}
-          {(surface === 'memories' || surface === 'model' || surface === 'skills'
-            || surface === 'apps' || surface === 'plugins' || surface === 'experimental') && (
+          {surface === 'skills' && <SkillsPanel />}
+          {surface === 'apps' && <AppsPanel />}
+          {surface === 'plugins' && <PluginsPanel />}
+          {(surface === 'memories' || surface === 'model' || surface === 'experimental') && (
             <Placeholder surface={surface} />
           )}
         </div>
