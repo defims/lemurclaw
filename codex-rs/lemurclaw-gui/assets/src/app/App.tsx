@@ -14,6 +14,7 @@ import { ModelPicker } from '../components/ModelPicker';
 import { ThemePicker } from '../components/ThemePicker';
 import { SettingsModal, type SettingsSurface } from '../components/settings/SettingsModal';
 import { DiffViewerModal } from '../components/DiffViewerModal';
+import { sendRequest } from '../transport';
 import { dispatchSlashCommand } from '../components/composer/dispatch';
 import type { SlashCommand, SlashCommandContext, LocalAction } from '../components/composer/slashCommandTypes';
 import type { CellModel } from '../viewModel/types';
@@ -77,13 +78,14 @@ export function App() {
         setModal(m);
       },
       localAction: handleLocalAction,
+      sendRequest: (method, params) => sendRequest(method, params),
     };
     const result = dispatchSlashCommand(cmd, args, ctx);
-    // ctx callbacks already fired for openSettings/openModal/localAction.
-    // Handle the two categories that need App-level follow-up:
+    // ctx callbacks already fired for openSettings/openModal/localAction/
+    // sendRequest. Handle the categories that need App-level follow-up:
     if (result.kind === 'sendTurn') {
       startTurn(result.input);
-    } else if (result.kind === 'notImplemented') {
+    } else if (result.kind === 'notImplemented' || result.kind === 'notApplicable') {
       // Simple stub — toast comes later. alert() is synchronous and works
       // in jsdom tests (stubbed) and in wry (native dialog).
       window.alert(result.message);

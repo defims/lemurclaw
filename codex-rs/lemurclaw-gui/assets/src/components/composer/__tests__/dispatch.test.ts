@@ -9,6 +9,7 @@ function makeCtx(overrides: Partial<SlashCommandContext> = {}): SlashCommandCont
     openSettings: vi.fn(),
     openModal: vi.fn(),
     localAction: vi.fn(),
+    sendRequest: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

@@ -6,10 +6,12 @@ export type SlashCommandCategory =
   | 'openSettings'
   | 'openModal'
   | 'localAction'
-  | 'notImplemented';
+  | 'sendRequest'      // fire a ClientRequest RPC, ignore response (Stage 2)
+  | 'notImplemented'   // planned for future, currently surfaces a message
+  | 'notApplicable';   // GUI will never support (e.g. /vim /title /pets)
 
 /** Local-only Composer actions (no turn, no server round-trip). */
-export type LocalAction = 'clear' | 'new' | 'quit';
+export type LocalAction = 'clear' | 'new' | 'quit' | 'copy' | 'raw';
 
 /** Existing top-level modals. Kept in sync with App.tsx's ModalKind union. */
 export type ModalKind = 'model' | 'theme' | 'transcript' | 'settings' | 'diff';
@@ -21,7 +23,9 @@ export type SlashCommandResult =
   | { kind: 'openSettings'; surface: SettingsSurface }
   | { kind: 'openModal'; modal: ModalKind }
   | { kind: 'localAction'; action: LocalAction }
-  | { kind: 'notImplemented'; message: string };
+  | { kind: 'sendRequest'; method: string; params: unknown }
+  | { kind: 'notImplemented'; message: string }
+  | { kind: 'notApplicable'; message: string };
 
 /** Context passed to every dispatch(): the callbacks a command needs to
  *  trigger UI side effects without knowing about App's internal state. */
@@ -30,6 +34,10 @@ export interface SlashCommandContext {
   openSettings: (surface: SettingsSurface) => void;
   openModal: (modal: ModalKind) => void;
   localAction: (action: LocalAction) => void;
+  /** Fire a JSON-RPC request to the backend. Response is ignored (Stage 2
+   *  surfaces these commands fire-and-forget; a future stage may display
+   *  responses in a modal). Returns a Promise so callers can await if needed. */
+  sendRequest: (method: string, params: unknown) => Promise<unknown>;
 }
 
 /** One entry in the slash command catalog. */
