@@ -343,3 +343,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .cell-patch-view-diff { margin-left: auto; background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: var(--muted); }
 .cell-patch-view-diff:hover { color: inherit; border-color: var(--muted); }
 .cell-patch-header { display: flex; align-items: center; gap: 8px; }
+
+/* /raw mode (subproject 5-E Stage 2). Flattens Scrollback density for
+   copy-friendly terminal selection. Simplified vs TUI's full raw mode. */
+.app-root-raw .cell { border: none; padding: 2px 0; }
+.app-root-raw .scrollback { gap: 4px; }

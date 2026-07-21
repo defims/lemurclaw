@@ -43,6 +43,9 @@ export function App() {
   /** Diff text to show in <DiffViewerModal>. Set by /diff, TopBar 📄 button,
    *  or FileChangeCell "view full diff" — each sets their own source content. */
   const [diffSource, setDiffSource] = useState<string | null>(null);
+  /** Toggled by /raw — adds a body class that flattens Scrollback for
+   *  copy-friendly output (simplified vs TUI's full raw mode). */
+  const [rawMode, setRawMode] = useState(false);
   const turnActive = state.activeTurnId !== null;
 
   const handleLocalAction = (action: LocalAction) => {
@@ -60,6 +63,30 @@ export function App() {
         // wry webview: window.close() may be a no-op (often blocked by host).
         // Documented limitation — a future toast could surface "use Cmd+Q".
         window.close();
+        break;
+      case 'copy': {
+        // Find the latest agent message text across all turns and copy it.
+        // Stage 2 fallback: if there's no agent message yet, silently no-op
+        // (a future toast could say 'nothing to copy').
+        let lastAgent: string | null = null;
+        for (const turn of state.turns) {
+          for (const item of turn.items) {
+            if (item.kind === 'agentMessage' && item.text) lastAgent = item.text;
+          }
+        }
+        if (lastAgent) {
+          navigator.clipboard?.writeText(lastAgent).catch(() => {
+            // clipboard API may be unavailable (permissions / old webview);
+            // fail silently — the user can still select-copy manually.
+          });
+        }
+        break;
+      }
+      case 'raw':
+        // Toggle a body class that flattens Scrollback for copy-friendly
+        // output. Simplified vs TUI's raw mode (which also disables spinners
+        // and reflows cells); this just toggles visual density.
+        setRawMode((v) => !v);
         break;
     }
   };
@@ -112,7 +139,7 @@ export function App() {
 
   return (
     <Onboarding>
-      <div className="app-root">
+      <div className={`app-root${rawMode ? ' app-root-raw' : ''}`}>
         <TopBar
           cwd={state.cwd}
           model={state.currentModel}

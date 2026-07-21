@@ -285,4 +285,79 @@ describe('App (integration)', () => {
     fireEvent.click(screen.getByLabelText('diff'));
     expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
   });
+
+  // ----- Slash command Stage 2 integration (subproject 5-E Stage 2) -----
+  // Spot-checks each new category end-to-end through the App.
+
+  it('/status fires account/rateLimits/read via transport', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/status' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(vi.mocked(sendRequest)).toHaveBeenCalledWith('account/rateLimits/read', {});
+  });
+
+  it('/fork fires thread/fork with the active threadId', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/fork' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(vi.mocked(sendRequest)).toHaveBeenCalledWith('thread/fork', { threadId: 't1' });
+  });
+
+  it('/rename with no args shows an alert', () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal('alert', alertSpy);
+    try {
+      render(<App />);
+      const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+      fireEvent.change(ta, { target: { value: '/rename' } });
+      fireEvent.keyDown(ta, { key: 'Enter' });
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringMatching(/usage/i));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('/rename with args fires thread/name/set', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/rename my thread' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(vi.mocked(sendRequest)).toHaveBeenCalledWith('thread/name/set', { threadId: 't1', name: 'my thread' });
+  });
+
+  it('/raw toggles the raw-mode body class on app-root', () => {
+    render(<App />);
+    const root = document.querySelector('.app-root')!;
+    expect(root).not.toHaveClass('app-root-raw');
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/raw' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(root).toHaveClass('app-root-raw');
+  });
+
+  it('/vim surfaces a notApplicable alert', () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal('alert', alertSpy);
+    try {
+      render(<App />);
+      const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+      fireEvent.change(ta, { target: { value: '/vim' } });
+      fireEvent.keyDown(ta, { key: 'Enter' });
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringMatching(/not applicable|TUI/i));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('/side passes the slash text through as a turn', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/side quick question' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(startTurnMock).toHaveBeenCalledWith([
+      expect.objectContaining({ type: 'text', text: expect.stringMatching(/^\/side quick question/) }),
+    ]);
+  });
 });
