@@ -175,9 +175,26 @@ export function App() {
             </div>
             {state.pendingApprovals.length > 0 && (
               <div className="approvals-queue" data-testid="approvals-queue">
-                {state.pendingApprovals.map((a) => (
-                  <ApprovalCard key={String(a.requestId)} approval={a} />
-                ))}
+                {state.pendingApprovals.map((a) => {
+                  // For fileChange approvals, look up the matching cell by
+                  // itemId so the "view full diff" button can show that
+                  // patch's diff in the DiffViewerModal.
+                  const itemId = a.kind === 'fileChange' ? (a.raw.params as { itemId?: string }).itemId : undefined;
+                  const diffForItemId = itemId
+                    ? state.turns
+                        .flatMap((t) => t.items)
+                        .find((i): i is Extract<CellModel, { kind: 'fileChange' }> => i.kind === 'fileChange' && i.itemId === itemId)
+                        ?.changes.map((c) => c.diff).join('\n') ?? null
+                    : null;
+                  return (
+                    <ApprovalCard
+                      key={String(a.requestId)}
+                      approval={a}
+                      diffForApproval={diffForItemId}
+                      onViewDiff={(diff) => { setDiffSource(diff); setModal('diff'); }}
+                    />
+                  );
+                })}
               </div>
             )}
             <Composer

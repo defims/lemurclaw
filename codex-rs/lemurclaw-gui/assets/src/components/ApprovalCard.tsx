@@ -3,24 +3,34 @@ import { resolveServerRequest, rejectServerRequest } from '../transport';
 
 interface Props {
   approval: PendingApproval;
+  /** For fileChange approvals: the diff text to show when the user clicks
+   *  "view full diff". Null when no matching fileChange cell is in state yet
+   *  (the patch hasn't arrived via item/fileChange/patchUpdated). Absent
+   *  for non-fileChange approvals. */
+  diffForApproval?: string | null;
+  /** Fired when the user clicks "view full diff" on a fileChange approval.
+   *  App opens <DiffViewerModal> with the provided diff. */
+  onViewDiff?: (diff: string) => void;
 }
 
 /** ApprovalCard: renders a pending ServerRequest as a card with decision
  *  buttons. Dispatch shape depends on `approval.kind`:
  *  - commandExecution: [run once] [always this session] [decline]
  *  - fileChange:       [apply once] [always this session] [decline]
+ *                      + optional "view full diff" button (when diffForApproval
+ *                        is non-null)
  *  - mcpElicitation:   text input + [submit] [cancel]
  *  - permissions:      [allow] [deny]
  *  - toolUserInput:    text input + [submit] [cancel]
  *  - generic:          [resolve] [cancel]
  *
  *  Decision → transport.resolveServerRequest / rejectServerRequest. */
-export function ApprovalCard({ approval }: Props) {
+export function ApprovalCard({ approval, diffForApproval, onViewDiff }: Props) {
   switch (approval.kind) {
     case 'commandExecution':
       return <ExecApproval approval={approval} />;
     case 'fileChange':
-      return <FileChangeApproval approval={approval} />;
+      return <FileChangeApproval approval={approval} diffForApproval={diffForApproval ?? null} onViewDiff={onViewDiff} />;
     case 'mcpElicitation':
     case 'toolUserInput':
       return <ElicitationApproval approval={approval} />;
@@ -59,14 +69,21 @@ function ExecApproval({ approval }: { approval: PendingApproval }) {
   );
 }
 
-function FileChangeApproval({ approval }: { approval: PendingApproval }) {
+function FileChangeApproval({
+  approval,
+  diffForApproval,
+  onViewDiff,
+}: {
+  approval: PendingApproval;
+  diffForApproval: string | null;
+  onViewDiff?: (diff: string) => void;
+}) {
   // NOTE: FileChangeRequestApprovalParams only carries threadId/turnId/itemId/
   // startedAtMs/reason/grantRoot — it does NOT include the actual file change
   // list. Those arrive separately via `item/fileChange/patchUpdated`
-  // notifications and land in the fileChange CellModel (Task 3.4 reducer).
-  // Subproject 3 renders what the approval envelope actually exposes; a
-  // future task can cross-reference the matching fileChange cell by itemId
-  // to show the affected paths here.
+  // notifications and land in the fileChange CellModel (reducer). App cross-
+  // references the matching cell by itemId and hands the diff text in via
+  // `diffForApproval` (null until the patch notification arrives).
   const params = approval.raw.params as {
     reason?: string | null;
     grantRoot?: string | null;
@@ -84,6 +101,15 @@ function FileChangeApproval({ approval }: { approval: PendingApproval }) {
         <button onClick={() => resolveServerRequest(approval.requestId, { decision: 'accept' })}>apply once</button>
         <button onClick={() => resolveServerRequest(approval.requestId, { decision: 'acceptForSession' })}>always this session</button>
         <button onClick={() => rejectServerRequest(approval.requestId, 'user declined')}>decline</button>
+        {diffForApproval && onViewDiff && (
+          <button
+            className="approval-view-diff"
+            data-testid="approval-view-diff"
+            onClick={() => onViewDiff(diffForApproval)}
+          >
+            view full diff
+          </button>
+        )}
       </div>
     </div>
   );
