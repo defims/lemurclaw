@@ -72,7 +72,7 @@ export function App() {
                 ))}
               </div>
             )}
-            <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} startTurn={startTurn} />
+            <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} startTurn={startTurn} onSlashCommand={() => { /* wired in Task 5 */ }} />
           </main>
           <Sidebar
             sections={[
