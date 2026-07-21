@@ -12,6 +12,7 @@ import type { MessagePhase } from '../types/MessagePhase';
 import type { PatchChangeKind, CommandExecutionStatus, CommandExecutionSource, PatchApplyStatus, McpToolCallStatus, DynamicToolCallStatus, ThreadStatus, TurnStatus, HookRunSummary, CommandAction, FileUpdateChange } from '../types/v2';
 import type { RequestId } from '../types/RequestId';
 import type { ServerRequest } from '../types/ServerRequest';
+import type { FuzzyFileSearchResult } from '../types/FuzzyFileSearchResult';
 
 export interface ConversationState {
   /** Ordered turns (oldest first). Each turn owns an ordered items list. */
@@ -38,6 +39,11 @@ export interface ConversationState {
    *  the first turn/diff/updated notification arrives. Source for
    *  <DiffViewerModal> (subproject 5-C). */
   turnDiff: { turnId: string; diff: string } | null;
+  /** Active fuzzy file search session (subproject 5-E Stage 3). Null when
+   *  no @-mention popup is open. The Composer owns the lifecycle (start /
+   *  update / stop); the reducer only mirrors the server's sessionUpdated
+   *  pushes so the popup re-renders with new results. */
+  fuzzySession: { sessionId: string; query: string; files: FuzzyFileSearchResult[] } | null;
 }
 
 export type ThreadStatusModel = ThreadStatus;
@@ -117,6 +123,7 @@ export const initialState: ConversationState = {
   subAgents: [],
   pendingApprovals: [],
   turnDiff: null,
+  fuzzySession: null,
 };
 
 // Helpers (re-exported for components that want typed local copies) --------

@@ -127,6 +127,28 @@ function applyNotification(state: ConversationState, n: ServerNotification): Con
         ...state,
         turnDiff: { turnId: n.params.turnId, diff: n.params.diff },
       };
+    case 'fuzzyFileSearch/sessionUpdated':
+      // Server pushed new fuzzy file results for the active @-mention popup.
+      // Only accept results for the session we currently have open (a late
+      // push for a closed session is dropped on the floor).
+      if (state.fuzzySession && n.params.sessionId === state.fuzzySession.sessionId) {
+        return {
+          ...state,
+          fuzzySession: {
+            sessionId: n.params.sessionId,
+            query: n.params.query,
+            files: n.params.files,
+          },
+        };
+      }
+      return state;
+    case 'fuzzyFileSearch/sessionCompleted':
+      // Server said the session is done. Clear our local mirror so the popup
+      // closes on the next render.
+      if (state.fuzzySession && n.params.sessionId === state.fuzzySession.sessionId) {
+        return { ...state, fuzzySession: null };
+      }
+      return state;
     default:
       // Many notification methods (rawResponseItem/completed, model/*,
       // thread/realtime/*, account/*, ...) are not yet rendered in subproject

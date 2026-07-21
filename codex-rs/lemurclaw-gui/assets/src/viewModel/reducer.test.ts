@@ -144,6 +144,50 @@ describe('reducer', () => {
     expect(next.pendingApprovals).toBe(before.pendingApprovals);
   });
 
+  it('fuzzyFileSearch/sessionUpdated updates the active session (matching sessionId)', () => {
+    const before = reducer(
+      { ...st(), fuzzySession: { sessionId: 'fs1', query: '', files: [] } },
+      { method: 'thread/started', params: { thread: FULL_THREAD } },
+    );
+    const next = reducer({ ...before, fuzzySession: { sessionId: 'fs1', query: 'co', files: [] } }, {
+      method: 'fuzzyFileSearch/sessionUpdated',
+      params: {
+        sessionId: 'fs1',
+        query: 'co',
+        // Note: FuzzyFileSearchResult wire fields are snake_case
+        // (match_type, file_name) — the app-server didn't apply rename_all
+        // to this type. See types/FuzzyFileSearchResult.ts.
+        files: [{ root: '/r', path: 'code.rs', match_type: 'file', file_name: 'code.rs', score: 100, indices: null }],
+      },
+    });
+    expect(next.fuzzySession?.files.length).toBe(1);
+    expect(next.fuzzySession?.files[0].path).toBe('code.rs');
+  });
+
+  it('fuzzyFileSearch/sessionUpdated drops late pushes for a different/closed session', () => {
+    const before: ConversationState = {
+      ...st(),
+      fuzzySession: { sessionId: 'fs1', query: '', files: [] },
+    };
+    const next = reducer(before, {
+      method: 'fuzzyFileSearch/sessionUpdated',
+      params: { sessionId: 'fs2', query: 'x', files: [] },
+    });
+    expect(next.fuzzySession?.sessionId).toBe('fs1'); // unchanged
+  });
+
+  it('fuzzyFileSearch/sessionCompleted clears the matching session', () => {
+    const before: ConversationState = {
+      ...st(),
+      fuzzySession: { sessionId: 'fs1', query: '', files: [] },
+    };
+    const next = reducer(before, {
+      method: 'fuzzyFileSearch/sessionCompleted',
+      params: { sessionId: 'fs1' },
+    });
+    expect(next.fuzzySession).toBeNull();
+  });
+
   it('responseMeta action folds cwd + model into state', () => {
     const next = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
     expect(next.cwd).toBe('/proj');
