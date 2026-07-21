@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { SLASH_COMMANDS } from '../slashCommands';
 
 describe('SLASH_COMMANDS catalog', () => {
-  it('has the expected stage-1 size', () => {
-    // 16 = 3 sendTurn + 3 openModal (incl /diff from 5-C) + 8 openSettings + 2 localAction
-    expect(SLASH_COMMANDS.length).toBe(16);
+  it('has the full TUI parity catalog (Stage 1 + Stage 2)', () => {
+    // 55 = all codex TUI SlashCommand variants (Stage 1's 16 + Stage 2's 39).
+    expect(SLASH_COMMANDS.length).toBe(55);
   });
 
   it('every command has non-empty name, description, and a dispatch fn', () => {
@@ -27,7 +27,10 @@ describe('SLASH_COMMANDS catalog', () => {
   });
 
   it('every command declares a valid category', () => {
-    const valid = new Set(['sendTurn', 'openSettings', 'openModal', 'localAction', 'notImplemented']);
+    const valid = new Set([
+      'sendTurn', 'openSettings', 'openModal', 'localAction',
+      'sendRequest', 'notImplemented', 'notApplicable',
+    ]);
     for (const cmd of SLASH_COMMANDS) {
       expect(valid.has(cmd.category)).toBe(true);
     }

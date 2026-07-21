@@ -95,4 +95,150 @@ describe('dispatchSlashCommand', () => {
       expect(r).toEqual({ kind: 'openModal', modal: 'diff' });
     });
   });
+
+  // ----- Stage 2 coverage -----
+  describe('Stage 2: session lifecycle (sendRequest)', () => {
+    it.each([
+      ['archive', 'thread/archive'],
+      ['delete', 'thread/delete'],
+      ['fork', 'thread/fork'],
+    ])('/%s fires ctx.sendRequest(%s) with the active threadId', (name, method) => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      const r = dispatchSlashCommand(cmd(name), '', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith(method, { threadId: 't1' });
+      expect(r.kind).toBe('sendRequest');
+    });
+
+    it('/rename with no args returns notApplicable usage hint', () => {
+      const r = dispatchSlashCommand(cmd('rename'), '', makeCtx());
+      expect(r.kind).toBe('notApplicable');
+    });
+
+    it('/rename with args fires thread/name/set', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('rename'), 'new name', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('thread/name/set', { threadId: 't1', name: 'new name' });
+    });
+
+    it('/resume returns notImplemented pointing at the sidebar', () => {
+      const r = dispatchSlashCommand(cmd('resume'), '', makeCtx());
+      expect(r.kind).toBe('notImplemented');
+    });
+
+    it('/logout fires account/logout', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('logout'), '', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('account/logout', {});
+    });
+  });
+
+  describe('Stage 2: server-side queries (sendRequest)', () => {
+    it('/status fires account/rateLimits/read', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('status'), '', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('account/rateLimits/read', {});
+    });
+
+    it('/usage fires account/usage/read with range', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('usage'), 'daily', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('account/usage/read', { range: 'daily' });
+    });
+
+    it('/debug-config fires config/read', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('debug-config'), '', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('config/read', {});
+    });
+
+    it('/feedback with no args returns notApplicable usage hint', () => {
+      const r = dispatchSlashCommand(cmd('feedback'), '', makeCtx());
+      expect(r.kind).toBe('notApplicable');
+    });
+
+    it('/feedback with args fires feedback/upload', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('feedback'), 'this is broken', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('feedback/upload', { message: 'this is broken' });
+    });
+
+    it('/import fires externalAgentConfig/import', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('import'), '', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('externalAgentConfig/import', {});
+    });
+  });
+
+  describe('Stage 2: thread goal / plan / approve', () => {
+    it('/goal clear fires thread/goal/clear', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('goal'), 'clear', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('thread/goal/clear', { threadId: 't1' });
+    });
+
+    it('/goal <text> fires thread/goal/set', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('goal'), 'ship 5-E', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('thread/goal/set', { threadId: 't1', goalDraft: 'ship 5-E' });
+    });
+
+    it('/plan returns sendTurn with plan text', () => {
+      const r = dispatchSlashCommand(cmd('plan'), 'redesign the diff viewer', makeCtx());
+      expect(r.kind).toBe('sendTurn');
+    });
+
+    it('/approve fires review/start with auto_review_retry target', () => {
+      const sendRequest = vi.fn().mockResolvedValue(undefined);
+      dispatchSlashCommand(cmd('approve'), '', makeCtx({ sendRequest }));
+      expect(sendRequest).toHaveBeenCalledWith('review/start', { target: 'auto_review_retry' });
+    });
+  });
+
+  describe('Stage 2: turn-prefix slash passthrough', () => {
+    it.each(['side', 'btw', 'agent', 'subagents', 'personality'])(
+      '/%s sends a turn with the literal slash text (server-side interpretation)',
+      (name) => {
+        // makeCtx with threadId is the default; the dispatch just builds a
+        // turn input — we assert it contains the slash text.
+        const r = dispatchSlashCommand(cmd(name), 'foo bar', makeCtx());
+        expect(r.kind).toBe('sendTurn');
+        if (r.kind !== 'sendTurn') return;
+        const text = (r.input[0] as { text: string }).text;
+        expect(text).toContain(`/${name}`);
+        expect(text).toContain('foo bar');
+      },
+    );
+  });
+
+  describe('Stage 2: localAction additions', () => {
+    it.each([
+      ['copy', 'copy'],
+      ['raw', 'raw'],
+      ['quit', 'quit'],
+      ['exit', 'quit'], // alias maps to quit
+    ])('/%s calls ctx.localAction(%s)', (name, expected) => {
+      const localAction = vi.fn();
+      const r = dispatchSlashCommand(cmd(name), '', makeCtx({ localAction }));
+      expect(localAction).toHaveBeenCalledWith(expected);
+      expect(r).toEqual({ kind: 'localAction', action: expected as never });
+    });
+  });
+
+  describe('Stage 2: notImplemented stubs', () => {
+    it.each(['mention', 'ide', 'app'])('/%s returns notImplemented', (name) => {
+      const r = dispatchSlashCommand(cmd(name), '', makeCtx());
+      expect(r.kind).toBe('notImplemented');
+    });
+  });
+
+  describe('Stage 2: notApplicable (TUI-only / debug-only)', () => {
+    it.each([
+      'vim', 'keymap', 'title', 'statusline', 'pets', 'ps', 'stop',
+      'setup-default-sandbox', 'sandbox-add-read-dir',
+      'rollout', 'test-approval', 'debug-m-drop', 'debug-m-update',
+    ])('/%s returns notApplicable', (name) => {
+      const r = dispatchSlashCommand(cmd(name), '', makeCtx());
+      expect(r.kind).toBe('notApplicable');
+    });
+  });
 });
