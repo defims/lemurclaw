@@ -9192,7 +9192,18 @@ name = "lemurclaw-webui"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "axum",
+ "codex-app-server-client",
+ "codex-app-server-protocol",
+ "codex-arg0",
+ "codex-config",
+ "codex-protocol",
+ "codex-rollout",
+ "futures",
  "include_dir",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

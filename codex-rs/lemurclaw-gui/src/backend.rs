@@ -18,22 +18,16 @@
 //! `next_event` loop uses. The main thread then `evaluate_script`s it into
 //! `window.__lemurclaw.onResponse`, where transport.ts matches it by id
 //! against pending promises.
+//!
+//! Shared codex-protocol glue (event serialization, JSON-RPC envelope
+//! building, ServerRequest resolve/reject, dev client bootstrap) lives in
+//! `lemurclaw_webui::codex_glue` and is reused verbatim by the in-process
+//! webui server — same wire contract on both frontends.
 
-use std::sync::Arc;
-
-use codex_app_server_client::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
-use codex_app_server_client::EnvironmentManager;
 use codex_app_server_client::InProcessAppServerClient;
 use codex_app_server_client::InProcessAppServerRequestHandle;
-use codex_app_server_client::InProcessClientStartArgs;
-use codex_app_server_client::InProcessServerEvent;
-use codex_app_server_client::legacy_core::config::ConfigBuilder;
-use codex_app_server_protocol::ClientRequest;
-use codex_app_server_protocol::ConfigWarningNotification;
-use codex_arg0::Arg0DispatchPaths;
-use codex_config::LoaderOverrides;
-use codex_protocol::protocol::SessionSource;
-use codex_rollout::state_db;
+use lemurclaw_webui::codex_glue;
+use lemurclaw_webui::codex_glue::ResolveKind;
 use tao::event_loop::EventLoopProxy;
 use tokio::runtime::Handle;
 
@@ -63,55 +57,6 @@ pub struct BackendHandles {
     proxy: EventLoopProxy<GuiEvent>,
 }
 
-/// Distinguishes the two envelope kinds handled in `handle_ipc`.
-enum ResolveKind {
-    Resolve,
-    Reject,
-}
-
-/// Respond to (resolve or reject) a pending ServerRequest on the backend
-/// runtime. Awaited inside the task spawned by `handle_ipc` (does not spawn
-/// anything itself). Pulls the RequestId / JsonRpcResult / JSONRPCErrorError
-/// types from the protocol crate; falls back to a safe null/error payload on
-/// malformed input so a bad JS envelope never kills the worker.
-async fn respond_to_server_request(
-    handle: &InProcessAppServerRequestHandle,
-    request_id: serde_json::Value,
-    payload: serde_json::Value,
-    kind: ResolveKind,
-) {
-    let req_id = match serde_json::from_value::<codex_app_server_protocol::RequestId>(request_id) {
-        Ok(id) => id,
-        Err(e) => {
-            eprintln!("[lemurclaw] resolve: bad request_id: {e}");
-            return;
-        }
-    };
-    let result = match kind {
-        ResolveKind::Resolve => {
-            // `codex_app_server_protocol::Result` is a type alias for
-            // `serde_json::Value` (the JSON-RPC result payload). On a
-            // malformed envelope fall back to JSON null rather than failing
-            // the resolve, so a bad JS body never hangs an approval flow.
-            let json_result: codex_app_server_protocol::Result =
-                serde_json::from_value(payload).unwrap_or(serde_json::Value::Null);
-            handle.resolve_server_request(req_id, json_result).await
-        }
-        ResolveKind::Reject => {
-            let err: codex_app_server_protocol::JSONRPCErrorError = serde_json::from_value(payload)
-                .unwrap_or_else(|e| codex_app_server_protocol::JSONRPCErrorError {
-                    code: -32000,
-                    message: format!("malformed reject payload: {e}"),
-                    data: None,
-                });
-            handle.reject_server_request(req_id, err).await
-        }
-    };
-    if let Err(e) = result {
-        eprintln!("[lemurclaw] resolve/reject failed: {e}");
-    }
-}
-
 impl BackendHandles {
     /// Forward a raw JSON body from JS to the backend. Three shapes:
     /// - `{"__resolve": id, "result": {...}}` resolves a pending ServerRequest
@@ -139,7 +84,7 @@ impl BackendHandles {
             };
             if let Some(req_id) = value.get("__resolve") {
                 if let Some(result) = value.get("result") {
-                    respond_to_server_request(
+                    codex_glue::respond_to_server_request(
                         &handle,
                         req_id.clone(),
                         result.clone(),
@@ -151,7 +96,7 @@ impl BackendHandles {
                 }
             } else if let Some(req_id) = value.get("__reject") {
                 if let Some(error) = value.get("error") {
-                    respond_to_server_request(
+                    codex_glue::respond_to_server_request(
                         &handle,
                         req_id.clone(),
                         error.clone(),
@@ -162,59 +107,28 @@ impl BackendHandles {
                     eprintln!("[lemurclaw] __reject envelope missing 'error' field, dropping");
                 }
             } else {
-                // Capture the raw `id` from the value BEFORE from_value
-                // consumes it. Every ClientRequest variant carries an `id`
-                // field named `id` (typed as `RequestId = string | number`),
-                // but pulling it back out of the enum after deserialization is
-                // awkward; the untyped Value makes it a one-liner.
-                let req_id_json = value.get("id").cloned().unwrap_or(serde_json::Value::Null);
-                match serde_json::from_value::<ClientRequest>(value) {
-                    Ok(req) => {
-                        match handle.request(req).await {
-                            Ok(result) => {
-                                // Build the JSON-RPC envelope. For the error
-                                // arm, `to_value(&err)` honors
-                                // `skip_serializing_if = "Option::is_none"` on
-                                // `JSONRPCErrorError.data`, so an error with no
-                                // `data` emits no `data` field (vs. the naive
-                                // `json!({"data": err.data})` which always
-                                // emits `"data": null`).
-                                let payload = match result {
-                                    Ok(val) => serde_json::json!({
-                                        "jsonrpc": "2.0", "id": req_id_json, "result": val,
-                                    }),
-                                    Err(err) => {
-                                        let mut e = serde_json::Map::new();
-                                        e.insert("jsonrpc".into(), "2.0".into());
-                                        e.insert("id".into(), req_id_json);
-                                        let mut error_obj = serde_json::Map::new();
-                                        error_obj.insert("code".into(), err.code.into());
-                                        error_obj.insert("message".into(), err.message.into());
-                                        if let Some(data) = err.data {
-                                            error_obj.insert("data".into(), data);
-                                        }
-                                        e.insert(
-                                            "error".into(),
-                                            serde_json::Value::Object(error_obj),
-                                        );
-                                        serde_json::Value::Object(e)
-                                    }
-                                };
-                                match serde_json::to_string(&payload) {
-                                    Ok(json) => {
-                                        if let Err(e) = proxy.send_event(GuiEvent::Response(json)) {
-                                            eprintln!("[lemurclaw] response proxy closed: {e}");
-                                        }
-                                    }
-                                    Err(e) => eprintln!(
-                                        "[lemurclaw] failed to serialize response envelope: {e}"
-                                    ),
+                let (req_id_json, req) = match codex_glue::parse_client_request(value) {
+                    Ok(pair) => pair,
+                    Err(e) => {
+                        eprintln!("[lemurclaw] ipc body not a valid ClientRequest: {e}");
+                        return;
+                    }
+                };
+                match handle.request(req).await {
+                    Ok(result) => {
+                        let payload = codex_glue::build_response_envelope(req_id_json, result);
+                        match serde_json::to_string(&payload) {
+                            Ok(json) => {
+                                if let Err(e) = proxy.send_event(GuiEvent::Response(json)) {
+                                    eprintln!("[lemurclaw] response proxy closed: {e}");
                                 }
                             }
-                            Err(e) => eprintln!("[lemurclaw] backend request failed: {e}"),
+                            Err(e) => {
+                                eprintln!("[lemurclaw] failed to serialize response envelope: {e}")
+                            }
                         }
                     }
-                    Err(e) => eprintln!("[lemurclaw] ipc body not a valid ClientRequest: {e}"),
+                    Err(e) => eprintln!("[lemurclaw] backend request failed: {e}"),
                 }
             }
         });
@@ -257,7 +171,7 @@ pub fn spawn(proxy: EventLoopProxy<GuiEvent>) -> anyhow::Result<BackendHandles> 
     // for our orchestration; we want this thread to own the runtime.
     std::thread::spawn(move || {
         runtime.block_on(async move {
-            let client = match build_and_start_client().await {
+            let client = match codex_glue::build_dev_client().await {
                 Ok(c) => c,
                 Err(e) => {
                     let _ = start_tx.send(StartMessage::Failed(e));
@@ -286,59 +200,17 @@ pub fn spawn(proxy: EventLoopProxy<GuiEvent>) -> anyhow::Result<BackendHandles> 
     }
 }
 
-/// Build the in-process AppServerClient using the dev path (no real auth,
-/// `EnvironmentManager::default_for_tests()`). This is sufficient for the
-/// subproject 2 completion criterion: a visible Initialize handshake.
-/// Production-grade env / config wiring lands in a later task.
-async fn build_and_start_client() -> anyhow::Result<InProcessAppServerClient> {
-    let config = Arc::new(
-        ConfigBuilder::default()
-            .build()
-            .await
-            .map_err(|e| anyhow::anyhow!("failed to build config: {e}"))?,
-    );
-
-    let state_db = state_db::try_init(config.as_ref())
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to init state db: {e}"))?;
-
-    let client = InProcessAppServerClient::start(InProcessClientStartArgs {
-        arg0_paths: Arg0DispatchPaths::default(),
-        config,
-        cli_overrides: Vec::new(),
-        loader_overrides: LoaderOverrides::default(),
-        strict_config: false,
-        cloud_config_bundle: Default::default(),
-        feedback: Default::default(),
-        log_db: None,
-        state_db: Some(state_db),
-        environment_manager: Arc::new(EnvironmentManager::default_for_tests()),
-        config_warnings: Vec::<ConfigWarningNotification>::new(),
-        session_source: SessionSource::Cli,
-        enable_codex_api_key_env: false,
-        client_name: "lemurclaw-gui".to_string(),
-        client_version: env!("CARGO_PKG_VERSION").to_string(),
-        experimental_api: true,
-        mcp_server_openai_form_elicitation: false,
-        opt_out_notification_methods: Vec::new(),
-        channel_capacity: DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("failed to start in-process app server: {e}"))?;
-
-    Ok(client)
-}
-
 /// Run the `next_event` loop until the backend stream closes. Each event is
-/// serialized to JSON and shipped to the main thread via the proxy. Events
-/// that fail to serialize are logged and skipped (a single bad event must
-/// not kill the whole loop).
+/// serialized to JSON (via the shared `codex_glue::serialize_server_event`)
+/// and shipped to the main thread via the proxy. Events that fail to
+/// serialize are logged and skipped (a single bad event must not kill the
+/// whole loop).
 async fn run_next_event_loop(
     mut client: InProcessAppServerClient,
     proxy: EventLoopProxy<GuiEvent>,
 ) {
     while let Some(event) = client.next_event().await {
-        let json = serialize_event(event);
+        let json = codex_glue::serialize_server_event(event);
         if let Err(e) = proxy.send_event(GuiEvent::ServerEvent(json)) {
             // EventLoopClosed means the window went away; we can stop.
             eprintln!("[lemurclaw] event proxy closed, stopping worker: {e}");
@@ -348,24 +220,6 @@ async fn run_next_event_loop(
     // Stream ended. The runtime stays up so handle_ipc still works against a
     // closed channel and just no-ops; the process exits when the user closes
     // the window.
-}
-
-/// Serialize an `InProcessServerEvent` for JS delivery.
-///
-/// `InProcessServerEvent` itself does not derive `Serialize`, but its inner
-/// `ServerNotification` / `ServerRequest` variants do. The `Lagged` variant
-/// (which carries only a `skipped` count) gets a hand-rolled JSON envelope so
-/// the JS side still sees *something* useful instead of a silent drop.
-fn serialize_event(event: InProcessServerEvent) -> String {
-    match event {
-        InProcessServerEvent::ServerNotification(n) => serde_json::to_string(&n)
-            .unwrap_or_else(|e| format!(r#"{{"serializeError":"notification: {e}"}}"#)),
-        InProcessServerEvent::ServerRequest(r) => serde_json::to_string(&r)
-            .unwrap_or_else(|e| format!(r#"{{"serializeError":"serverRequest: {e}"}}"#)),
-        InProcessServerEvent::Lagged { skipped } => {
-            format!(r#"{{"type":"lagged","skipped":{skipped}}}"#)
-        }
-    }
 }
 
 /// Worker → spawner start status. Sent exactly once over the std mpsc.
