@@ -13,10 +13,12 @@ import { TranscriptPager } from '../components/TranscriptPager';
 import { ModelPicker } from '../components/ModelPicker';
 import { ThemePicker } from '../components/ThemePicker';
 import { SettingsModal, type SettingsSurface } from '../components/settings/SettingsModal';
+import { DiffViewerModal } from '../components/DiffViewerModal';
 import { dispatchSlashCommand } from '../components/composer/dispatch';
 import type { SlashCommand, SlashCommandContext, LocalAction } from '../components/composer/slashCommandTypes';
+import type { CellModel } from '../viewModel/types';
 
-type ModalKind = 'none' | 'model' | 'theme' | 'transcript' | 'settings';
+type ModalKind = 'none' | 'model' | 'theme' | 'transcript' | 'settings' | 'diff';
 
 /** Top-level GUI application. Spec §4.3 layout: top bar (cwd + model + menu)
  *  over a main column (scrollback + approvals + composer) sitting beside a
@@ -37,6 +39,9 @@ export function App() {
   /** Bumped by /clear to force-remount Scrollback (UI-only clear; server-side
    *  conversation state unchanged — NOT equivalent to TUI's ClearUi). */
   const [clearKey, setClearKey] = useState(0);
+  /** Diff text to show in <DiffViewerModal>. Set by /diff, TopBar 📄 button,
+   *  or FileChangeCell "view full diff" — each sets their own source content. */
+  const [diffSource, setDiffSource] = useState<string | null>(null);
   const turnActive = state.activeTurnId !== null;
 
   const handleLocalAction = (action: LocalAction) => {
@@ -65,7 +70,12 @@ export function App() {
         setSettingsSurface(surface);
         setModal('settings');
       },
-      openModal: (m) => setModal(m),
+      openModal: (m) => {
+        // For the diff modal sourced from /diff, default to the current
+        // turn-level diff (TopBar 📄 button does the same).
+        if (m === 'diff') setDiffSource(state.turnDiff?.diff ?? '');
+        setModal(m);
+      },
       localAction: handleLocalAction,
     };
     const result = dispatchSlashCommand(cmd, args, ctx);
@@ -108,11 +118,21 @@ export function App() {
           onOpenThemePicker={() => setModal('theme')}
           onOpenTranscript={() => setModal('transcript')}
           onOpenSettings={() => setModal('settings')}
+          onOpenDiff={() => { setDiffSource(state.turnDiff?.diff ?? ''); setModal('diff'); }}
         />
         <div className="app-body">
           <main className="app-main">
             <div className="app-scrollback" key={clearKey}>
-              <Scrollback state={state} />
+              <Scrollback
+                state={state}
+                onViewDiff={(cell: CellModel) => {
+                  if (cell.kind !== 'fileChange') return;
+                  // Concatenate this cell's per-file diffs into one blob;
+                  // <DiffText> parses it back into per-file blocks.
+                  setDiffSource(cell.changes.map((c) => c.diff).join('\n'));
+                  setModal('diff');
+                }}
+              />
             </div>
             {state.pendingApprovals.length > 0 && (
               <div className="approvals-queue" data-testid="approvals-queue">
@@ -143,6 +163,9 @@ export function App() {
       )}
       {modal === 'settings' && (
         <SettingsModal onClose={() => setModal('none')} initialSurface={settingsSurface} />
+      )}
+      {modal === 'diff' && diffSource !== null && (
+        <DiffViewerModal diff={diffSource} onClose={() => setModal('none')} />
       )}
     </Onboarding>
   );

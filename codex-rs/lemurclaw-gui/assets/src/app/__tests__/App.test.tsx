@@ -256,17 +256,33 @@ describe('App (integration)', () => {
     ]);
   });
 
-  it('/diff surfaces a notImplemented alert', () => {
-    const alertSpy = vi.fn();
-    vi.stubGlobal('alert', alertSpy);
-    try {
-      render(<App />);
-      const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
-      fireEvent.change(ta, { target: { value: '/diff' } });
-      fireEvent.keyDown(ta, { key: 'Enter' });
-      expect(alertSpy).toHaveBeenCalledWith(expect.stringMatching(/5-C/));
-    } finally {
-      vi.unstubAllGlobals();
-    }
+  it('/diff opens DiffViewerModal with the current turnDiff', () => {
+    setConversationState({
+      ...initialState,
+      status: { type: 'idle' },
+      turnDiff: { turnId: 'tu1', diff: 'diff --git a/x b/x\n+hello\n' },
+    });
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/diff' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
+    // The modal renders <DiffText> when the diff is non-empty.
+    expect(screen.getByTestId('diff-text')).toBeInTheDocument();
+  });
+
+  it('/diff with no turnDiff shows the empty-state in the modal', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/diff' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('diff-viewer-empty')).toBeInTheDocument();
+  });
+
+  it('TopBar 📄 button (aria-label "diff") opens DiffViewerModal', () => {
+    render(<App />);
+    fireEvent.click(screen.getByLabelText('diff'));
+    expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
   });
 });

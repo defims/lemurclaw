@@ -86,12 +86,12 @@ describe('dispatchSlashCommand', () => {
     });
   });
 
-  describe('notImplemented', () => {
-    it('/diff returns notImplemented with a 5-C message', () => {
-      const r = dispatchSlashCommand(cmd('diff'), '', makeCtx());
-      expect(r.kind).toBe('notImplemented');
-      if (r.kind !== 'notImplemented') return;
-      expect(r.message).toMatch(/5-C/);
+  describe('diff viewer (openModal)', () => {
+    it('/diff calls ctx.openModal("diff") and returns matching result', () => {
+      const openModal = vi.fn();
+      const r = dispatchSlashCommand(cmd('diff'), '', makeCtx({ openModal }));
+      expect(openModal).toHaveBeenCalledWith('diff');
+      expect(r).toEqual({ kind: 'openModal', modal: 'diff' });
     });
   });
 });

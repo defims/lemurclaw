@@ -5,11 +5,15 @@ type Model = Extract<CellModel, { kind: 'fileChange' }>;
 
 interface Props {
   model: Model;
+  /** When provided, the cell renders a "view full diff" button in the header
+   *  that opens the full-screen diff viewer for this cell's changes. Absent
+   *  in read-only contexts (e.g. TranscriptPager). */
+  onViewDiff?: () => void;
 }
 
 /** File-change (patch) cell. Lists changed files with +/- markers; each
  *  file's diff is collapsible. Apply status shown as a badge. */
-export function FileChangeCell({ model }: Props) {
+export function FileChangeCell({ model, onViewDiff }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const statusBadge = labelForPatchStatus(model.status);
   return (
@@ -18,6 +22,16 @@ export function FileChangeCell({ model }: Props) {
         <span className="cell-patch-title">📝 patch</span>
         <span className="cell-patch-status">{statusBadge}</span>
         <span className="cell-patch-count">{model.changes.length} file(s)</span>
+        {onViewDiff && (
+          <button
+            className="cell-patch-view-diff"
+            onClick={onViewDiff}
+            aria-label="view full diff"
+            data-testid="patch-view-diff"
+          >
+            view full diff
+          </button>
+        )}
       </div>
       <ul className="cell-patch-files">
         {model.changes.map((c, i) => {

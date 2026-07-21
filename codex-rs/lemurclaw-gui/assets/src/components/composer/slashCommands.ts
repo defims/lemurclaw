@@ -131,11 +131,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     dispatch: (_args, ctx) => { ctx.localAction('new'); return { kind: 'localAction', action: 'new' }; },
   },
 
-  // notImplemented — explicit "later" stub (5-C will fill /diff)
+  // openModal — full-screen diff viewer (5-C)
   {
     name: 'diff',
     description: 'Show git diff (including untracked files)',
-    category: 'notImplemented',
-    dispatch: () => ({ kind: 'notImplemented', message: 'diff viewer coming in subproject 5-C' }),
+    category: 'openModal',
+    dispatch: (_args, ctx) => { ctx.openModal('diff'); return { kind: 'openModal', modal: 'diff' }; },
   },
 ];

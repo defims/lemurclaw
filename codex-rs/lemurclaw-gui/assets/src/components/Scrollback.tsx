@@ -12,12 +12,16 @@ import { WebSearchCell } from './cells/WebSearchCell';
 
 interface Props {
   state: ConversationState;
+  /** Optional: called when the user clicks "view full diff" on a patch cell.
+   *  Absent in read-only contexts (TranscriptPager) — patch cells then omit
+   *  the button. Receives the cell so App can extract that cell's diff. */
+  onViewDiff?: (cell: CellModel) => void;
 }
 
 /** Scrollback: the main conversation region. Renders every turn's items in
  *  order, auto-scrolls to the bottom when new content arrives (unless the
  *  user has scrolled up to read history — detected via scroll position). */
-export function Scrollback({ state }: Props) {
+export function Scrollback({ state, onViewDiff }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -47,7 +51,9 @@ export function Scrollback({ state }: Props) {
   return (
     <div className="scrollback" ref={containerRef} onScroll={onScroll}>
       {state.turns.flatMap((turn) =>
-        turn.items.map((cell) => <CellRenderer key={cellKey(cell)} cell={cell} />),
+        turn.items.map((cell) => (
+          <CellRenderer key={cellKey(cell)} cell={cell} onViewDiff={onViewDiff} />
+        )),
       )}
       <div ref={bottomRef} />
     </div>
@@ -60,13 +66,16 @@ export function Scrollback({ state }: Props) {
  *  full-transcript overlay). Both render the same CellModel shape produced by
  *  `viewModel/reducer.ts::threadItemToCell`, so the visual output is identical
  *  between the live view and the historical review. */
-export function CellRenderer({ cell }: { cell: CellModel }) {
+export function CellRenderer({ cell, onViewDiff }: { cell: CellModel; onViewDiff?: (cell: CellModel) => void }) {
   switch (cell.kind) {
     case 'userMessage': return <UserMessageCell model={cell} />;
     case 'agentMessage': return <AgentMessageCell model={cell} />;
     case 'reasoning': return <ReasoningCell model={cell} />;
     case 'commandExecution': return <CommandExecCell model={cell} />;
-    case 'fileChange': return <FileChangeCell model={cell} />;
+    case 'fileChange':
+      // Only forward onViewDiff when caller actually provided it (absent in
+      // TranscriptPager's read-only rendering — keeps the button hidden there).
+      return <FileChangeCell model={cell} onViewDiff={onViewDiff ? () => onViewDiff(cell) : undefined} />;
     case 'mcpToolCall': return <McpToolCell model={cell} />;
     case 'plan': return <PlanCell model={cell} />;
     case 'hook': return <HookCell model={cell} />;

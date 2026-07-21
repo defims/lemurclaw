@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { FileChangeCell } from '../FileChangeCell';
 
@@ -17,5 +17,24 @@ describe('FileChangeCell', () => {
     fireEvent.click(screen.getByText('src/a.rs'));
     expect(screen.getByText('+new')).toBeInTheDocument();
     expect(screen.getByText('applied')).toBeInTheDocument();
+  });
+
+  it('does not render "view full diff" button when onViewDiff is absent', () => {
+    render(<FileChangeCell model={{
+      kind: 'fileChange', itemId: 'p1', status: 'completed',
+      changes: [{ path: 'a.rs', kind: { type: 'add' }, diff: '+x' }],
+    }} />);
+    expect(screen.queryByTestId('patch-view-diff')).toBeNull();
+    expect(screen.queryByLabelText('view full diff')).toBeNull();
+  });
+
+  it('renders "view full diff" button and fires onViewDiff on click', () => {
+    const onViewDiff = vi.fn();
+    render(<FileChangeCell model={{
+      kind: 'fileChange', itemId: 'p1', status: 'completed',
+      changes: [{ path: 'a.rs', kind: { type: 'add' }, diff: '+x' }],
+    }} onViewDiff={onViewDiff} />);
+    fireEvent.click(screen.getByTestId('patch-view-diff'));
+    expect(onViewDiff).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,7 +12,7 @@ export type SlashCommandCategory =
 export type LocalAction = 'clear' | 'new' | 'quit';
 
 /** Existing top-level modals. Kept in sync with App.tsx's ModalKind union. */
-export type ModalKind = 'model' | 'theme' | 'transcript' | 'settings';
+export type ModalKind = 'model' | 'theme' | 'transcript' | 'settings' | 'diff';
 
 /** Discriminated union returned by every command's dispatch(). The Composer/
  *  App switches on `kind` to route the side effect. */
