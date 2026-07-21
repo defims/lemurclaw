@@ -119,6 +119,14 @@ function applyNotification(state: ConversationState, n: ServerNotification): Con
       // Backend rerouted the model (e.g. chosen model unavailable → fallback).
       // toModel is the now-current model id; fromModel is informational only.
       return { ...state, currentModel: n.params.toModel };
+    case 'turn/diff/updated':
+      // Core's TurnDiffTracker emits the authoritative turn-level unified
+      // diff (relative to a per-path baseline). Stored verbatim; parsed by
+      // <DiffText> when the user opens <DiffViewerModal>.
+      return {
+        ...state,
+        turnDiff: { turnId: n.params.turnId, diff: n.params.diff },
+      };
     default:
       // Many notification methods (rawResponseItem/completed, model/*,
       // thread/realtime/*, account/*, ...) are not yet rendered in subproject

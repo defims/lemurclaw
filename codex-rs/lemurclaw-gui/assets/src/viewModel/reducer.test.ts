@@ -129,6 +129,21 @@ describe('reducer', () => {
     expect(next.currentModel).toBe('gpt-4o');
   });
 
+  it('turn/diff/updated stores turnId + diff without touching other state', () => {
+    const before = reducer(st(), { method: 'thread/started', params: { thread: FULL_THREAD } });
+    const next = reducer(before, {
+      method: 'turn/diff/updated',
+      params: { threadId: 't1', turnId: 'tu1', diff: 'diff --git a/x b/x\n+hello\n' },
+    });
+    expect(next.turnDiff).toEqual({ turnId: 'tu1', diff: 'diff --git a/x b/x\n+hello\n' });
+    // Other fields unchanged.
+    expect(next.status).toBe(before.status);
+    expect(next.cwd).toBe(before.cwd);
+    expect(next.currentModel).toBe(before.currentModel);
+    expect(next.turns).toBe(before.turns);
+    expect(next.pendingApprovals).toBe(before.pendingApprovals);
+  });
+
   it('responseMeta action folds cwd + model into state', () => {
     const next = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
     expect(next.cwd).toBe('/proj');

@@ -34,6 +34,10 @@ export interface ConversationState {
   subAgents: SubAgentModel[];
   /** Pending ServerRequests awaiting user decision (ApprovalCard queue). */
   pendingApprovals: PendingApproval[];
+  /** Latest turn-level unified diff from core's TurnDiffTracker. Null until
+   *  the first turn/diff/updated notification arrives. Source for
+   *  <DiffViewerModal> (subproject 5-C). */
+  turnDiff: { turnId: string; diff: string } | null;
 }
 
 export type ThreadStatusModel = ThreadStatus;
@@ -112,6 +116,7 @@ export const initialState: ConversationState = {
   currentModel: null,
   subAgents: [],
   pendingApprovals: [],
+  turnDiff: null,
 };
 
 // Helpers (re-exported for components that want typed local copies) --------
