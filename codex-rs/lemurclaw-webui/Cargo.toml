@@ -1,0 +1,19 @@
+[package]
+name = "lemurclaw-webui"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[lib]
+name = "lemurclaw_webui"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+# Stage 1 subset: just enough to embed the shared React assets/ and expose
+# crate-agnostic serving helpers. Stage 2 adds axum + tokio + the
+# codex-app-server-client deps for the WS bridge.
+[dependencies]
+anyhow = { workspace = true }
+include_dir = { workspace = true }

@@ -1,11 +1,11 @@
-// Build script for lemurclaw-gui: builds the React frontend under `assets/`
-// into `assets/dist/` when Node is available, so the bundled webview has a
-// UI to load. Emits `cargo:rerun-if-changed` so source edits trigger a
-// rebuild.
+// Build script for lemurclaw-webui: builds the shared React frontend under
+// `assets/` into `assets/dist/` when Node is available, so the bundled
+// webview (gui) and webui server have a UI to serve. Emits
+// `cargo:rerun-if-changed` so source edits trigger a rebuild.
 //
 // The build is best-effort: if Node is missing or `npm` fails, we emit a
-// `cargo:warning` and let the crate still compile. The webview will then
-// load a missing page (visible only at runtime), which is acceptable for
+// `cargo:warning` and let the crate still compile. Both frontends will then
+// serve a missing page (visible only at runtime), which is acceptable for
 // `cargo check`/`cargo build` on machines without Node installed. CI and
 // release builds are expected to have Node.
 
@@ -15,14 +15,14 @@ use std::process::Command;
 
 fn main() {
     // CARGO_MANIFEST_DIR is always set by Cargo when compiling this crate's
-    // build script; it points at `lemurclaw-gui/`. If it's somehow missing
+    // build script; it points at `lemurclaw-webui/`. If it's somehow missing
     // (shouldn't happen under cargo), emit a warning and bail rather than
     // panic, since build scripts that abort fail the whole build.
     let manifest_dir = match env::var("CARGO_MANIFEST_DIR") {
         Ok(d) => d,
         Err(_) => {
             println!(
-                "cargo:warning=lemurclaw-gui: CARGO_MANIFEST_DIR not set; skipping frontend build"
+                "cargo:warning=lemurclaw-webui: CARGO_MANIFEST_DIR not set; skipping frontend build"
             );
             return;
         }
@@ -64,7 +64,7 @@ fn main() {
     };
     if !npm_available {
         println!(
-            "cargo:warning=lemurclaw-gui: npm not found; skipping frontend build (assets/dist missing, GUI will be blank)"
+            "cargo:warning=lemurclaw-webui: npm not found; skipping frontend build (assets/dist missing, UI will be blank)"
         );
         return;
     }
@@ -77,7 +77,7 @@ fn main() {
         .unwrap_or(false);
     if !install_ok {
         println!(
-            "cargo:warning=lemurclaw-gui: `npm install` failed in assets/; frontend not built (GUI will be blank)"
+            "cargo:warning=lemurclaw-webui: `npm install` failed in assets/; frontend not built (UI will be blank)"
         );
         return;
     }
@@ -90,7 +90,7 @@ fn main() {
         .unwrap_or(false);
     if !build_ok {
         println!(
-            "cargo:warning=lemurclaw-gui: `npm run build` failed in assets/; frontend not built (GUI will be blank)"
+            "cargo:warning=lemurclaw-webui: `npm run build` failed in assets/; frontend not built (UI will be blank)"
         );
         return;
     }
@@ -98,7 +98,7 @@ fn main() {
     // Sanity-check the build actually produced the entry HTML.
     if !dist.join("index.html").exists() {
         println!(
-            "cargo:warning=lemurclaw-gui: `npm run build` succeeded but assets/dist/index.html is missing"
+            "cargo:warning=lemurclaw-webui: `npm run build` succeeded but assets/dist/index.html is missing"
         );
     }
 }

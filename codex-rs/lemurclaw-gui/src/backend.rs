@@ -21,11 +21,13 @@
 
 use std::sync::Arc;
 
+use codex_app_server_client::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
+use codex_app_server_client::EnvironmentManager;
+use codex_app_server_client::InProcessAppServerClient;
+use codex_app_server_client::InProcessAppServerRequestHandle;
+use codex_app_server_client::InProcessClientStartArgs;
+use codex_app_server_client::InProcessServerEvent;
 use codex_app_server_client::legacy_core::config::ConfigBuilder;
-use codex_app_server_client::{
-    DEFAULT_IN_PROCESS_CHANNEL_CAPACITY, EnvironmentManager, InProcessAppServerClient,
-    InProcessAppServerRequestHandle, InProcessClientStartArgs, InProcessServerEvent,
-};
 use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::ConfigWarningNotification;
 use codex_arg0::Arg0DispatchPaths;
