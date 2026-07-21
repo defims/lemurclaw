@@ -205,34 +205,41 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
 
-  // ----- sendRequest: server-side queries (response ignored in Stage 2;
-  // future stage renders the response in a modal) -----
+  // ----- showResponse: server-side queries whose response is displayed in
+  // a <TextResponseModal> (Stage 3 follow-up — Stage 2 fired these
+  // fire-and-forget via 'sendRequest' and dropped the response). -----
   {
     name: 'status',
     description: 'Show current session configuration and token usage',
-    category: 'sendRequest',
-    dispatch: (_args, ctx) => {
-      ctx.sendRequest('account/rateLimits/read', {});
-      return { kind: 'sendRequest', method: 'account/rateLimits/read', params: {} };
-    },
+    category: 'showResponse',
+    dispatch: () => ({
+      kind: 'showResponse',
+      method: 'account/rateLimits/read',
+      params: {},
+      title: 'rate limits',
+    }),
   },
   {
     name: 'usage',
     description: 'View account usage (usage daily|weekly|cumulative)',
-    category: 'sendRequest',
-    dispatch: (args, ctx) => {
-      ctx.sendRequest('account/usage/read', { range: args.trim() || 'cumulative' });
-      return { kind: 'sendRequest', method: 'account/usage/read', params: { range: args.trim() || 'cumulative' } };
-    },
+    category: 'showResponse',
+    dispatch: (args) => ({
+      kind: 'showResponse',
+      method: 'account/usage/read',
+      params: { range: args.trim() || 'cumulative' },
+      title: `token usage (${args.trim() || 'cumulative'})`,
+    }),
   },
   {
     name: 'debug-config',
     description: 'Show config layers and requirement sources for debugging',
-    category: 'sendRequest',
-    dispatch: (_args, ctx) => {
-      ctx.sendRequest('config/read', {});
-      return { kind: 'sendRequest', method: 'config/read', params: {} };
-    },
+    category: 'showResponse',
+    dispatch: () => ({
+      kind: 'showResponse',
+      method: 'config/read',
+      params: {},
+      title: 'config (debug)',
+    }),
   },
   {
     name: 'feedback',

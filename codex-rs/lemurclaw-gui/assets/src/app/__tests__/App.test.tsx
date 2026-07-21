@@ -297,6 +297,26 @@ describe('App (integration)', () => {
     expect(vi.mocked(sendRequest)).toHaveBeenCalledWith('account/rateLimits/read', {});
   });
 
+  it('/status opens TextResponseModal showing the rate-limits JSON', async () => {
+    const { waitFor } = await import('@testing-library/react');
+    // Route responses by method so SessionPicker's thread/list (fired on
+    // mount) doesn't consume the rate-limits fixture.
+    vi.mocked(sendRequest).mockImplementation(async (method: string) => {
+      if (method === 'account/rateLimits/read') {
+        return { rateLimits: { used: 100, limit: 1000 }, rateLimitsByLimitId: null, rateLimitResetCredits: null } as never;
+      }
+      return { data: [], nextCursor: null } as never;
+    });
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/status' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    // Modal opens in loading state, then resolves with the response.
+    await waitFor(() => expect(screen.getByTestId('text-response-modal')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('text-response-body')).toBeInTheDocument());
+    expect(screen.getByTestId('text-response-body').textContent).toContain('rateLimits');
+  });
+
   it('/fork fires thread/fork with the active threadId', () => {
     render(<App />);
     const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;

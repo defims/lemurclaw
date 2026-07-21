@@ -14,6 +14,7 @@ import { ModelPicker } from '../components/ModelPicker';
 import { ThemePicker } from '../components/ThemePicker';
 import { SettingsModal, type SettingsSurface } from '../components/settings/SettingsModal';
 import { DiffViewerModal } from '../components/DiffViewerModal';
+import { TextResponseModal } from '../components/TextResponseModal';
 import { sendRequest } from '../transport';
 import { dispatchSlashCommand } from '../components/composer/dispatch';
 import type { SlashCommand, SlashCommandContext, LocalAction } from '../components/composer/slashCommandTypes';
@@ -46,6 +47,9 @@ export function App() {
   /** Toggled by /raw — adds a body class that flattens Scrollback for
    *  copy-friendly output (simplified vs TUI's full raw mode). */
   const [rawMode, setRawMode] = useState(false);
+  /** Active TextResponseModal state. Set by /status /usage /debug-config
+   *  (showResponse result). Null when no response modal is open. */
+  const [textResponse, setTextResponse] = useState<{ title: string; loading: boolean; response: unknown; error: string | null } | null>(null);
   const turnActive = state.activeTurnId !== null;
 
   const handleLocalAction = (action: LocalAction) => {
@@ -112,6 +116,12 @@ export function App() {
     // sendRequest. Handle the categories that need App-level follow-up:
     if (result.kind === 'sendTurn') {
       startTurn(result.input);
+    } else if (result.kind === 'showResponse') {
+      // Fire the RPC and display the response (or error) in a modal.
+      setTextResponse({ title: result.title, loading: true, response: null, error: null });
+      sendRequest(result.method, result.params)
+        .then((resp) => setTextResponse({ title: result.title, loading: false, response: resp, error: null }))
+        .catch((e) => setTextResponse({ title: result.title, loading: false, response: null, error: e instanceof Error ? e.message : String(e) }));
     } else if (result.kind === 'notImplemented' || result.kind === 'notApplicable') {
       // Simple stub — toast comes later. alert() is synchronous and works
       // in jsdom tests (stubbed) and in wry (native dialog).
@@ -203,6 +213,15 @@ export function App() {
       )}
       {modal === 'diff' && diffSource !== null && (
         <DiffViewerModal diff={diffSource} onClose={() => setModal('none')} />
+      )}
+      {textResponse !== null && (
+        <TextResponseModal
+          title={textResponse.title}
+          response={textResponse.response}
+          loading={textResponse.loading}
+          error={textResponse.error}
+          onClose={() => setTextResponse(null)}
+        />
       )}
     </Onboarding>
   );

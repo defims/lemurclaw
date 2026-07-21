@@ -132,23 +132,20 @@ describe('dispatchSlashCommand', () => {
     });
   });
 
-  describe('Stage 2: server-side queries (sendRequest)', () => {
-    it('/status fires account/rateLimits/read', () => {
-      const sendRequest = vi.fn().mockResolvedValue(undefined);
-      dispatchSlashCommand(cmd('status'), '', makeCtx({ sendRequest }));
-      expect(sendRequest).toHaveBeenCalledWith('account/rateLimits/read', {});
+  describe('Stage 2: server-side queries (showResponse — response rendered in modal)', () => {
+    it('/status returns showResponse pointing at account/rateLimits/read', () => {
+      const r = dispatchSlashCommand(cmd('status'), '', makeCtx());
+      expect(r).toMatchObject({ kind: 'showResponse', method: 'account/rateLimits/read', params: {} });
     });
 
-    it('/usage fires account/usage/read with range', () => {
-      const sendRequest = vi.fn().mockResolvedValue(undefined);
-      dispatchSlashCommand(cmd('usage'), 'daily', makeCtx({ sendRequest }));
-      expect(sendRequest).toHaveBeenCalledWith('account/usage/read', { range: 'daily' });
+    it('/usage returns showResponse with range from args', () => {
+      const r = dispatchSlashCommand(cmd('usage'), 'daily', makeCtx());
+      expect(r).toMatchObject({ kind: 'showResponse', method: 'account/usage/read', params: { range: 'daily' } });
     });
 
-    it('/debug-config fires config/read', () => {
-      const sendRequest = vi.fn().mockResolvedValue(undefined);
-      dispatchSlashCommand(cmd('debug-config'), '', makeCtx({ sendRequest }));
-      expect(sendRequest).toHaveBeenCalledWith('config/read', {});
+    it('/debug-config returns showResponse pointing at config/read', () => {
+      const r = dispatchSlashCommand(cmd('debug-config'), '', makeCtx());
+      expect(r).toMatchObject({ kind: 'showResponse', method: 'config/read', params: {} });
     });
 
     it('/feedback with no args returns notApplicable usage hint', () => {

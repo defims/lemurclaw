@@ -29,7 +29,7 @@ describe('SLASH_COMMANDS catalog', () => {
   it('every command declares a valid category', () => {
     const valid = new Set([
       'sendTurn', 'openSettings', 'openModal', 'localAction',
-      'sendRequest', 'notImplemented', 'notApplicable',
+      'sendRequest', 'showResponse', 'notImplemented', 'notApplicable',
     ]);
     for (const cmd of SLASH_COMMANDS) {
       expect(valid.has(cmd.category)).toBe(true);

@@ -7,6 +7,7 @@ export type SlashCommandCategory =
   | 'openModal'
   | 'localAction'
   | 'sendRequest'      // fire a ClientRequest RPC, ignore response (Stage 2)
+  | 'showResponse'     // fire RPC, display response in a modal (Stage 3 follow-up)
   | 'notImplemented'   // planned for future, currently surfaces a message
   | 'notApplicable';   // GUI will never support (e.g. /vim /title /pets)
 
@@ -24,6 +25,7 @@ export type SlashCommandResult =
   | { kind: 'openModal'; modal: ModalKind }
   | { kind: 'localAction'; action: LocalAction }
   | { kind: 'sendRequest'; method: string; params: unknown }
+  | { kind: 'showResponse'; method: string; params: unknown; title: string }
   | { kind: 'notImplemented'; message: string }
   | { kind: 'notApplicable'; message: string };
 
