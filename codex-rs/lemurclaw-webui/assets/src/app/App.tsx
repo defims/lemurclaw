@@ -15,7 +15,7 @@ import { ThemePicker } from '../components/ThemePicker';
 import { SettingsModal, type SettingsSurface } from '../components/settings/SettingsModal';
 import { DiffViewerModal } from '../components/DiffViewerModal';
 import { TextResponseModal } from '../components/TextResponseModal';
-import { sendRequest } from '../transport';
+import { sendRequest, hasBridge } from '../transport';
 import { dispatchSlashCommand } from '../components/composer/dispatch';
 import type { SlashCommand, SlashCommandContext, LocalAction } from '../components/composer/slashCommandTypes';
 import type { CellModel } from '../viewModel/types';
@@ -136,9 +136,12 @@ export function App() {
       if (e.key === 'Escape' && modal !== 'none') {
         setModal('none');
       }
-      // Ctrl+T (or Cmd+T on mac) opens the transcript pager. wry has no
-      // browser chrome so Cmd+T won't open a new tab; revisit for webui.
-      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+      // Ctrl+T (or Cmd+T on mac) opens the transcript pager — but only in
+      // wry mode, where there's no browser chrome to conflict. In browser
+      // (webui) mode Cmd+T is the OS/browser "new tab" shortcut and we let
+      // the browser keep it. Users in webui reach the transcript via the
+      // TopBar button.
+      if (hasBridge() && (e.ctrlKey || e.metaKey) && e.key === 't') {
         e.preventDefault();
         setModal('transcript');
       }

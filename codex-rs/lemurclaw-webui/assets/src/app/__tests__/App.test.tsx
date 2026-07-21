@@ -36,6 +36,9 @@ vi.mock('../../transport', () => ({
   sendRequest: vi.fn().mockResolvedValue({ data: [], nextCursor: null }),
   send: vi.fn(),
   registerResponseHandler: vi.fn(),
+  // App.test.tsx exercises the wry-mode Ctrl+T shortcut, so hasBridge() must
+  // report true (in real wry mode Rust has injected window.ipc).
+  hasBridge: () => true,
 }));
 
 import { App } from '../App';
