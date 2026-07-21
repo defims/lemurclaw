@@ -373,9 +373,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   // ----- notImplemented: planned for future stages -----
   {
     name: 'mention',
-    description: 'Mention a file (mention <path>)',
-    category: 'notImplemented',
-    dispatch: () => ({ kind: 'notImplemented', message: 'file-mention popup coming in Stage 3' }),
+    description: 'Mention a file (type @ in the composer)',
+    category: 'notApplicable',
+    dispatch: () => ({ kind: 'notApplicable', message: 'Type @ in the composer to mention a file — the popup opens automatically' }),
   },
   {
     name: 'ide',

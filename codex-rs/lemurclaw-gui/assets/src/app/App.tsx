@@ -170,7 +170,15 @@ export function App() {
                 ))}
               </div>
             )}
-            <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} startTurn={startTurn} onSlashCommand={handleSlashCommand} />
+            <Composer
+              threadId={threadId}
+              turnActive={turnActive}
+              onInterrupt={interrupt}
+              startTurn={startTurn}
+              onSlashCommand={handleSlashCommand}
+              cwd={state.cwd}
+              fuzzyFiles={state.fuzzySession?.files ?? []}
+            />
           </main>
           <Sidebar
             sections={[

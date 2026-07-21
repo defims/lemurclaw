@@ -2,14 +2,15 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Composer } from '../Composer';
 
-// Default props for tests that don't care about slash behavior. Each test can
-// override startTurn / onSlashCommand as needed.
+// Default props for tests that don't care about slash/mention behavior.
 const defaults = {
   threadId: 't1' as string | null,
   turnActive: false,
   onInterrupt: vi.fn(),
   startTurn: vi.fn(),
   onSlashCommand: vi.fn(),
+  cwd: '/proj' as string | null,
+  fuzzyFiles: [] as Array<{ root: string; path: string; match_type: 'file' | 'directory'; file_name: string; score: number; indices: number[] | null }>,
 };
 
 describe('Composer (existing behavior)', () => {
@@ -130,5 +131,71 @@ describe('Composer slash popup', () => {
     // through to sending a normal turn with the literal text. That's correct:
     // unknown slash commands pass through as user text (server-side no-op).
     expect(startTurn).toHaveBeenCalledWith([{ type: 'text', text: '/nonexistent', text_elements: [] }]);
+  });
+});
+
+describe('Composer @mention popup', () => {
+  // Helper: build a fake FuzzyFileSearchResult with the snake_case wire shape.
+  const file = (path: string, score = 100) => ({
+    root: '/proj', path, match_type: 'file' as const,
+    file_name: path.split('/').pop() ?? path, score, indices: null,
+  });
+
+  // Helper: type text + set cursor at the end, triggering the onChange that
+  // the real textarea would fire. fireEvent.change alone doesn't update
+  // selectionStart in jsdom, so we set it explicitly then fire click (which
+  // Composer uses to track cursor position).
+  const type = (ta: HTMLTextAreaElement, value: string) => {
+    fireEvent.change(ta, { target: { value } });
+    ta.setSelectionRange(value.length, value.length);
+    // Composer's onClick/onKeyUp handlers read selectionStart and update
+    // cursorPos state — fire click to simulate the real interaction.
+    fireEvent.click(ta);
+  };
+
+  it('typing "@co" with files in state opens the mention popup', () => {
+    render(<Composer {...defaults} fuzzyFiles={[file('code.rs'), file('config.toml')]} />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    type(ta, '@co');
+    expect(screen.getByTestId('composer-mention-popup')).toBeInTheDocument();
+    expect(screen.getAllByText('code.rs').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('config.toml').length).toBeGreaterThan(0);
+  });
+
+  it('typing "hello@co" (no whitespace before @) does NOT open the popup', () => {
+    render(<Composer {...defaults} fuzzyFiles={[file('code.rs')]} />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    type(ta, 'hello@co');
+    expect(screen.queryByTestId('composer-mention-popup')).toBeNull();
+  });
+
+  it('typing "hello @co" (space before @) opens the popup', () => {
+    render(<Composer {...defaults} fuzzyFiles={[file('code.rs')]} />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    type(ta, 'hello @co');
+    expect(screen.getByTestId('composer-mention-popup')).toBeInTheDocument();
+  });
+
+  it('Enter on mention popup replaces @query with @path', () => {
+    render(<Composer {...defaults} fuzzyFiles={[file('src/code.rs')]} />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    type(ta, '@co');
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(ta.value).toContain('@src/code.rs');
+  });
+
+  it('Esc on mention popup closes it by stripping the @token', () => {
+    render(<Composer {...defaults} fuzzyFiles={[file('code.rs')]} />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    type(ta, '@co');
+    fireEvent.keyDown(ta, { key: 'Escape' });
+    expect(screen.queryByTestId('composer-mention-popup')).toBeNull();
+  });
+
+  it('does NOT open mention popup when cwd is null', () => {
+    render(<Composer {...defaults} cwd={null} fuzzyFiles={[file('code.rs')]} />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    type(ta, '@co');
+    expect(screen.queryByTestId('composer-mention-popup')).toBeNull();
   });
 });

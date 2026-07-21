@@ -225,9 +225,18 @@ describe('dispatchSlashCommand', () => {
   });
 
   describe('Stage 2: notImplemented stubs', () => {
-    it.each(['mention', 'ide', 'app'])('/%s returns notImplemented', (name) => {
+    it.each(['ide', 'app'])('/%s returns notImplemented', (name) => {
       const r = dispatchSlashCommand(cmd(name), '', makeCtx());
       expect(r.kind).toBe('notImplemented');
+    });
+  });
+
+  describe('Stage 3: /mention points users at the @ popup', () => {
+    it('/mention returns notApplicable pointing at the @ popup', () => {
+      const r = dispatchSlashCommand(cmd('mention'), '', makeCtx());
+      expect(r.kind).toBe('notApplicable');
+      if (r.kind !== 'notApplicable') return;
+      expect(r.message).toMatch(/@.*composer/i);
     });
   });
 
