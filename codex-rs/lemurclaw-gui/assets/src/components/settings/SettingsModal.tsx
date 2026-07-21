@@ -47,14 +47,17 @@ const SURFACES: SurfaceDef[] = [
 
 interface Props {
   onClose: () => void;
+  /** Initial surface to show. Defaults to 'permissions'. Used by slash
+   *  commands like /skills, /mcp to open the modal directly on a tab. */
+  initialSurface?: SettingsSurface;
 }
 
 /** Settings modal shell: left-nav of surfaces + a right pane that renders the
  *  active surface's panel. Surfaces are added incrementally — until a panel
  *  exists, the right pane shows a placeholder naming the surface. Esc, backdrop
  *  click, and ✕ close are inherited from <Modal>. */
-export function SettingsModal({ onClose }: Props) {
-  const [surface, setSurface] = useState<SettingsSurface>('permissions');
+export function SettingsModal({ onClose, initialSurface = 'permissions' }: Props) {
+  const [surface, setSurface] = useState<SettingsSurface>(initialSurface);
 
   return (
     <Modal title="settings" onClose={onClose} testId="settings-modal" wide>

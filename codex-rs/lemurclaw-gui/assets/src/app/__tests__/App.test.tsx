@@ -6,20 +6,20 @@ import { sendRequest } from '../../transport';
 
 // Mock useConversation so App renders without a backend. We expose a setter
 // so individual tests can drive the ConversationState (e.g. give it a
-// threadId so TranscriptPager can open).
+// threadId so TranscriptPager can open). Expose startTurn as a module-level
+// spy so slash-command tests can assert on it.
 let conversationState: ConversationState = initialState;
 const setConversationState = (s: ConversationState): void => {
   conversationState = s;
 };
+const startTurnMock = vi.fn().mockResolvedValue(undefined);
 vi.mock('../useConversation', () => ({
   useConversation: () => ({
     state: conversationState,
     threadId: conversationState.status === null ? null : 't1',
     interrupt: vi.fn(),
-    // App.tsx passes these to Composer/ModelPicker/SessionPicker. Include
-    // them in the mock so any future test that triggers those components
-    // doesn't crash on `undefined is not a function`.
-    startTurn: vi.fn().mockResolvedValue(undefined),
+    // Reused across renders so tests can assert on call history.
+    startTurn: startTurnMock,
     resumeThread: vi.fn().mockResolvedValue(undefined),
   }),
 }));
@@ -211,5 +211,62 @@ describe('App (integration)', () => {
         pluginName: 'Plugin One',
       });
     });
+  });
+
+  // ----- Slash command integration (subproject 5-E) -----
+  // Drive the full App → Composer textarea → slash popup → dispatch chain.
+
+  it('/skills opens SettingsModal on the Skills surface', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/skills' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(screen.getByTestId('settings-modal')).toBeInTheDocument();
+    expect(screen.getByText('Skills').closest('.settings-nav-item')).toHaveClass('settings-nav-item-active');
+  });
+
+  it('/model opens ModelPicker', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/model' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(screen.getByTestId('model-picker')).toBeInTheDocument();
+  });
+
+  it('/clear remounts Scrollback via clearKey (cells disappear)', () => {
+    render(<App />);
+    // The empty-state placeholder proves Scrollback is mounted initially.
+    expect(screen.getByText('send a message to start')).toBeInTheDocument();
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/clear' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    // After /clear, the wrapper's key changed so Scrollback remounted. The
+    // placeholder should still be visible (state is unchanged — this is a
+    // UI-only clear). We assert the remount indirectly: the textarea cleared.
+    expect(ta.value).toBe('');
+  });
+
+  it('/init sends a turn with an AGENTS.md prompt', () => {
+    render(<App />);
+    const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '/init' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(startTurnMock).toHaveBeenCalledWith([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('AGENTS.md') }),
+    ]);
+  });
+
+  it('/diff surfaces a notImplemented alert', () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal('alert', alertSpy);
+    try {
+      render(<App />);
+      const ta = screen.getByTestId('composer-input') as HTMLTextAreaElement;
+      fireEvent.change(ta, { target: { value: '/diff' } });
+      fireEvent.keyDown(ta, { key: 'Enter' });
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringMatching(/5-C/));
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

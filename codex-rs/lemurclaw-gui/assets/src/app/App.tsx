@@ -12,7 +12,9 @@ import { Onboarding } from '../components/Onboarding';
 import { TranscriptPager } from '../components/TranscriptPager';
 import { ModelPicker } from '../components/ModelPicker';
 import { ThemePicker } from '../components/ThemePicker';
-import { SettingsModal } from '../components/settings/SettingsModal';
+import { SettingsModal, type SettingsSurface } from '../components/settings/SettingsModal';
+import { dispatchSlashCommand } from '../components/composer/dispatch';
+import type { SlashCommand, SlashCommandContext, LocalAction } from '../components/composer/slashCommandTypes';
 
 type ModalKind = 'none' | 'model' | 'theme' | 'transcript' | 'settings';
 
@@ -29,7 +31,54 @@ export function App() {
   const { state, threadId, interrupt, startTurn, resumeThread } = useConversation();
   const { theme, setTheme } = useTheme();
   const [modal, setModal] = useState<ModalKind>('none');
+  /** Which SettingsModal tab to open. Set by /skills, /mcp, etc. before
+   *  flipping modal to 'settings'. */
+  const [settingsSurface, setSettingsSurface] = useState<SettingsSurface>('permissions');
+  /** Bumped by /clear to force-remount Scrollback (UI-only clear; server-side
+   *  conversation state unchanged — NOT equivalent to TUI's ClearUi). */
+  const [clearKey, setClearKey] = useState(0);
   const turnActive = state.activeTurnId !== null;
+
+  const handleLocalAction = (action: LocalAction) => {
+    switch (action) {
+      case 'clear':
+        setClearKey((k) => k + 1);
+        break;
+      case 'new':
+        // Submit /new as a turn — server treats unknown slash commands as
+        // user text (matches TUI fallback for commands without a dedicated
+        // RPC).
+        startTurn([{ type: 'text', text: '/new', text_elements: [] }]);
+        break;
+      case 'quit':
+        // wry webview: window.close() may be a no-op (often blocked by host).
+        // Documented limitation — a future toast could surface "use Cmd+Q".
+        window.close();
+        break;
+    }
+  };
+
+  const handleSlashCommand = (cmd: SlashCommand, args: string) => {
+    const ctx: SlashCommandContext = {
+      threadId,
+      openSettings: (surface) => {
+        setSettingsSurface(surface);
+        setModal('settings');
+      },
+      openModal: (m) => setModal(m),
+      localAction: handleLocalAction,
+    };
+    const result = dispatchSlashCommand(cmd, args, ctx);
+    // ctx callbacks already fired for openSettings/openModal/localAction.
+    // Handle the two categories that need App-level follow-up:
+    if (result.kind === 'sendTurn') {
+      startTurn(result.input);
+    } else if (result.kind === 'notImplemented') {
+      // Simple stub — toast comes later. alert() is synchronous and works
+      // in jsdom tests (stubbed) and in wry (native dialog).
+      window.alert(result.message);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -62,7 +111,7 @@ export function App() {
         />
         <div className="app-body">
           <main className="app-main">
-            <div className="app-scrollback">
+            <div className="app-scrollback" key={clearKey}>
               <Scrollback state={state} />
             </div>
             {state.pendingApprovals.length > 0 && (
@@ -72,7 +121,7 @@ export function App() {
                 ))}
               </div>
             )}
-            <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} startTurn={startTurn} onSlashCommand={() => { /* wired in Task 5 */ }} />
+            <Composer threadId={threadId} turnActive={turnActive} onInterrupt={interrupt} startTurn={startTurn} onSlashCommand={handleSlashCommand} />
           </main>
           <Sidebar
             sections={[
@@ -93,7 +142,7 @@ export function App() {
         <ThemePicker current={theme} onPick={(t) => setTheme(t)} onClose={() => setModal('none')} />
       )}
       {modal === 'settings' && (
-        <SettingsModal onClose={() => setModal('none')} />
+        <SettingsModal onClose={() => setModal('none')} initialSurface={settingsSurface} />
       )}
     </Onboarding>
   );
