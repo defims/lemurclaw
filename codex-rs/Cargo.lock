@@ -9153,6 +9153,7 @@ dependencies = [
  "codex-tui",
  "lemurclaw-gui",
  "lemurclaw-transport",
+ "lemurclaw-webui",
  "serde",
  "serde_json",
 ]

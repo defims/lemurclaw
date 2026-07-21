@@ -1,7 +1,8 @@
 //! 子项目 0 完成标准:验证 lemurclaw crate 的 Frontend/配置工作,以及 codex_tui 的关键符号可链接。
 //! 不实际启动 TUI(那需要终端 + 会触发 CLI flag 冲突——见 Task 0.2 concern,待后续 task 修 argv 过滤)。
 
-use lemurclaw::{Frontend, RuntimeConfig};
+use lemurclaw::Frontend;
+use lemurclaw::RuntimeConfig;
 
 #[test]
 fn frontend_enum_works() {

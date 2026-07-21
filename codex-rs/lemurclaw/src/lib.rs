@@ -3,17 +3,21 @@
 //! A thin entry point that selects a frontend (`tui`, `gui`, or `webui`) and
 //! runs it. The `tui` frontend passes straight through to `codex_tui::run_main`
 //! via `codex_arg0::arg0_dispatch_or_else`, mirroring `codex-rs/tui/src/main.rs`.
-//! The `gui` frontend opens a wry+tao window via `lemurclaw_gui::run_gui`
-//! (currently an empty placeholder window; later tasks wire up the React
-//! frontend and bidirectional IPC). The `webui` frontend is still a stub and
-//! will be wired up to `lemurclaw_transport` in later tasks.
+//! The `gui` frontend opens a wry+tao window via `lemurclaw_gui::run_gui`,
+//! loading the shared React app from `lemurclaw_webui::assets` over a custom
+//! `lemurclaw://` protocol. The `webui` frontend serves the same shared React
+//! app over HTTP from `lemurclaw_webui::run_webui` (browser connects via
+//! WebSocket to a bridge backed by the in-process `InProcessAppServerClient`).
 //!
-//! [`run`] is intentionally synchronous: `arg0_dispatch_or_else` (TUI) and the
-//! tao event loop (GUI) both own process exit / the main thread.
+//! [`run`] is intentionally synchronous: `arg0_dispatch_or_else` (TUI), the
+//! tao event loop (GUI), and the axum server (WebUI) all own process exit /
+//! the main thread.
 
 pub mod config;
 
-pub use config::{Cli, Frontend, RuntimeConfig};
+pub use config::Cli;
+pub use config::Frontend;
+pub use config::RuntimeConfig;
 pub use lemurclaw_transport as transport;
 
 use std::io::Write;
@@ -27,22 +31,44 @@ use codex_tui::Cli as TuiCli;
 use codex_tui::ExitReason;
 use codex_tui::run_main;
 
-use crate::Frontend::{Gui, Tui, Webui};
+use crate::Frontend::Gui;
+use crate::Frontend::Tui;
+use crate::Frontend::Webui;
 
 /// Run lemurclaw with the given [`RuntimeConfig`].
 ///
 /// Synchronous: the TUI path delegates to `arg0_dispatch_or_else` (owns
-/// process exit), and the GUI path enters the tao event loop inside
-/// `lemurclaw_gui::run_gui` (owns the main thread until the window closes).
-/// The WebUI path is not implemented yet and returns an error.
+/// process exit), the GUI path enters the tao event loop inside
+/// `lemurclaw_gui::run_gui` (owns the main thread until the window closes),
+/// and the WebUI path enters the axum server loop inside
+/// `lemurclaw_webui::run_webui` (owns the thread until Ctrl-C).
 pub fn run(config: RuntimeConfig) -> anyhow::Result<()> {
     match config.frontend {
         Tui => run_tui(),
         Gui => lemurclaw_gui::run_gui(),
-        Webui => Err(anyhow::anyhow!(
-            "lemurclaw `webui` frontend is not implemented yet"
-        )),
+        Webui => {
+            // Loopback-only for now: the webui server has no WS auth. Reject
+            // any non-loopback bind with a clear message so a user passing
+            // `--host 0.0.0.0` gets a hint instead of silently exposing an
+            // unauthenticated codex bridge on their LAN. Mirrors codex's
+            // `is_unauthenticated_non_loopback_listener` stance.
+            if !is_loopback_host(&config.host) {
+                anyhow::bail!(
+                    "refusing non-loopback webui bind `{}` without auth; pass `--host 127.0.0.1` (default) or `--host ::1`",
+                    config.host
+                );
+            }
+            lemurclaw_webui::run_webui(config.host.clone(), config.port)
+        }
     }
+}
+
+/// True for `127.0.0.1`, `::1`, and `localhost`. Anything else (including
+/// `0.0.0.0`, `::`, public IPs, hostnames) is treated as non-loopback. We
+/// don't resolve hostnames via DNS — the user can pass a literal IP for any
+/// non-default bind they actually want.
+fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "127.0.0.1" | "::1" | "localhost")
 }
 
 /// TUI frontend: pass through to `codex_tui::run_main` under
@@ -69,7 +95,14 @@ fn run_tui() -> anyhow::Result<()> {
 
 /// Lemurclaw-owned CLI flags that must be stripped from argv before handing
 /// control to `codex_tui::Cli` (which would reject them as unknown).
-const LEMURCLAW_VALUE_FLAGS: &[&str] = &["--frontend", "--agent-name", "--cwd", "--model"];
+const LEMURCLAW_VALUE_FLAGS: &[&str] = &[
+    "--frontend",
+    "--agent-name",
+    "--cwd",
+    "--model",
+    "--host",
+    "--port",
+];
 /// Boolean flags (no value follows).
 const LEMURCLAW_BOOL_FLAGS: &[&str] = &["--yolo"];
 
@@ -177,6 +210,22 @@ mod tests {
     }
 
     #[test]
+    fn strip_removes_webui_host_and_port() {
+        // --host/--port are lemurclaw-owned (webui only); codex_tui::Cli must
+        // never see them. Both bare and =value forms.
+        let out = stripped(vec![
+            "lemurclaw",
+            "--frontend",
+            "webui",
+            "--host",
+            "0.0.0.0",
+            "--port=8080",
+            "prompt",
+        ]);
+        assert_eq!(out, vec!["lemurclaw".to_string(), "prompt".to_string()]);
+    }
+
+    #[test]
     fn strip_passes_through_unknown() {
         // codex flags like --search / --no-alt-screen must survive.
         let out = stripped(vec!["lemurclaw", "--search", "--no-alt-screen", "p"]);
@@ -198,15 +247,34 @@ mod tests {
     }
 
     #[test]
-    fn webui_frontend_returns_error() {
+    fn webui_refuses_non_loopback_host() {
+        // The webui server has no auth; loopback-only is enforced in run().
+        // A non-loopback host must fail fast with a clear message instead of
+        // silently binding an unauthenticated codex bridge on the LAN.
         let cfg = RuntimeConfig {
             frontend: Frontend::Webui,
+            host: "0.0.0.0".to_string(),
             ..Default::default()
         };
         let err = run(cfg).unwrap_err();
         assert!(
-            err.to_string().contains("webui"),
-            "expected webui in error message, got: {err}"
+            err.to_string().contains("non-loopback"),
+            "expected non-loopback refusal, got: {err}"
         );
     }
+
+    #[test]
+    fn is_loopback_host_recognizes_known_loopback() {
+        assert!(is_loopback_host("127.0.0.1"));
+        assert!(is_loopback_host("::1"));
+        assert!(is_loopback_host("localhost"));
+        assert!(!is_loopback_host("0.0.0.0"));
+        assert!(!is_loopback_host("::"));
+        assert!(!is_loopback_host("192.168.1.5"));
+        assert!(!is_loopback_host("my-host.example"));
+    }
+
+    // Note: we deliberately do NOT smoke-test `run_webui()` directly here — it
+    // binds a real socket and blocks on Ctrl-C. The webui crate has its own
+    // integration tests (lemurclaw-webui/tests) covering the handler shapes.
 }

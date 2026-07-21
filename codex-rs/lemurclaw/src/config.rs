@@ -7,7 +7,8 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Which frontend lemurclaw should launch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, clap::ValueEnum)]
@@ -20,7 +21,8 @@ pub enum Frontend {
     /// Native GUI (wry). Not implemented yet.
     #[value(name = "gui")]
     Gui,
-    /// Browser-based UI over WebSocket. Not implemented yet.
+    /// Browser-based UI over WebSocket. Serves the shared React app over HTTP
+    /// and bridges browser WS frames to the in-process AppServerClient.
     #[value(name = "webui")]
     Webui,
 }
@@ -42,6 +44,14 @@ pub struct RuntimeConfig {
     pub model: Option<String>,
     /// Skip all approvals/sandbox (`--dangerously-bypass-approvals-and-sandbox`).
     pub yolo: bool,
+    /// WebUI only: host address to bind the HTTP+WS server on. Defaults to
+    /// `127.0.0.1` (loopback only — the webui server has no auth). Ignored by
+    /// the TUI and GUI frontends.
+    pub host: String,
+    /// WebUI only: TCP port to bind the HTTP+WS server on. `None` means
+    /// ephemeral (the OS assigns a free port, printed in the startup banner).
+    /// Ignored by the TUI and GUI frontends.
+    pub port: Option<u16>,
 }
 
 /// Top-level lemurclaw CLI.
@@ -49,7 +59,11 @@ pub struct RuntimeConfig {
 /// Only the lemurclaw-specific flags live here. The TUI path re-parses the
 /// full `codex_tui::Cli` from argv so it picks up every flag codex supports.
 #[derive(Parser, Debug, Clone)]
-#[command(name = "lemurclaw", version, about = "Lemurclaw launcher (TUI/GUI/WebUI)")]
+#[command(
+    name = "lemurclaw",
+    version,
+    about = "Lemurclaw launcher (TUI/GUI/WebUI)"
+)]
 pub struct Cli {
     /// Logical agent name (used by future GUI/WebUI modes).
     #[arg(long = "agent-name", value_name = "NAME")]
@@ -71,6 +85,16 @@ pub struct Cli {
     /// (alias of codex's `--dangerously-bypass-approvals-and-sandbox`).
     #[arg(long = "yolo", default_value_t = false)]
     pub yolo: bool,
+
+    /// WebUI only: host address to bind on (default 127.0.0.1, loopback only).
+    /// Non-loopback hosts are refused unless/until WS auth is added.
+    #[arg(long = "host", value_name = "HOST", default_value = "127.0.0.1")]
+    pub host: String,
+
+    /// WebUI only: TCP port to bind on. Omit (or pass 0) for an ephemeral
+    /// port chosen by the OS.
+    #[arg(long = "port", value_name = "PORT")]
+    pub port: Option<u16>,
 }
 
 impl From<Cli> for RuntimeConfig {
@@ -81,6 +105,8 @@ impl From<Cli> for RuntimeConfig {
             cwd: cli.cwd,
             model: cli.model,
             yolo: cli.yolo,
+            host: cli.host,
+            port: cli.port,
         }
     }
 }
@@ -99,7 +125,10 @@ mod tests {
         // Serialize
         assert_eq!(serde_json::to_string(&Frontend::Tui).unwrap(), "\"tui\"");
         assert_eq!(serde_json::to_string(&Frontend::Gui).unwrap(), "\"gui\"");
-        assert_eq!(serde_json::to_string(&Frontend::Webui).unwrap(), "\"webui\"");
+        assert_eq!(
+            serde_json::to_string(&Frontend::Webui).unwrap(),
+            "\"webui\""
+        );
 
         // Deserialize (round-trip)
         let tui: Frontend = serde_json::from_str("\"tui\"").unwrap();
@@ -143,5 +172,39 @@ mod tests {
         assert_eq!(cfg.agent_name.as_deref(), Some("ava"));
         assert_eq!(cfg.model.as_deref(), Some("gpt-5"));
         assert!(cfg.yolo);
+    }
+
+    #[test]
+    fn cli_defaults_host_to_loopback_and_port_to_none() {
+        let cli = Cli::parse_from(["lemurclaw"]);
+        assert_eq!(cli.host, "127.0.0.1");
+        assert!(cli.port.is_none());
+    }
+
+    #[test]
+    fn cli_parses_host_and_port_flags() {
+        let cli = Cli::parse_from([
+            "lemurclaw",
+            "--frontend",
+            "webui",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8080",
+        ]);
+        assert_eq!(cli.host, "0.0.0.0");
+        assert_eq!(cli.port, Some(8080));
+        let cfg: RuntimeConfig = cli.into();
+        assert_eq!(cfg.host, "0.0.0.0");
+        assert_eq!(cfg.port, Some(8080));
+    }
+
+    #[test]
+    fn cli_parses_port_zero_as_explicit_ephemeral() {
+        // Users can pass --port 0 to force the OS to pick a free port, vs.
+        // omitting --port entirely. Both yield `None`-equivalent behavior at
+        // bind time, but the parsed shape differs: omitted = None, 0 = Some(0).
+        let cli = Cli::parse_from(["lemurclaw", "--port", "0"]);
+        assert_eq!(cli.port, Some(0));
     }
 }
