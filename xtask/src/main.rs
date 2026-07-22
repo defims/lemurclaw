@@ -8,6 +8,7 @@
 //! every `codex-*` crate has been renamed to `lemurclaw-*` without touching the
 //! original `codex-rs/` source tree.
 
+mod forks;
 mod manifest;
 mod rename;
 mod source_rewrite;
@@ -30,7 +31,7 @@ enum Command {
         #[command(subcommand)]
         kind: VerifyKind,
     },
-    /// Phase 1: generate the parallel publish workspace.
+    /// Phase 1 / 1.5: generate the parallel publish workspace and publish forks.
     Publish {
         #[command(subcommand)]
         kind: PublishKind,
@@ -47,8 +48,31 @@ enum VerifyKind {
 
 #[derive(Subcommand)]
 enum PublishKind {
-    /// Rename `codex-*` to `lemurclaw-*` and emit the publish/ workspace.
+    /// Phase 1: rename `codex-*` to `lemurclaw-*` and emit the publish/ workspace.
     Rename,
+    /// Phase 1.5: publish the 4 git forks as `lemurclaw-*` crates and rewire
+    /// the publish workspace to reference them.
+    Fork {
+        #[command(subcommand)]
+        kind: ForkKind,
+    },
+}
+
+#[derive(Subcommand)]
+enum ForkKind {
+    /// Clone the 4 fork repositories to publish.forks/.
+    Clone,
+    /// Rewrite each fork's Cargo.toml (package.name + internal dep aliases).
+    Prepare,
+    /// Publish the 4 forks to crates.io in topological order.
+    Publish {
+        /// Run `cargo publish --dry-run` instead of actually publishing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Rewrite publish/Cargo.toml to reference the published forks via
+    /// `package = "lemurclaw-X"` aliases, dropping [patch.crates-io].
+    Rewire,
 }
 
 fn main() -> Result<()> {
@@ -60,6 +84,12 @@ fn main() -> Result<()> {
         },
         Command::Publish { kind } => match kind {
             PublishKind::Rename => rename::run(),
+            PublishKind::Fork { kind } => match kind {
+                ForkKind::Clone => forks::run_clone(),
+                ForkKind::Prepare => forks::run_prepare(),
+                ForkKind::Publish { dry_run } => forks::run_publish(dry_run),
+                ForkKind::Rewire => forks::run_rewire(),
+            },
         },
     }
 }

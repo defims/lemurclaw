@@ -97,3 +97,7 @@ __pycache__/
 
 # xtask publish output (parallel renamed workspace for crates.io)
 /publish/
+/publish.forks/
+
+# Local agent session state
+/.zcode/

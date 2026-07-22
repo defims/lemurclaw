@@ -663,3 +663,112 @@ fn render_toml_value(v: &toml::Value) -> String {
         toml::Value::Datetime(d) => format!("\"{}\"", d),
     }
 }
+
+/// Phase 1.5: rewrite the publish workspace Cargo.toml to drop the
+/// `[patch.crates-io]` / `[patch."<url>"]` sections and add
+/// `package = "lemurclaw-X"` aliases to the 4 fork deps.
+///
+/// `cargo publish` strips `[patch]` from published manifests — they only work
+/// in the source workspace. So we replace the patches with direct dep aliases
+/// pointing at the published `lemurclaw-*` fork crates.
+pub fn rewrite_publish_workspace_for_forks(raw: &str) -> Result<String> {
+    // The 4 fork dep keys → (lemurclaw package name, marker for the dep line).
+    // We rewrite any workspace.dependencies line whose key matches.
+    const FORK_ALIASES: &[(&str, &str)] = &[
+        ("ratatui", "lemurclaw-ratatui"),
+        ("crossterm", "lemurclaw-crossterm"),
+        ("tokio-tungstenite", "lemurclaw-tokio-tungstenite"),
+        ("tungstenite", "lemurclaw-tungstenite"),
+    ];
+
+    let mut out = String::with_capacity(raw.len());
+    let mut in_patch_section = false;
+    let mut in_workspace_deps = false;
+
+    for line in raw.lines() {
+        let trimmed = line.trim_start();
+
+        // Detect entering a new section.
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_patch_section = trimmed.starts_with("[patch.");
+            in_workspace_deps = trimmed == "[workspace.dependencies]";
+
+            // Skip the [patch.*] header line entirely.
+            if in_patch_section {
+                continue;
+            }
+
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+
+        // Skip all body lines of [patch.*] sections.
+        if in_patch_section {
+            continue;
+        }
+
+        // In [workspace.dependencies], rewrite the 4 fork dep lines.
+        if in_workspace_deps {
+            if let Some(rewritten) = rewrite_workspace_fork_dep_line(line, FORK_ALIASES) {
+                out.push_str(&rewritten);
+                out.push('\n');
+                continue;
+            }
+        }
+
+        out.push_str(line);
+        out.push('\n');
+    }
+
+    Ok(out)
+}
+
+/// If `line` is a workspace.dependencies entry for one of the fork deps,
+/// rewrite it to include `package = "lemurclaw-X"`. Otherwise return None.
+fn rewrite_workspace_fork_dep_line(
+    line: &str,
+    aliases: &[(&str, &str)],
+) -> Option<String> {
+    let trimmed = line.trim_start();
+    let indent = &line[..line.len() - trimmed.len()];
+
+    for (dep_key, lemurclaw_name) in aliases {
+        // Two forms to handle:
+        //   (1) `ratatui = "0.29.0"`
+        //   (2) `tokio-tungstenite = { version = "...", features = [...] }`
+        let bare_prefix = format!("{} = \"", dep_key);
+        let inline_prefix = format!("{} = {{", dep_key);
+
+        if trimmed.starts_with(&bare_prefix) {
+            // Form (1): bare version string. Convert to inline table.
+            // Extract the version from `ratatui = "0.29.0"`.
+            let after_eq = trimmed
+                .strip_prefix(&format!("{} = ", dep_key))?
+                .trim();
+            let version = after_eq.trim_matches('"');
+            return Some(format!(
+                "{}{} = {{ version = \"{}\", package = \"{}\" }}",
+                indent, dep_key, version, lemurclaw_name
+            ));
+        }
+
+        if trimmed.starts_with(&inline_prefix) {
+            // Form (2): inline table. Inject `package = "..."` if not present.
+            if trimmed.contains("package =") {
+                return Some(line.to_string());
+            }
+            // Insert before the closing `}`.
+            let close_idx = trimmed.rfind('}')?;
+            let mut before = trimmed[..close_idx].trim_end().trim_end_matches(',').to_string();
+            if !before.ends_with('{') {
+                before.push_str(", ");
+            }
+            return Some(format!(
+                "{}{}package = \"{}\" }}",
+                indent, before, lemurclaw_name
+            ));
+        }
+    }
+    None
+}
