@@ -94,3 +94,6 @@ CHANGELOG.ignore.md
 # Python bytecode files
 __pycache__/
 *.pyc
+
+# xtask publish output (parallel renamed workspace for crates.io)
+/publish/
