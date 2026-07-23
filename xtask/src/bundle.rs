@@ -294,6 +294,22 @@ pub(crate) fn core_cluster() -> Result<Cluster> {
         }
     }
 
+    // Remove proc-macro crates from the merge set — they cannot be folded into
+    // another crate (Rust forbids using a proc-macro from the defining crate).
+    // They stay as external deps of lemurclaw-core.
+    let proc_macros: Vec<String> = merge_set
+        .iter()
+        .filter(|p| graph.get(*p).is_some_and(|info| info.is_proc_macro))
+        .cloned()
+        .collect();
+    for pm in &proc_macros {
+        merge_set.remove(pm);
+        eprintln!(
+            "note: excluding proc-macro crate {} from merge (stays external)",
+            pm
+        );
+    }
+
     // 3. Warn about potential cycle risks (back-edges from merge-set members to
     //    external crates that back-depend on the merge set).
     for pkg in &merge_set {
@@ -358,6 +374,8 @@ struct PackageInfo {
     deps: Vec<String>,
     /// Directory relative to codex-rs/ (e.g. "api", "ext/items", "utils/absolute-path").
     dir: String,
+    /// True if this is a proc-macro crate (cannot be merged into another crate).
+    is_proc_macro: bool,
 }
 
 /// Load codex-* package info from `cargo metadata`. Returns a map of package
@@ -420,7 +438,25 @@ fn load_dep_graph(codex_root: &Path) -> Result<std::collections::HashMap<String,
             .unwrap_or("")
             .trim_end_matches('/')
             .to_string();
-        graph.insert(name.to_string(), PackageInfo { deps, dir });
+        // Detect proc-macro crates (any target with kind "proc-macro").
+        let is_proc_macro = pkg
+            .get("targets")
+            .and_then(|v| v.as_array())
+            .is_some_and(|targets| {
+                targets.iter().any(|t| {
+                    t.get("kind")
+                        .and_then(|v| v.as_array())
+                        .is_some_and(|kinds| kinds.iter().any(|k| k.as_str() == Some("proc-macro")))
+                })
+            });
+        graph.insert(
+            name.to_string(),
+            PackageInfo {
+                deps,
+                dir,
+                is_proc_macro,
+            },
+        );
     }
     Ok(graph)
 }
@@ -660,6 +696,10 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     }
     if let Some(hm) = host_module {
         fix_self_refs_in_submodule(&merged_dir.join("src").join(hm), hm, cluster)?;
+        // Fix include_str!/include_bytes! relative paths: the host module is
+        // one level deeper now (src/core_internal/ instead of src/), so paths
+        // like include_str!("../prompt.md") need an extra "../".
+        fix_include_paths_in_submodule(&merged_dir.join("src").join(hm))?;
     }
     rewrite_downstream(&publish_root, &merged_dir, cluster)?;
 
@@ -1073,6 +1113,43 @@ fn migrate_host_crate_src(merged_dir: &Path, module: &str) -> Result<()> {
     let _ = bin_dir; // bin/ stays at src/bin/
     println!("  ✓ host crate src/ → mod {}", module);
     Ok(())
+}
+
+/// Move a sub-crate's `src/` contents into the merged crate as a submodule
+/// directory. `lib.rs` becomes `mod.rs`; all other files keep their names.
+/// Moving the whole `src/` dir preserves internal `#[path]` and `mod`
+/// Fix include_str!/include_bytes! relative paths in the host module. The host
+/// module moved one level deeper (src/ → src/<module>/), so every `../` in an
+/// include path needs an extra `../` to reach the same target. This works for
+/// both crate-root assets (stayed at root) and sibling files (moved with src/).
+fn fix_include_paths_in_submodule(dir: &Path) -> Result<()> {
+    fix_include_paths_recursive(dir)
+}
+
+fn fix_include_paths_recursive(dir: &Path) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            fix_include_paths_recursive(&path)?;
+        } else if path.extension().is_some_and(|e| e == "rs") {
+            let raw =
+                fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+            let rewritten = fix_include_paths_in_src(&raw);
+            if rewritten != raw {
+                fs::write(&path, &rewritten)
+                    .with_context(|| format!("write {}", path.display()))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// In include_str!/include_bytes! macros, deepen "../" paths by one level:
+/// `include_str!("../foo")` → `include_str!("../../foo")`.
+fn fix_include_paths_in_src(src: &str) -> String {
+    src.replace("include_str!(\"../", "include_str!(\"../../")
+        .replace("include_bytes!(\"../", "include_bytes!(\"../../")
 }
 
 /// Move a sub-crate's `src/` contents into the merged crate as a submodule
