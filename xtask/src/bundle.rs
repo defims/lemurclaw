@@ -22,14 +22,16 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// One of the 23 utils sub-crates being folded into `lemurclaw-utils`.
+/// One sub-crate being folded into a merged crate. Fields are `&'static str`
+/// because the static utils cluster uses compile-time constants; the dynamic
+/// core cluster will construct owned equivalents.
+#[derive(Clone)]
 struct SubCrate {
-    /// Directory name under `publish/utils/` (from the source layout).
+    /// Directory name under publish/ (from the source layout).
     dir: &'static str,
-    /// The `lemurclaw-utils-*` package name assigned by Phase 1 rename.
+    /// Package name assigned by Phase 1 rename.
     package: &'static str,
-    /// Module name inside the merged crate (`pub mod <module>;`). Derived from
-    /// the crate ident with `lemurclaw_utils_` stripped and trimmed.
+    /// Module name inside the merged crate (`pub mod <module>;`).
     module: &'static str,
 }
 
@@ -169,6 +171,82 @@ const SUB_CRATES: &[SubCrate] = &[
 const MERGED_PACKAGE: &str = "lemurclaw-utils";
 const MERGED_LIB_IDENT: &str = "lemurclaw_utils";
 
+/// A merge plan: which crates fold into a single mega-crate, and the metadata
+/// for the resulting crate. Parameterizes the bundle logic so the same code
+/// path serves both the `utils` cluster and the `core` cluster.
+pub struct Cluster {
+    /// Subdirectory under `publish/` where the source crates live
+    /// (e.g. `"utils"`). Empty string means crates live at the publish/ root.
+    pub source_subdir: &'static str,
+    /// Workspace member path for the merged crate relative to publish/
+    /// (e.g. `"utils/utils"` or `"core"`).
+    pub merged_member_path: &'static str,
+    /// Package name of the merged crate (e.g. `"lemurclaw-utils"`).
+    pub merged_package: &'static str,
+    /// Lib identifier of the merged crate (e.g. `"lemurclaw_utils"`).
+    pub merged_lib_ident: &'static str,
+    /// The sub-crates to fold in.
+    pub members: Vec<SubCrate>,
+}
+
+impl Cluster {
+    /// The lib identifier prefix that downstream crates use to reference the
+    /// sub-crates (e.g. `lemurclaw_utils_<sub>`). Used by the `.rs` rewriter.
+    fn sub_crate_ident_prefix(&self) -> String {
+        format!("{}_", self.merged_lib_ident)
+    }
+
+    /// Whether a dep package key (e.g. `lemurclaw-utils-absolute-path`) names
+    /// one of THIS cluster's members.
+    fn contains_package(&self, key: &str) -> bool {
+        self.members.iter().any(|sc| sc.package == key)
+    }
+
+    /// Build the ident→module lookup table for this cluster's members.
+    fn ident_to_module(&self) -> BTreeMap<String, String> {
+        self.members
+            .iter()
+            .map(|sc| {
+                let ident = sc.package.replace('-', "_");
+                (ident, sc.module.to_string())
+            })
+            .collect()
+    }
+
+    /// The set of module names for this cluster (used by self-ref fix).
+    fn module_names(&self) -> std::collections::HashSet<String> {
+        self.members
+            .iter()
+            .map(|sc| sc.module.to_string())
+            .collect()
+    }
+}
+
+/// Construct the `utils` cluster: 23 known utils crates, of which 17 are
+/// merged (the 6 cycle-causing ones stay standalone — see MERGE_DIRS).
+pub fn utils_cluster() -> Cluster {
+    Cluster {
+        source_subdir: "utils",
+        merged_member_path: "utils/utils",
+        merged_package: MERGED_PACKAGE,
+        merged_lib_ident: MERGED_LIB_IDENT,
+        members: merge_crates()
+            .into_iter()
+            .map(|sc| SubCrate {
+                dir: sc.dir,
+                package: sc.package,
+                module: sc.module,
+            })
+            .collect(),
+    }
+}
+
+/// Construct the `core` cluster: codex-core's 84-crate transitive closure,
+/// dynamically computed via `cargo metadata`. Implemented in Stage 2.
+pub fn core_cluster() -> Result<Cluster> {
+    anyhow::bail!("core cluster not yet implemented (Stage 2); use `--target utils` for now")
+}
+
 fn locate_repo_root() -> Result<PathBuf> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     if manifest_dir.join("..").join("codex-rs").exists() {
@@ -243,50 +321,66 @@ fn ident_to_module() -> BTreeMap<&'static str, &'static str> {
         .collect()
 }
 
-/// `xtask publish bundle [--dry-run]`
+/// `xtask publish bundle [--target <utils|core>] [--dry-run]`
 ///
-/// Merges the 23 `publish/utils/<dir>` crates into a single
-/// `publish/utils/utils/` crate. With `--dry-run`, prints the plan and exits
-/// without modifying any files.
-pub fn run(dry_run: bool) -> Result<()> {
+/// Merges a cluster of `publish/` crates into a single mega-crate. With
+/// `--dry-run`, prints the plan and exits without modifying any files.
+pub fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     let repo_root = locate_repo_root()?;
     let publish_root = repo_root.join("publish");
-    let utils_root = publish_root.join("utils");
+    let source_root = if cluster.source_subdir.is_empty() {
+        publish_root.clone()
+    } else {
+        publish_root.join(cluster.source_subdir)
+    };
+    // The merged crate lives one level inside source_root, named after the
+    // last segment of merged_member_path (e.g. "utils" or "core").
+    let merged_leaf = cluster
+        .merged_member_path
+        .rsplit('/')
+        .next()
+        .unwrap_or("merged");
+    let merged_dir = source_root.join(merged_leaf);
     println!(
-        "Phase 2 — utils bundle {}\n  source: {}\n  target: {}\n",
+        "bundle {} {}\n  source: {}\n  target: {}\n",
+        cluster.merged_package,
         if dry_run { "(dry-run)" } else { "" },
-        utils_root.display(),
-        utils_root.join("utils").display(),
+        source_root.display(),
+        merged_dir.display(),
     );
 
-    if !utils_root.is_dir() {
-        anyhow::bail!("publish/utils/ missing — run `xtask publish rename` first");
+    if !source_root.is_dir() {
+        anyhow::bail!(
+            "{} missing — run `xtask publish rename` first",
+            source_root.display()
+        );
     }
 
-    // Step 0: verify all 23 sub-crate dirs exist.
+    // Step 0: verify all member sub-crate dirs exist.
     let mut missing = Vec::new();
-    for sc in SUB_CRATES {
-        if !utils_root.join(sc.dir).is_dir() {
+    for sc in &cluster.members {
+        if !source_root.join(sc.dir).is_dir() {
             missing.push(sc.dir);
         }
     }
     if !missing.is_empty() {
         anyhow::bail!(
-            "missing {} sub-crate dir(s) under publish/utils/: {}",
+            "missing {} member dir(s) under {}: {}",
             missing.len(),
+            source_root.display(),
             missing.join(", ")
         );
     }
     println!(
-        "Found all {} utils sub-crates under publish/utils/.",
-        SUB_CRATES.len()
+        "Found all {} members under {}.",
+        cluster.members.len(),
+        source_root.display()
     );
 
     if dry_run {
-        return print_dry_run_plan(&utils_root);
+        return print_dry_run_plan(cluster, &source_root);
     }
 
-    let merged_dir = utils_root.join("utils");
     if merged_dir.exists() {
         anyhow::bail!(
             "{} already exists — remove it before re-running (or it was left from a partial run)",
@@ -294,114 +388,110 @@ pub fn run(dry_run: bool) -> Result<()> {
         );
     }
 
-    // Step 1: collect each merged sub-crate's dependencies, then create the
-    // merged crate dir with a synthesized Cargo.toml and lib.rs.
-    let to_merge = merge_crates();
-    let standalone = standalone_crates();
+    // Step 1: collect each member's dependencies, then create the merged crate
+    // dir with a synthesized Cargo.toml and lib.rs.
     println!(
-        "Merging {} of {} sub-crates ({} stay standalone to avoid cycles).",
-        to_merge.len(),
-        SUB_CRATES.len(),
-        standalone.len()
+        "Merging {} members into {}.",
+        cluster.members.len(),
+        cluster.merged_package
     );
-    let agg = collect_aggregate_deps(&utils_root, &to_merge)?;
-    create_merged_crate(&merged_dir, &agg, &to_merge)?;
+    let agg = collect_aggregate_deps(&source_root, &cluster.members, cluster)?;
+    create_merged_crate(&merged_dir, &agg, cluster)?;
 
-    // Step 2: move each merged sub-crate's src/ into the merged crate.
-    for sc in &to_merge {
-        migrate_subcrate_src(&utils_root.join(sc.dir), &merged_dir, sc.module)?;
+    // Step 2: move each member's src/ into the merged crate.
+    for sc in &cluster.members {
+        migrate_subcrate_src(&source_root.join(sc.dir), &merged_dir, sc.module)?;
     }
 
-    // Step 3: delete the merged sub-crate dirs (standalone ones stay).
-    for sc in &to_merge {
-        let dir = utils_root.join(sc.dir);
+    // Step 3: delete the merged member dirs (standalone ones stay).
+    for sc in &cluster.members {
+        let dir = source_root.join(sc.dir);
         fs::remove_dir_all(&dir).with_context(|| format!("delete {}", dir.display()))?;
     }
-    println!("Deleted {} merged sub-crate dirs.", to_merge.len());
+    println!("Deleted {} member dirs.", cluster.members.len());
 
     // Step 4: rewrite publish/Cargo.toml (members + workspace deps).
-    rewrite_publish_manifest(&publish_root)?;
+    rewrite_publish_manifest(&publish_root, cluster)?;
 
     // Step 5: rewrite .rs imports + downstream Cargo.toml dep lines.
-    //   - Inside the merged crate:  lemurclaw_utils_<sub>::  →  crate::<sub>::
+    //   - Inside the merged crate:  <lib>_<sub>::  →  crate::<sub>::
     //     (cross-module refs), then fix self-refs: a sub-module's own
     //     `crate::Foo` becomes `crate::<module>::Foo`.
-    //   - In downstream + standalone crates: lemurclaw_utils_<sub>:: → lemurclaw_utils::<sub>::
-    rewrite_rust_files_in(&merged_dir.join("src"), RewriteScope::IntraCrate)?;
-    for sc in &to_merge {
-        fix_self_refs_in_submodule(&merged_dir.join("src").join(sc.module), sc.module)?;
+    //   - In downstream crates: <lib>_<sub>:: → <lib>::<sub>::
+    rewrite_rust_files_in(&merged_dir.join("src"), RewriteScope::IntraCrate, cluster)?;
+    for sc in &cluster.members {
+        fix_self_refs_in_submodule(&merged_dir.join("src").join(sc.module), sc.module, cluster)?;
     }
-    rewrite_downstream(&publish_root, &merged_dir)?;
+    rewrite_downstream(&publish_root, &merged_dir, cluster)?;
 
-    println!("\n✓ Phase 2 bundle complete.");
-    println!("Verify: cd publish && cargo check -p lemurclaw-utils");
+    println!("\n✓ bundle {} complete.", cluster.merged_package);
+    println!(
+        "Verify: cd publish && cargo check -p {}",
+        cluster.merged_package
+    );
     Ok(())
 }
 
 /// Print the migration plan without touching the filesystem.
-fn print_dry_run_plan(utils_root: &Path) -> Result<()> {
-    let merged_dir = utils_root.join("utils");
-    let to_merge = merge_crates();
-    let standalone = standalone_crates();
+fn print_dry_run_plan(cluster: &Cluster, source_root: &Path) -> Result<()> {
+    let merged_leaf = cluster
+        .merged_member_path
+        .rsplit('/')
+        .next()
+        .unwrap_or("merged");
+    let merged_dir = source_root.join(merged_leaf);
     println!("Plan:");
     println!(
-        "  Merging {} of {} sub-crates into {}:",
-        to_merge.len(),
-        SUB_CRATES.len(),
-        MERGED_PACKAGE
+        "  Merging {} members into {}:",
+        cluster.members.len(),
+        cluster.merged_package
     );
-    for sc in &standalone {
-        println!("    (standalone, cycle-safe) {}", sc.dir);
-    }
     println!();
     println!("  1. Create merged crate at {}", merged_dir.display());
-    println!("     package.name = \"{}\"", MERGED_PACKAGE);
-    println!("     [lib].name   = \"{}\"", MERGED_LIB_IDENT);
+    println!("     package.name = \"{}\"", cluster.merged_package);
+    println!("     [lib].name   = \"{}\"", cluster.merged_lib_ident);
     println!(
         "     src/lib.rs   = {} `pub mod <name>;` lines\n",
-        to_merge.len()
+        cluster.members.len()
     );
 
-    println!("  2. Migrate each merged sub-crate's src/ into a submodule:");
+    println!("  2. Migrate each member's src/ into a submodule:");
     let mut total_files = 0usize;
-    for sc in &to_merge {
-        let src = utils_root.join(sc.dir).join("src");
+    for sc in &cluster.members {
+        let src = source_root.join(sc.dir).join("src");
         let count = count_rs_files(&src)?;
         total_files += count;
         println!(
-            "     {:<20} (pkg {:<32}) → mod {} [{} files]",
+            "     {:<24} (pkg {:<36}) → mod {} [{} files]",
             sc.dir, sc.package, sc.module, count
         );
     }
     println!("     total: {} .rs files\n", total_files);
 
-    println!(
-        "  3. Delete the {} merged sub-crate dirs ({} standalone stay).\n",
-        to_merge.len(),
-        standalone.len()
-    );
+    println!("  3. Delete the {} member dirs.\n", cluster.members.len());
 
     println!("  4. Rewrite publish/Cargo.toml:");
     println!(
-        "     [workspace.members]: {} merged utils/* → 1 utils/utils ({} standalone kept)",
-        to_merge.len(),
-        standalone.len()
+        "     [workspace.members]: {} merged → 1 {}",
+        cluster.members.len(),
+        cluster.merged_member_path
     );
     println!(
-        "     [workspace.dependencies]: {} merged lemurclaw-utils-* → 1 lemurclaw-utils\n",
-        to_merge.len()
+        "     [workspace.dependencies]: {} merged → 1 {}\n",
+        cluster.members.len(),
+        cluster.merged_package
     );
 
-    println!("  5. Rewrite downstream crates (all non-utils crates in publish/):");
+    println!("  5. Rewrite downstream crates:");
     println!(
         "     .rs:        use {}_<sub>::X  →  use {}::<sub>::X",
-        MERGED_LIB_IDENT, MERGED_LIB_IDENT
+        cluster.merged_lib_ident, cluster.merged_lib_ident
     );
     println!(
         "     Cargo.toml: {}-* = {{ ws }}  →  {} = {{ ws }} (dedup)",
-        MERGED_PACKAGE, MERGED_PACKAGE
+        cluster.merged_package, cluster.merged_package
     );
-    let table = ident_to_module();
+    let table = cluster.ident_to_module();
     println!("\n     ident → module mapping ({} entries):", table.len());
     for (ident, module) in &table {
         println!("       {} → ::{}", ident, module);
@@ -455,25 +545,29 @@ struct AggregateDeps {
 /// dropped — they become intra-crate references inside the merged crate (a
 /// `pub mod` is in the same crate, so no dep declaration is needed). Other
 /// `lemurclaw-*` workspace crates (protocol, core, etc.) are preserved.
-fn collect_aggregate_deps(utils_root: &Path, to_merge: &[&SubCrate]) -> Result<AggregateDeps> {
+fn collect_aggregate_deps(
+    source_root: &Path,
+    members: &[SubCrate],
+    cluster: &Cluster,
+) -> Result<AggregateDeps> {
     let mut agg = AggregateDeps {
         deps: BTreeMap::new(),
         dev_deps: BTreeMap::new(),
         target_deps: BTreeMap::new(),
         target_dev_deps: BTreeMap::new(),
     };
-    for sc in to_merge {
-        let path = utils_root.join(sc.dir).join("Cargo.toml");
+    for sc in members {
+        let path = source_root.join(sc.dir).join("Cargo.toml");
         let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
         let doc: toml::Value =
             toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
         let table = doc.as_table().context("manifest is not a table")?;
 
         if let Some(deps) = table.get("dependencies").and_then(|v| v.as_table()) {
-            merge_dep_table(&mut agg.deps, deps);
+            merge_dep_table(&mut agg.deps, deps, cluster);
         }
         if let Some(deps) = table.get("dev-dependencies").and_then(|v| v.as_table()) {
-            merge_dep_table(&mut agg.dev_deps, deps);
+            merge_dep_table(&mut agg.dev_deps, deps, cluster);
         }
         // Target-scoped deps: [target.'cfg(windows)'.dependencies] etc.
         if let Some(targets) = table.get("target").and_then(|v| v.as_table()) {
@@ -484,11 +578,11 @@ fn collect_aggregate_deps(utils_root: &Path, to_merge: &[&SubCrate]) -> Result<A
                 };
                 if let Some(d) = scope.get("dependencies").and_then(|v| v.as_table()) {
                     let entry = agg.target_deps.entry(cfg.clone()).or_default();
-                    merge_dep_table(entry, d);
+                    merge_dep_table(entry, d, cluster);
                 }
                 if let Some(d) = scope.get("dev-dependencies").and_then(|v| v.as_table()) {
                     let entry = agg.target_dev_deps.entry(cfg.clone()).or_default();
-                    merge_dep_table(entry, d);
+                    merge_dep_table(entry, d, cluster);
                 }
             }
         }
@@ -502,12 +596,12 @@ fn collect_aggregate_deps(utils_root: &Path, to_merge: &[&SubCrate]) -> Result<A
 fn merge_dep_table(
     accum: &mut BTreeMap<String, toml::Value>,
     src: &toml::map::Map<String, toml::Value>,
+    cluster: &Cluster,
 ) {
     for (key, val) in src {
-        // Skip the 23 lemurclaw-utils-* deps — they become intra-crate refs
-        // (a `pub mod` is in the same crate). Other lemurclaw-* workspace
-        // crates (lemurclaw-protocol, lemurclaw-core, etc.) stay as real deps.
-        if is_utils_package_key(key) {
+        // Skip this cluster's member packages — they become intra-crate refs
+        // (a `pub mod` is in the same crate). Other workspace crates stay.
+        if cluster.contains_package(key) {
             continue;
         }
         match accum.get(key) {
@@ -550,17 +644,13 @@ fn unify_dep_value(a: &toml::Value, b: &toml::Value) -> toml::Value {
 }
 
 /// Create the merged crate directory with a synthesized Cargo.toml and lib.rs.
-fn create_merged_crate(
-    merged_dir: &Path,
-    agg: &AggregateDeps,
-    to_merge: &[&SubCrate],
-) -> Result<()> {
+fn create_merged_crate(merged_dir: &Path, agg: &AggregateDeps, cluster: &Cluster) -> Result<()> {
     fs::create_dir_all(merged_dir.join("src")).context("create merged crate src/")?;
 
     // Cargo.toml
     let mut toml = String::new();
     toml.push_str("[package]\n");
-    toml.push_str(&format!("name = \"{}\"\n", MERGED_PACKAGE));
+    toml.push_str(&format!("name = \"{}\"\n", cluster.merged_package));
     toml.push_str("version.workspace = true\n");
     toml.push_str("edition.workspace = true\n");
     toml.push_str("license.workspace = true\n");
@@ -576,25 +666,25 @@ fn create_merged_crate(
     }
 
     toml.push_str("\n[lib]\n");
-    toml.push_str(&format!("name = \"{}\"\n", MERGED_LIB_IDENT));
+    toml.push_str(&format!("name = \"{}\"\n", cluster.merged_lib_ident));
     toml.push_str("doctest = false\n");
 
     fs::write(merged_dir.join("Cargo.toml"), &toml).context("write merged Cargo.toml")?;
 
-    // lib.rs: one `pub mod` per merged sub-crate, in SUB_CRATES order.
-    let mut lib = String::from(
-        "//! Merged `lemurclaw-utils` crate — union of former\n\
-         //! `lemurclaw-utils-*` sub-crates, each exposed as a `pub mod`.\n",
+    // lib.rs: one `pub mod` per member.
+    let mut lib = format!(
+        "//! Merged `{}` crate — union of former sub-crates, each as `pub mod`.\n",
+        cluster.merged_package
     );
-    for sc in to_merge {
+    for sc in &cluster.members {
         lib.push_str(&format!("pub mod {};\n", sc.module));
     }
     fs::write(merged_dir.join("src").join("lib.rs"), &lib).context("write merged lib.rs")?;
 
     println!(
         "Created merged crate {} ({} submodules).",
-        MERGED_PACKAGE,
-        to_merge.len()
+        cluster.merged_package,
+        cluster.members.len()
     );
     Ok(())
 }
@@ -692,7 +782,7 @@ fn migrate_subcrate_src(sub_dir: &Path, merged_dir: &Path, module: &str) -> Resu
 // ---------------------------------------------------------------------------
 
 /// Whether a `.rs` rewrite targets the merged crate itself (use `crate::`) or
-/// downstream crates (use `lemurclaw_utils::`).
+/// downstream crates (use `<lib>::`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RewriteScope {
     IntraCrate,
@@ -700,10 +790,10 @@ enum RewriteScope {
 }
 
 impl RewriteScope {
-    fn prefix(self) -> &'static str {
+    fn prefix(self, cluster: &Cluster) -> String {
         match self {
-            RewriteScope::IntraCrate => "crate",
-            RewriteScope::Downstream => "lemurclaw_utils",
+            RewriteScope::IntraCrate => "crate".to_string(),
+            RewriteScope::Downstream => cluster.merged_lib_ident.to_string(),
         }
     }
 }
@@ -711,16 +801,29 @@ impl RewriteScope {
 /// Rewrite `publish/Cargo.toml`: replace the 17 merged `utils/<dir>` workspace
 /// members with a single `utils/utils`, and collapse the 17 merged
 /// `lemurclaw-utils-*` workspace dep entries into a single `lemurclaw-utils`.
-/// The 6 standalone utils crates (approval-presets, cli, oss,
-/// output-truncation, plugins, sandbox-summary) keep their members + deps.
-fn rewrite_publish_manifest(publish_root: &Path) -> Result<()> {
+/// Standalone crates keep their members + deps.
+fn rewrite_publish_manifest(publish_root: &Path, cluster: &Cluster) -> Result<()> {
     let path = publish_root.join("Cargo.toml");
     let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
 
     let merge_dirs: std::collections::HashSet<&str> =
-        merge_crates().iter().map(|sc| sc.dir).collect();
+        cluster.members.iter().map(|sc| sc.dir).collect();
     let merge_pkgs: std::collections::HashSet<&str> =
-        merge_crates().iter().map(|sc| sc.package).collect();
+        cluster.members.iter().map(|sc| sc.package).collect();
+
+    // The member prefix in workspace.members lines. For utils it's "utils/";
+    // for core (source_subdir empty) members appear bare (e.g. "protocol").
+    let member_prefix = if cluster.source_subdir.is_empty() {
+        String::new()
+    } else {
+        format!("{}/", cluster.source_subdir)
+    };
+    let merged_member_line = format!("\"{}\"", cluster.merged_member_path);
+    let merged_dep_line = format!(
+        "{} = {{ path = \"{}\" }}",
+        cluster.merged_package, cluster.merged_member_path
+    );
+    let merged_dep_check = format!("{} = ", cluster.merged_package);
 
     let mut out = String::with_capacity(raw.len());
     let mut section = String::new();
@@ -739,38 +842,40 @@ fn rewrite_publish_manifest(publish_root: &Path) -> Result<()> {
             continue;
         }
 
-        // Inside [workspace] members: drop the 17 merged utils/<dir> entries
-        // (replace with one utils/utils); keep the 6 standalone utils/<dir>.
-        if in_workspace && trimmed.starts_with("\"utils/") {
-            // Extract the dir from "utils/<dir>",
-            let member_dir = trimmed
-                .trim_start_matches("\"utils/")
-                .trim_end_matches("\",");
-            if merge_dirs.contains(member_dir) {
-                // Merged — replace with utils/utils (once).
-                if !out.contains("\"utils/utils\"") {
-                    let indent = &line[..line.len() - trimmed.len()];
-                    out.push_str(&format!("{}\"utils/utils\",\n", indent));
+        // Inside [workspace] members: drop merged member entries (replace with
+        // one merged_member_path); keep standalone ones.
+        if in_workspace {
+            let member_str = format!("\"{}", member_prefix);
+            if trimmed.starts_with(&member_str) {
+                // Extract the dir from "<prefix><dir>",
+                let member_dir = trimmed
+                    .trim_start_matches(&member_str)
+                    .trim_end_matches("\",");
+                if merge_dirs.contains(member_dir) {
+                    // Merged — replace with the merged member (once).
+                    if !out.contains(&merged_member_line) {
+                        let indent = &line[..line.len() - trimmed.len()];
+                        out.push_str(indent);
+                        out.push_str(&merged_member_line);
+                        out.push_str(",\n");
+                    }
+                    continue;
                 }
+                // Standalone — keep as-is.
+                out.push_str(line);
+                out.push('\n');
                 continue;
             }
-            // Standalone — keep as-is.
-            out.push_str(line);
-            out.push('\n');
-            continue;
         }
 
-        // Inside [workspace.dependencies]: collapse merged lemurclaw-utils-*
-        // deps into one lemurclaw-utils; keep standalone ones.
+        // Inside [workspace.dependencies]: collapse merged packages into one
+        // merged_package; keep standalone ones.
         if in_workspace_deps {
             if let Some(pkg) = extract_dep_key(trimmed) {
                 if merge_pkgs.contains(pkg.as_str()) {
-                    if !out.contains("lemurclaw-utils = ") {
+                    if !out.contains(&merged_dep_check) {
                         let indent = &line[..line.len() - trimmed.len()];
-                        out.push_str(&format!(
-                            "{}lemurclaw-utils = {{ path = \"utils/utils\" }}\n",
-                            indent
-                        ));
+                        out.push_str(&format!("{}{}\n", indent, merged_dep_line));
                     }
                     continue;
                 }
@@ -787,38 +892,24 @@ fn rewrite_publish_manifest(publish_root: &Path) -> Result<()> {
     Ok(())
 }
 
-/// True if a dep key (in a `[dependencies]` table) names one of the 23
-/// `lemurclaw-utils-*` packages that were merged. The bare `lemurclaw-utils`
-/// (no trailing segment) does NOT match.
-fn is_utils_package_key(key: &str) -> bool {
-    let prefix = "lemurclaw-utils-";
-    if let Some(rest) = key.strip_prefix(prefix) {
-        rest.chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphanumeric())
-    } else {
-        false
-    }
-}
-
 /// Fix `crate::` self-references inside a merged sub-module directory. When a
 /// sub-crate used `crate::Foo` to reach its own root items, that path now needs
 /// the module prefix: `crate::<module>::Foo`. Cross-module refs
 /// (`crate::absolute_path::...`, already rewritten from `lemurclaw_utils_X`) are
-/// left alone — we detect them by checking the first segment against the 23
+/// left alone — we detect them by checking the first segment against the known
 /// known module names.
-fn fix_self_refs_in_submodule(dir: &Path, module: &str) -> Result<()> {
+fn fix_self_refs_in_submodule(dir: &Path, module: &str, cluster: &Cluster) -> Result<()> {
     if !dir.is_dir() {
         return Ok(());
     }
-    let modules: std::collections::HashSet<&str> = SUB_CRATES.iter().map(|sc| sc.module).collect();
+    let modules = cluster.module_names();
     fix_self_refs_recursive(dir, module, &modules)
 }
 
 fn fix_self_refs_recursive(
     dir: &Path,
     module: &str,
-    modules: &std::collections::HashSet<&str>,
+    modules: &std::collections::HashSet<String>,
 ) -> Result<()> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
@@ -844,7 +935,7 @@ fn fix_self_refs_recursive(
 fn fix_self_refs_in_src(
     src: &str,
     module: &str,
-    modules: &std::collections::HashSet<&str>,
+    modules: &std::collections::HashSet<String>,
 ) -> String {
     // Walk the source and rewrite `crate::` when the segment after it is not a
     // known module. We do a careful scan to avoid touching string literals or
@@ -893,7 +984,7 @@ fn fix_self_refs_in_src(
 }
 
 /// Recursively rewrite every `.rs` file under `dir` using the given scope.
-fn rewrite_rust_files_in(dir: &Path, scope: RewriteScope) -> Result<()> {
+fn rewrite_rust_files_in(dir: &Path, scope: RewriteScope, cluster: &Cluster) -> Result<()> {
     if !dir.is_dir() {
         return Ok(());
     }
@@ -901,11 +992,11 @@ fn rewrite_rust_files_in(dir: &Path, scope: RewriteScope) -> Result<()> {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
-            rewrite_rust_files_in(&path, scope)?;
+            rewrite_rust_files_in(&path, scope, cluster)?;
         } else if path.extension().is_some_and(|e| e == "rs") {
             let raw =
                 fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-            let rewritten = rewrite_rs(&raw, scope);
+            let rewritten = rewrite_rs(&raw, scope, cluster);
             if rewritten != raw {
                 fs::write(&path, &rewritten)
                     .with_context(|| format!("write {}", path.display()))?;
@@ -915,18 +1006,18 @@ fn rewrite_rust_files_in(dir: &Path, scope: RewriteScope) -> Result<()> {
     Ok(())
 }
 
-/// Rewrite `lemurclaw_utils_<module>` crate-path segments (for the 17 MERGED
-/// sub-crates only) in `src` to `<prefix>::<module>`. Standalone crates'
-/// idents (e.g. `lemurclaw_utils_plugins`) are left untouched — they remain
-/// separate crates. This is a targeted text substitution: the idents are
-/// specific enough that they only appear as crate path segments in valid Rust.
-fn rewrite_rs(src: &str, scope: RewriteScope) -> String {
-    let prefix = scope.prefix();
+/// Rewrite `<lib>_<module>` crate-path segments (for the cluster's members
+/// only) in `src` to `<prefix>::<module>`. Standalone crates' idents are left
+/// untouched — they remain separate crates. This is a targeted text
+/// substitution: the idents are specific enough that they only appear as crate
+/// path segments in valid Rust.
+fn rewrite_rs(src: &str, scope: RewriteScope, cluster: &Cluster) -> String {
+    let prefix = scope.prefix(cluster);
     let mut out = src.to_string();
-    for sc in merge_crates() {
-        let ident: &'static str = sc.package.replace('-', "_").leak();
+    for sc in &cluster.members {
+        let ident = sc.package.replace('-', "_");
         let replacement = format!("{}::{}", prefix, sc.module);
-        out = replace_ident_whole(&out, ident, &replacement);
+        out = replace_ident_whole(&out, &ident, &replacement);
     }
     out
 }
@@ -984,10 +1075,16 @@ fn next_char_boundary(bytes: &[u8], start: usize) -> usize {
 /// Crates can be nested (e.g. `ext/items`, `memories/write`, `utils/cargo-bin`),
 /// so this walks the whole tree, skipping the merged `utils/utils` crate
 /// (handled by the intra-crate pass) and `target/`.
-fn rewrite_downstream(publish_root: &Path, merged_dir: &Path) -> Result<()> {
+fn rewrite_downstream(publish_root: &Path, merged_dir: &Path, cluster: &Cluster) -> Result<()> {
     let mut rs_files = 0usize;
     let mut toml_files = 0usize;
-    rewrite_downstream_dir(publish_root, merged_dir, &mut rs_files, &mut toml_files)?;
+    rewrite_downstream_dir(
+        publish_root,
+        merged_dir,
+        cluster,
+        &mut rs_files,
+        &mut toml_files,
+    )?;
     let _ = merged_dir;
     println!(
         "Rewrote downstream: {} .rs files, {} Cargo.toml dep-collapsed.",
@@ -1000,6 +1097,7 @@ fn rewrite_downstream(publish_root: &Path, merged_dir: &Path) -> Result<()> {
 fn rewrite_downstream_dir(
     dir: &Path,
     merged_dir: &Path,
+    cluster: &Cluster,
     rs_files: &mut usize,
     toml_files: &mut usize,
 ) -> Result<()> {
@@ -1012,11 +1110,11 @@ fn rewrite_downstream_dir(
             continue;
         }
         if path.is_dir() {
-            rewrite_downstream_dir(&path, merged_dir, rs_files, toml_files)?;
+            rewrite_downstream_dir(&path, merged_dir, cluster, rs_files, toml_files)?;
         } else if path.extension().is_some_and(|e| e == "rs") {
             let raw =
                 fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-            let rewritten = rewrite_rs(&raw, RewriteScope::Downstream);
+            let rewritten = rewrite_rs(&raw, RewriteScope::Downstream, cluster);
             if rewritten != raw {
                 fs::write(&path, &rewritten)
                     .with_context(|| format!("write {}", path.display()))?;
@@ -1025,22 +1123,21 @@ fn rewrite_downstream_dir(
         } else if name == "Cargo.toml" {
             // The workspace root (publish/Cargo.toml) is already handled by
             // rewrite_publish_manifest; collapse is a no-op there. For all
-            // other crate manifests, collapse lemurclaw-utils-* dep lines.
-            collapse_utils_deps_in_manifest(&path)?;
+            // other crate manifests, collapse member dep lines.
+            collapse_deps_in_manifest(&path, cluster)?;
             *toml_files += 1;
         }
     }
     Ok(())
 }
 
-/// Collapse the merged `lemurclaw-utils-* = { workspace = true }` dep lines in
-/// a crate manifest into a single `lemurclaw-utils = { workspace = true }`.
-/// Standalone utils crates (approval-presets, cli, oss, output-truncation,
-/// plugins, sandbox-summary) are preserved as-is.
-fn collapse_utils_deps_in_manifest(path: &Path) -> Result<()> {
+/// Collapse the cluster's member dep lines in a crate manifest into a single
+/// `<merged_package> = { workspace = true }`. Standalone crates are preserved.
+fn collapse_deps_in_manifest(path: &Path, cluster: &Cluster) -> Result<()> {
     let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let merge_pkgs: std::collections::HashSet<&str> =
-        merge_crates().iter().map(|sc| sc.package).collect();
+        cluster.members.iter().map(|sc| sc.package).collect();
+    let collapsed_line = format!("{} = {{ workspace = true }}", cluster.merged_package);
     let mut out = String::with_capacity(raw.len());
     let mut emitted = false;
     for line in raw.lines() {
@@ -1049,10 +1146,7 @@ fn collapse_utils_deps_in_manifest(path: &Path) -> Result<()> {
             if merge_pkgs.contains(pkg.as_str()) {
                 if !emitted {
                     let indent = &line[..line.len() - trimmed.len()];
-                    out.push_str(&format!(
-                        "{}lemurclaw-utils = {{ workspace = true }}\n",
-                        indent
-                    ));
+                    out.push_str(&format!("{}{}\n", indent, collapsed_line));
                     emitted = true;
                 }
                 continue;

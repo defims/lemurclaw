@@ -60,13 +60,24 @@ enum PublishKind {
         #[command(subcommand)]
         kind: ForkKind,
     },
-    /// Phase 2: merge the 23 `lemurclaw-utils-*` crates in publish/ into a
-    /// single `lemurclaw-utils` crate (each former crate becomes a `pub mod`).
+    /// Phase 2/3: merge a cluster of crates in publish/ into a single
+    /// mega-crate (each former crate becomes a `pub mod`).
     Bundle {
+        /// Which cluster to merge.
+        #[arg(long, default_value = "utils")]
+        target: BundleTarget,
         /// Print the migration plan without modifying any files.
         #[arg(long)]
         dry_run: bool,
     },
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum BundleTarget {
+    /// Merge the 17 cycle-free `lemurclaw-utils-*` crates.
+    Utils,
+    /// Merge core's 84-crate closure into `lemurclaw-core` (utils disappears).
+    Core,
 }
 
 #[derive(Subcommand)]
@@ -101,7 +112,13 @@ fn main() -> Result<()> {
                 ForkKind::Publish { dry_run } => forks::run_publish(dry_run),
                 ForkKind::Rewire => forks::run_rewire(),
             },
-            PublishKind::Bundle { dry_run } => bundle::run(dry_run),
+            PublishKind::Bundle { target, dry_run } => {
+                let cluster = match target {
+                    BundleTarget::Utils => bundle::utils_cluster(),
+                    BundleTarget::Core => bundle::core_cluster()?,
+                };
+                bundle::run(&cluster, dry_run)
+            }
         },
     }
 }
