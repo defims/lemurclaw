@@ -915,15 +915,15 @@ fn rewrite_rust_files_in(dir: &Path, scope: RewriteScope) -> Result<()> {
     Ok(())
 }
 
-/// Rewrite all `lemurclaw_utils_<module>` crate-path segments in `src` to
-/// `<prefix>::<module>` (whole-word match on each known ident). This is a
-/// targeted text substitution: the ident `lemurclaw_utils_absolute_path` is
-/// specific enough that it only appears as a crate path segment in valid
-/// Rust, so an AST walk is unnecessary.
+/// Rewrite `lemurclaw_utils_<module>` crate-path segments (for the 17 MERGED
+/// sub-crates only) in `src` to `<prefix>::<module>`. Standalone crates'
+/// idents (e.g. `lemurclaw_utils_plugins`) are left untouched — they remain
+/// separate crates. This is a targeted text substitution: the idents are
+/// specific enough that they only appear as crate path segments in valid Rust.
 fn rewrite_rs(src: &str, scope: RewriteScope) -> String {
     let prefix = scope.prefix();
     let mut out = src.to_string();
-    for sc in SUB_CRATES {
+    for sc in merge_crates() {
         let ident: &'static str = sc.package.replace('-', "_").leak();
         let replacement = format!("{}::{}", prefix, sc.module);
         out = replace_ident_whole(&out, ident, &replacement);
