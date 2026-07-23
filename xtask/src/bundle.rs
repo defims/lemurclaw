@@ -1460,10 +1460,35 @@ fn collapse_deps_in_manifest(path: &Path, cluster: &Cluster) -> Result<()> {
     for line in raw.lines() {
         let trimmed = line.trim_start();
         if let Some(pkg) = extract_dep_key(trimmed) {
-            if merge_pkgs.contains(pkg.as_str()) {
+            // Detect member deps two ways:
+            //  (1) dep key matches a member package name
+            //  (2) the line has `package = "<member>"` (path-style alias, e.g.
+            //      codex_windows_sandbox = { package = "lemurclaw-windows-sandbox", path = ... })
+            let key_is_member = merge_pkgs.contains(pkg.as_str());
+            let alias_is_member = trimmed
+                .find("package = \"")
+                .and_then(|i| {
+                    let start = i + "package = \"".len();
+                    trimmed[start..]
+                        .find('"')
+                        .map(|end| &trimmed[start..start + end])
+                })
+                .is_some_and(|alias| merge_pkgs.contains(alias));
+            if key_is_member || alias_is_member {
+                // A member package dep — collapse into the merged package.
                 if !emitted {
                     let indent = &line[..line.len() - trimmed.len()];
                     out.push_str(&format!("{}{}\n", indent, collapsed_line));
+                    emitted = true;
+                }
+                continue;
+            }
+            // The merged package's own pre-existing entry counts as the
+            // collapsed line — keep the first occurrence, drop duplicates.
+            if pkg == cluster.merged_package {
+                if !emitted {
+                    out.push_str(line);
+                    out.push('\n');
                     emitted = true;
                 }
                 continue;
