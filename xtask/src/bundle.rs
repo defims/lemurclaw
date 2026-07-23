@@ -1178,7 +1178,7 @@ fn fix_include_paths_in_src(src: &str) -> String {
                     let rest = &crate_dir[slash..]; // includes leading '/'
                                                     // Convert crate-name (dashes) to module name (underscores).
                     let module = crate_name.replace('-', "_");
-                    let new_path = format!("../{}{}", module, rest);
+                    let new_path = format!("../../{}{}", module, rest);
                     let replace_end = start + "codex-rs/".len() + end_rel;
                     out.replace_range(quote_start..replace_end, &new_path);
                     continue;
@@ -1187,11 +1187,42 @@ fn fix_include_paths_in_src(src: &str) -> String {
         }
         break; // Can't handle this occurrence; avoid infinite loop.
     }
-    // Then, strip one "../" level for simple relative paths.
-    out = out
-        .replace("include_str!(\"../", "include_str!(\"")
-        .replace("include_bytes!(\"../", "include_bytes!(\"");
-    out
+    // Then, deepen ONE "../" level for simple relative paths: the module moved
+    // one level deeper, so "../X" needs to become "../../X". But don't double-
+    // deepen paths already at "../../" (from the cross-crate rewrite above).
+    // Match include_str!("../X where X is NOT another "../".
+    let mut result = String::with_capacity(out.len());
+    let mut rest = out.as_str();
+    while let Some(pos) = rest.find("include_str!(\"../") {
+        let after = &rest[pos + "include_str!(\"../".len()..];
+        result.push_str(&rest[..pos]);
+        if after.starts_with("../") {
+            // Already "../../" — don't deepen further.
+            result.push_str("include_str!(\"../");
+            rest = after;
+        } else {
+            // Single "../" — deepen to "../../".
+            result.push_str("include_str!(\"../../");
+            rest = after;
+        }
+    }
+    result.push_str(rest);
+    // Same for include_bytes!.
+    let mut final_out = String::with_capacity(result.len());
+    rest = result.as_str();
+    while let Some(pos) = rest.find("include_bytes!(\"../") {
+        let after = &rest[pos + "include_bytes!(\"../".len()..];
+        final_out.push_str(&rest[..pos]);
+        if after.starts_with("../") {
+            final_out.push_str("include_bytes!(\"../");
+            rest = after;
+        } else {
+            final_out.push_str("include_bytes!(\"../../");
+            rest = after;
+        }
+    }
+    final_out.push_str(rest);
+    final_out
 }
 
 /// Move a sub-crate's `src/` contents into the merged crate as a submodule
