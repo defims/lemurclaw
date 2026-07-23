@@ -838,9 +838,10 @@ fn merge_dep_table(
     cluster: &Cluster,
 ) {
     for (key, val) in src {
-        // Skip this cluster's member packages — they become intra-crate refs
-        // (a `pub mod` is in the same crate). Other workspace crates stay.
-        if cluster.contains_package(key) {
+        // Skip this cluster's member packages AND the merged package itself —
+        // they become intra-crate refs (a `pub mod` is in the same crate).
+        // Skipping the merged package prevents a self-dependency cycle.
+        if cluster.contains_package(key) || key == cluster.merged_package {
             continue;
         }
         match accum.get(key) {
@@ -859,24 +860,52 @@ fn merge_dep_table(
 /// Unify two dep values for the same key. If both are inline tables, merge
 /// their `features` arrays (deduped, preserving order). Otherwise the newer
 /// value wins.
+///
+/// Feature unification is guarded: features are only unioned when both specs
+/// agree on their version source. If one spec pins a `version = "X"` while the
+/// other uses `workspace = true`, their features may not be compatible across
+/// versions (e.g. reqwest 0.13's "rustls" feature doesn't exist in 0.12). In
+/// that case we keep the workspace-pinned spec's features and drop the
+/// version-pinned spec's features (the workspace version is authoritative for
+/// the merged crate).
 fn unify_dep_value(a: &toml::Value, b: &toml::Value) -> toml::Value {
     let (ta, tb) = match (a.as_table(), b.as_table()) {
         (Some(ta), Some(tb)) => (ta, tb),
         _ => return b.clone(),
     };
     let mut out = tb.clone();
-    // Union features.
-    let fa = ta.get("features").and_then(|v| v.as_array());
-    let fb = tb.get("features").and_then(|v| v.as_array());
-    if fa.is_some() || fb.is_some() {
-        let mut seen: Vec<toml::Value> = Vec::new();
-        for f in fa.into_iter().flatten().chain(fb.into_iter().flatten()) {
-            if !seen.iter().any(|s| s == f) {
-                seen.push(f.clone());
+    // Determine version source compatibility.
+    let a_ws = ta.get("workspace").is_some();
+    let b_ws = tb.get("workspace").is_some();
+    let a_ver = ta.get("version").and_then(|v| v.as_str());
+    let b_ver = tb.get("version").and_then(|v| v.as_str());
+    // Compatible = both workspace, or both pin the same version.
+    let compatible = (a_ws && b_ws) || (a_ver.is_some() && a_ver == b_ver);
+    if compatible {
+        // Union features.
+        let fa = ta.get("features").and_then(|v| v.as_array());
+        let fb = tb.get("features").and_then(|v| v.as_array());
+        if fa.is_some() || fb.is_some() {
+            let mut seen: Vec<toml::Value> = Vec::new();
+            for f in fa.into_iter().flatten().chain(fb.into_iter().flatten()) {
+                if !seen.iter().any(|s| s == f) {
+                    seen.push(f.clone());
+                }
+            }
+            if !seen.is_empty() {
+                out.insert("features".to_string(), toml::Value::Array(seen));
             }
         }
-        if !seen.is_empty() {
-            out.insert("features".to_string(), toml::Value::Array(seen));
+    } else {
+        // Version mismatch: prefer the workspace spec's features, drop the
+        // version-pinned spec's features to avoid cross-version pollution.
+        let ws_features = if a_ws {
+            ta.get("features").and_then(|v| v.as_array())
+        } else {
+            tb.get("features").and_then(|v| v.as_array())
+        };
+        if let Some(fa) = ws_features {
+            out.insert("features".to_string(), toml::Value::Array(fa.clone()));
         }
     }
     toml::Value::Table(out)
