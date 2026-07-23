@@ -1397,29 +1397,64 @@ fn rewrite_publish_manifest(publish_root: &Path, cluster: &Cluster) -> Result<()
 /// the module prefix: `crate::<module>::Foo`. Cross-module refs
 /// (`crate::absolute_path::...`, already rewritten from `lemurclaw_utils_X`) are
 /// left alone — we detect them by checking the first segment against the known
-/// known module names.
+/// module names.
+///
+/// For the HOST module (e.g. core_internal), there's an additional subtlety:
+/// the host's own internal modules (e.g. `config`, `state`, `tools`) may share
+/// names with merged member modules. A `crate::config::Config` inside the host
+/// meant the host's OWN `config` module, not the member `config` module. We
+/// detect this by reading the host's mod.rs for its local `mod` declarations —
+/// any `crate::X` where X is a local module gets prefixed to `crate::<module>::X`.
 fn fix_self_refs_in_submodule(dir: &Path, module: &str, cluster: &Cluster) -> Result<()> {
     if !dir.is_dir() {
         return Ok(());
     }
     let modules = cluster.module_names();
-    fix_self_refs_recursive(dir, module, &modules)
+    // Collect local module names from the host's mod.rs (if this is the host).
+    let local_mods = collect_local_mods(&dir.join("mod.rs"));
+    fix_self_refs_recursive(dir, module, &modules, &local_mods)
+}
+
+/// Parse a mod.rs file for `mod <name>;` / `pub mod <name>;` declarations,
+/// returning the set of local module names.
+fn collect_local_mods(mod_rs: &Path) -> std::collections::HashSet<String> {
+    let mut mods = std::collections::HashSet::new();
+    if let Ok(raw) = fs::read_to_string(mod_rs) {
+        for line in raw.lines() {
+            let trimmed = line.trim_start();
+            // Match "mod foo;" or "pub mod foo;" or "pub(crate) mod foo;".
+            let after_vis = trimmed
+                .strip_prefix("pub(crate) ")
+                .or_else(|| trimmed.strip_prefix("pub "))
+                .unwrap_or(trimmed);
+            if let Some(rest) = after_vis.strip_prefix("mod ") {
+                if let Some(name) = rest.split(';').next() {
+                    let name = name.trim().trim_end_matches(" {");
+                    if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                        mods.insert(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    mods
 }
 
 fn fix_self_refs_recursive(
     dir: &Path,
     module: &str,
     modules: &std::collections::HashSet<String>,
+    local_mods: &std::collections::HashSet<String>,
 ) -> Result<()> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
-            fix_self_refs_recursive(&path, module, modules)?;
+            fix_self_refs_recursive(&path, module, modules, local_mods)?;
         } else if path.extension().is_some_and(|e| e == "rs") {
             let raw =
                 fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-            let rewritten = fix_self_refs_in_src(&raw, module, modules);
+            let rewritten = fix_self_refs_in_src(&raw, module, modules, local_mods);
             if rewritten != raw {
                 fs::write(&path, &rewritten)
                     .with_context(|| format!("write {}", path.display()))?;
@@ -1431,11 +1466,14 @@ fn fix_self_refs_recursive(
 
 /// Rewrite self-referential `crate::X` to `crate::<module>::X` where X is NOT a
 /// known cross-module name. A `crate::` followed by a known module name (e.g.
-/// `crate::absolute_path`) is a cross-module ref and is preserved.
+/// `crate::absolute_path`) is a cross-module ref and is preserved — UNLESS X is
+/// also a local module of this submodule (host module case: `crate::config`
+/// inside core_internal means core_internal's own config, not the member).
 fn fix_self_refs_in_src(
     src: &str,
     module: &str,
     modules: &std::collections::HashSet<String>,
+    local_mods: &std::collections::HashSet<String>,
 ) -> String {
     // Walk the source and rewrite `crate::` when the segment after it is not a
     // known module. We do a careful scan to avoid touching string literals or
@@ -1461,14 +1499,16 @@ fn fix_self_refs_in_src(
             if before_ok && seg_end > seg_start {
                 let segment = &src[seg_start..seg_end];
                 // Prefix this `crate::<segment>` if it's a self-ref. A self-ref
-                // is either (a) a segment that's not a known cross-module name,
-                // or (b) a segment equal to this submodule's own name — e.g.
-                // inside `pty/`, `crate::pty` refers to pty's own `pty` child
-                // module (now nested at `crate::pty::pty`), NOT the cross-module
-                // `pty`. Without this, the name collision between the submodule
-                // and its identically-named child module would be misread as a
-                // cross-module ref.
-                if !modules.contains(segment) || segment == module {
+                // is any of:
+                // (a) a segment that's not a known cross-module name, OR
+                // (b) a segment equal to this submodule's own name (e.g. pty's
+                //     own `pty` child module), OR
+                // (c) a segment that IS a cross-module name BUT is also a local
+                //     module of this submodule (host module case: core_internal's
+                //     own `config` module collides with the `config` member).
+                let is_self =
+                    !modules.contains(segment) || segment == module || local_mods.contains(segment);
+                if is_self {
                     // Self-ref: inject module prefix.
                     out.push_str(&format!("crate::{}::{}", module, segment));
                     i = seg_end;
