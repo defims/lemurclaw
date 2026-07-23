@@ -1147,13 +1147,51 @@ fn fix_include_paths_recursive(dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// In include_str!/include_bytes! macros, strip one "../" level:
-/// `include_str!("../foo")` → `include_str!("foo")`. This works because crate-
-/// root assets were moved INTO the module dir (alongside the code), so the
-/// assets are now siblings rather than one level up.
+/// In include_str!/include_bytes! macros, fix relative paths after the module
+/// migration:
+/// 1. Strip one "../" level for simple relative paths (assets moved into module):
+///    `include_str!("../foo")` → `include_str!("foo")`.
+/// 2. Rewrite cross-crate paths `codex-rs/<crate>/X` → `../<module>/X` (the
+///    crate is now a sibling module, its assets moved with it).
 fn fix_include_paths_in_src(src: &str) -> String {
-    src.replace("include_str!(\"../", "include_str!(\"")
-        .replace("include_bytes!(\"../", "include_bytes!(\"")
+    let mut out = src.to_string();
+    // First, rewrite cross-crate paths: "../../../codex-rs/models-manager/X"
+    // → "../models_manager/X" (the crate is now a sibling module).
+    // Match any number of leading "../" before "codex-rs/<dir>/".
+    while let Some(start) = out.find("codex-rs/") {
+        // Find the include_str!/include_bytes! opening quote before this.
+        let prefix = &out[..start];
+        let quote_pos = prefix
+            .rfind("include_str!(\"")
+            .or_else(|| prefix.rfind("include_bytes!(\""));
+        if let Some(qp) = quote_pos {
+            let quote_start = qp + prefix[qp..].find('"').unwrap() + 1;
+            // The path between quote_start and start is leading "../" repetitions.
+            let leading = &out[quote_start..start]; // e.g. "../../../"
+            let after = &out[start + "codex-rs/".len()..];
+            // Find end of path (closing quote).
+            if let Some(end_rel) = after.find('"') {
+                let crate_dir = &after[..end_rel];
+                // Split crate_dir into crate-name/rest (first '/').
+                if let Some(slash) = crate_dir.find('/') {
+                    let crate_name = &crate_dir[..slash];
+                    let rest = &crate_dir[slash..]; // includes leading '/'
+                                                    // Convert crate-name (dashes) to module name (underscores).
+                    let module = crate_name.replace('-', "_");
+                    let new_path = format!("../{}{}", module, rest);
+                    let replace_end = start + "codex-rs/".len() + end_rel;
+                    out.replace_range(quote_start..replace_end, &new_path);
+                    continue;
+                }
+            }
+        }
+        break; // Can't handle this occurrence; avoid infinite loop.
+    }
+    // Then, strip one "../" level for simple relative paths.
+    out = out
+        .replace("include_str!(\"../", "include_str!(\"")
+        .replace("include_bytes!(\"../", "include_bytes!(\"");
+    out
 }
 
 /// Move a sub-crate's `src/` contents into the merged crate as a submodule
