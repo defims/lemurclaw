@@ -27,7 +27,7 @@ use std::process::Command;
 /// because the static utils cluster uses compile-time constants; the dynamic
 /// core cluster will construct owned equivalents.
 #[derive(Clone)]
-struct SubCrate {
+pub(crate) struct SubCrate {
     /// Directory name under publish/ (from the source layout).
     dir: &'static str,
     /// Package name assigned by Phase 1 rename.
@@ -175,7 +175,7 @@ const MERGED_LIB_IDENT: &str = "lemurclaw_utils";
 /// A merge plan: which crates fold into a single mega-crate, and the metadata
 /// for the resulting crate. Parameterizes the bundle logic so the same code
 /// path serves both the `utils` cluster and the `core` cluster.
-pub struct Cluster {
+pub(crate) struct Cluster {
     /// Subdirectory under `publish/` where the source crates live
     /// (e.g. `"utils"`). Empty string means crates live at the publish/ root.
     pub source_subdir: &'static str,
@@ -225,7 +225,7 @@ impl Cluster {
 
 /// Construct the `utils` cluster: 23 known utils crates, of which 17 are
 /// merged (the 6 cycle-causing ones stay standalone — see MERGE_DIRS).
-pub fn utils_cluster() -> Cluster {
+pub(crate) fn utils_cluster() -> Cluster {
     Cluster {
         source_subdir: "utils",
         merged_member_path: "utils/utils",
@@ -247,7 +247,7 @@ pub fn utils_cluster() -> Cluster {
 /// oss, lmstudio, ollama). Dynamically computed via `cargo metadata` against
 /// the SOURCE codex-rs/ tree, so it self-adapts when upstream adds/removes
 /// crates.
-pub fn core_cluster() -> Result<Cluster> {
+pub(crate) fn core_cluster() -> Result<Cluster> {
     let repo_root = locate_repo_root()?;
     let codex_root = repo_root.join("codex-rs");
     let graph = load_dep_graph(&codex_root)?;
@@ -266,7 +266,7 @@ pub fn core_cluster() -> Result<Cluster> {
     let mut merge_set = closure.clone();
     loop {
         let mut added = false;
-        for (pkg, deps) in &graph {
+        for (pkg, info) in &graph {
             if merge_set.contains(pkg.as_str()) {
                 continue;
             }
@@ -279,7 +279,8 @@ pub fn core_cluster() -> Result<Cluster> {
                 continue;
             }
             // All this crate's normal codex-* deps must be in merge_set.
-            let all_in = deps
+            let all_in = info
+                .deps
                 .iter()
                 .filter(|d| d.starts_with("codex-"))
                 .all(|d| merge_set.contains(d.as_str()));
@@ -296,12 +297,17 @@ pub fn core_cluster() -> Result<Cluster> {
     // 3. Warn about potential cycle risks (back-edges from merge-set members to
     //    external crates that back-depend on the merge set).
     for pkg in &merge_set {
-        for dep in &graph[pkg] {
+        let info = &graph[pkg];
+        for dep in &info.deps {
             if !dep.starts_with("codex-") || merge_set.contains(dep.as_str()) {
                 continue;
             }
-            if let Some(dep_deps) = graph.get(dep) {
-                for b in dep_deps.iter().filter(|d| merge_set.contains(d.as_str())) {
+            if let Some(dep_info) = graph.get(dep) {
+                for b in dep_info
+                    .deps
+                    .iter()
+                    .filter(|d| merge_set.contains(d.as_str()))
+                {
                     eprintln!(
                         "warn: cycle risk: {} (merge) → {} (external) → {} (back to merge)",
                         pkg, dep, b
@@ -311,17 +317,18 @@ pub fn core_cluster() -> Result<Cluster> {
         }
     }
 
-    // 4. Build SubCrate entries: map each codex-* package to its publish/ dir
-    //    and module name. core itself is excluded (the merged crate IS core).
+    // 4. Build SubCrate entries using the REAL source directory from cargo
+    //    metadata (not a guessed name). core itself is excluded.
     let mut members: Vec<SubCrate> = Vec::new();
     for pkg in &merge_set {
         if pkg == "codex-core" {
             continue;
         }
-        let (dir, module) = package_to_dir_module(pkg);
+        let info = &graph[pkg];
         let lemurclaw_pkg = format!("lemurclaw-{}", &pkg["codex-".len()..]);
+        let module = pkg["codex-".len()..].replace('-', "_");
         members.push(SubCrate {
-            dir: dir.leak(),
+            dir: info.dir.clone().leak(),
             package: lemurclaw_pkg.leak(),
             module: module.leak(),
         });
@@ -345,7 +352,17 @@ pub fn core_cluster() -> Result<Cluster> {
 
 /// Load the codex-* dependency graph from `cargo metadata`. Returns a map of
 /// package name → normal (non-dev, non-build) codex-* dependency names.
-fn load_dep_graph(codex_root: &Path) -> Result<std::collections::HashMap<String, Vec<String>>> {
+/// One package's info from cargo metadata: its dependency list and the
+/// directory it lives in (relative to codex-rs/).
+struct PackageInfo {
+    deps: Vec<String>,
+    /// Directory relative to codex-rs/ (e.g. "api", "ext/items", "utils/absolute-path").
+    dir: String,
+}
+
+/// Load codex-* package info from `cargo metadata`. Returns a map of package
+/// name → PackageInfo (normal deps only + real source directory).
+fn load_dep_graph(codex_root: &Path) -> Result<std::collections::HashMap<String, PackageInfo>> {
     let output = Command::new("cargo")
         .args([
             "metadata",
@@ -367,7 +384,8 @@ fn load_dep_graph(codex_root: &Path) -> Result<std::collections::HashMap<String,
         .and_then(|v| v.as_array())
         .context("metadata.packages missing")?;
 
-    let mut graph: std::collections::HashMap<String, Vec<String>> =
+    let codex_root_str = codex_root.to_string_lossy().into_owned();
+    let mut graph: std::collections::HashMap<String, PackageInfo> =
         std::collections::HashMap::new();
     for pkg in packages {
         let name = pkg.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -388,14 +406,28 @@ fn load_dep_graph(codex_root: &Path) -> Result<std::collections::HashMap<String,
                 }
             }
         }
-        graph.insert(name.to_string(), deps);
+        // Extract the directory relative to codex-rs/ from manifest_path.
+        let manifest_path = pkg
+            .get("manifest_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let dir = manifest_path
+            .strip_prefix(&format!("{}/", codex_root_str))
+            .and_then(|rel| {
+                rel.strip_suffix("/Cargo.toml")
+                    .or_else(|| rel.strip_suffix("Cargo.toml"))
+            })
+            .unwrap_or("")
+            .trim_end_matches('/')
+            .to_string();
+        graph.insert(name.to_string(), PackageInfo { deps, dir });
     }
     Ok(graph)
 }
 
 /// Compute the transitive closure of `start` (normal deps, recursive).
 fn transitive_closure(
-    graph: &std::collections::HashMap<String, Vec<String>>,
+    graph: &std::collections::HashMap<String, PackageInfo>,
     start: &str,
 ) -> std::collections::HashSet<String> {
     let mut closure = std::collections::HashSet::new();
@@ -404,8 +436,8 @@ fn transitive_closure(
         if !closure.insert(node.clone()) {
             continue;
         }
-        if let Some(deps) = graph.get(&node) {
-            for d in deps {
+        if let Some(info) = graph.get(&node) {
+            for d in &info.deps {
                 if !closure.contains(d) {
                     stack.push(d.clone());
                 }
@@ -416,19 +448,6 @@ fn transitive_closure(
 }
 
 /// Map a codex-* package name to its (publish_dir, module_name).
-/// codex-utils-foo → ("utils/foo", "foo")
-/// codex-foo       → ("foo", "foo")  (dir keeps dashes, module uses underscores)
-fn package_to_dir_module(pkg: &str) -> (String, String) {
-    let rest = &pkg["codex-".len()..];
-    if let Some(utils_name) = rest.strip_prefix("utils-") {
-        let dir = format!("utils/{}", utils_name);
-        let module = utils_name.replace('-', "_");
-        (dir, module)
-    } else {
-        (rest.to_string(), rest.replace('-', "_"))
-    }
-}
-
 fn locate_repo_root() -> Result<PathBuf> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     if manifest_dir.join("..").join("codex-rs").exists() {
@@ -507,7 +526,7 @@ fn ident_to_module() -> BTreeMap<&'static str, &'static str> {
 ///
 /// Merges a cluster of `publish/` crates into a single mega-crate. With
 /// `--dry-run`, prints the plan and exits without modifying any files.
-pub fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
+pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     let repo_root = locate_repo_root()?;
     let publish_root = repo_root.join("publish");
     let source_root = if cluster.source_subdir.is_empty() {
@@ -563,7 +582,11 @@ pub fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
         return print_dry_run_plan(cluster, &source_root);
     }
 
-    if merged_dir.exists() {
+    // For the utils cluster, merged_dir is a fresh new dir. For the core
+    // cluster, merged_dir (publish/core/) ALREADY EXISTS — it's core's own
+    // source tree from Phase 1 rename. We handle core's own src/ specially.
+    let host_crate_exists = cluster.source_subdir.is_empty() && merged_dir.is_dir();
+    if merged_dir.exists() && !host_crate_exists {
         anyhow::bail!(
             "{} already exists — remove it before re-running (or it was left from a partial run)",
             merged_dir.display()
@@ -577,8 +600,39 @@ pub fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
         cluster.members.len(),
         cluster.merged_package
     );
+    // For the core cluster, the merged crate dir (publish/core/) already holds
+    // core's own source. Migrate core's own src/ into a submodule first, so
+    // create_merged_crate can overwrite lib.rs cleanly.
+    let host_module = if host_crate_exists {
+        let host_mod = "core_internal";
+        migrate_host_crate_src(&merged_dir, host_mod)?;
+        Some(host_mod)
+    } else {
+        None
+    };
+
     let agg = collect_aggregate_deps(&source_root, &cluster.members, cluster)?;
-    create_merged_crate(&merged_dir, &agg, cluster)?;
+    // When there's a host crate, include its deps in the aggregate too.
+    let agg = if let Some(hm) = host_module {
+        let mut agg = agg;
+        let host_path = merged_dir.join("src").join(hm).join("Cargo.toml");
+        if host_path.exists() {
+            // The host's Cargo.toml was moved into the submodule; read it.
+            let raw = fs::read_to_string(&host_path)
+                .with_context(|| format!("read {}", host_path.display()))?;
+            if let Ok(doc) = toml::from_str::<toml::Value>(&raw) {
+                if let Some(table) = doc.as_table() {
+                    if let Some(deps) = table.get("dependencies").and_then(|v| v.as_table()) {
+                        merge_dep_table(&mut agg.deps, deps, cluster);
+                    }
+                }
+            }
+        }
+        agg
+    } else {
+        agg
+    };
+    create_merged_crate(&merged_dir, &agg, cluster, host_module)?;
 
     // Step 2: move each member's src/ into the merged crate.
     for sc in &cluster.members {
@@ -603,6 +657,9 @@ pub fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     rewrite_rust_files_in(&merged_dir.join("src"), RewriteScope::IntraCrate, cluster)?;
     for sc in &cluster.members {
         fix_self_refs_in_submodule(&merged_dir.join("src").join(sc.module), sc.module, cluster)?;
+    }
+    if let Some(hm) = host_module {
+        fix_self_refs_in_submodule(&merged_dir.join("src").join(hm), hm, cluster)?;
     }
     rewrite_downstream(&publish_root, &merged_dir, cluster)?;
 
@@ -826,7 +883,18 @@ fn unify_dep_value(a: &toml::Value, b: &toml::Value) -> toml::Value {
 }
 
 /// Create the merged crate directory with a synthesized Cargo.toml and lib.rs.
-fn create_merged_crate(merged_dir: &Path, agg: &AggregateDeps, cluster: &Cluster) -> Result<()> {
+/// `host_module`: if Some, the merged crate's own former source lives in this
+/// submodule (used for core, where publish/core/ already exists).
+fn create_merged_crate(
+    merged_dir: &Path,
+    agg: &AggregateDeps,
+    cluster: &Cluster,
+    host_module: Option<&str>,
+) -> Result<()> {
+    // For the core cluster, merged_dir already exists; only ensure src/ exists.
+    if !merged_dir.is_dir() {
+        fs::create_dir_all(merged_dir).context("create merged crate dir")?;
+    }
     fs::create_dir_all(merged_dir.join("src")).context("create merged crate src/")?;
 
     // Cargo.toml
@@ -853,20 +921,23 @@ fn create_merged_crate(merged_dir: &Path, agg: &AggregateDeps, cluster: &Cluster
 
     fs::write(merged_dir.join("Cargo.toml"), &toml).context("write merged Cargo.toml")?;
 
-    // lib.rs: one `pub mod` per member.
+    // lib.rs: one `pub mod` per member (+ host module if present).
     let mut lib = format!(
         "//! Merged `{}` crate — union of former sub-crates, each as `pub mod`.\n",
         cluster.merged_package
     );
+    if let Some(hm) = host_module {
+        lib.push_str(&format!("pub mod {};\n", hm));
+    }
     for sc in &cluster.members {
         lib.push_str(&format!("pub mod {};\n", sc.module));
     }
     fs::write(merged_dir.join("src").join("lib.rs"), &lib).context("write merged lib.rs")?;
 
+    let total = cluster.members.len() + if host_module.is_some() { 1 } else { 0 };
     println!(
         "Created merged crate {} ({} submodules).",
-        cluster.merged_package,
-        cluster.members.len()
+        cluster.merged_package, total
     );
     Ok(())
 }
@@ -919,6 +990,60 @@ fn render_toml_value(v: &toml::Value) -> String {
         toml::Value::Float(f) => f.to_string(),
         toml::Value::Datetime(d) => format!("\"{}\"", d),
     }
+}
+
+/// Move a sub-crate's `src/` contents into the merged crate as a submodule
+/// directory. `lib.rs` becomes `mod.rs`; all other files keep their names.
+/// Migrate the HOST crate's own src/ (the crate that becomes the merged
+/// crate root — e.g. publish/core/src/). Unlike member crates, the host's
+/// src/ lives directly in merged_dir, so we move its contents into a
+/// submodule and preserve the bin/ directory at the crate root.
+fn migrate_host_crate_src(merged_dir: &Path, module: &str) -> Result<()> {
+    let src_dir = merged_dir.join("src");
+    let dest_dir = src_dir.join(module);
+    if !src_dir.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(&dest_dir).with_context(|| format!("create {}", dest_dir.display()))?;
+
+    // Move everything from src/ into src/<module>/ EXCEPT bin/ (which must
+    // stay at src/bin/ for [[bin]] targets to resolve) and the dest_dir itself
+    // (already created above — moving it into itself would error).
+    let bin_dir = src_dir.join("bin");
+    for entry in fs::read_dir(&src_dir)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let from = entry.path();
+        // Keep bin/ at crate root.
+        if name == "bin" {
+            continue;
+        }
+        // Skip the dest dir (don't move it into itself).
+        if from == dest_dir {
+            continue;
+        }
+        let to = dest_dir.join(&name);
+        fs::rename(&from, &to)
+            .with_context(|| format!("move {} -> {}", from.display(), to.display()))?;
+    }
+    // Rename lib.rs → mod.rs.
+    let lib_rs = dest_dir.join("lib.rs");
+    let mod_rs = dest_dir.join("mod.rs");
+    if lib_rs.exists() {
+        fs::rename(&lib_rs, &mod_rs)
+            .with_context(|| format!("rename {} -> {}", lib_rs.display(), mod_rs.display()))?;
+    }
+    // Move Cargo.toml into the submodule too (so create_merged_crate can read
+    // its deps, and it doesn't conflict with the synthesized merged Cargo.toml).
+    let host_toml = merged_dir.join("Cargo.toml");
+    let dest_toml = dest_dir.join("Cargo.toml");
+    if host_toml.exists() {
+        fs::rename(&host_toml, &dest_toml)
+            .with_context(|| format!("move {} -> {}", host_toml.display(), dest_toml.display()))?;
+    }
+    let _ = bin_dir; // bin/ stays at src/bin/
+    println!("  ✓ host crate src/ → mod {}", module);
+    Ok(())
 }
 
 /// Move a sub-crate's `src/` contents into the merged crate as a submodule
@@ -1051,10 +1176,20 @@ fn rewrite_publish_manifest(publish_root: &Path, cluster: &Cluster) -> Result<()
         }
 
         // Inside [workspace.dependencies]: collapse merged packages into one
-        // merged_package; keep standalone ones.
+        // merged_package; keep standalone ones. Also skip any pre-existing
+        // entry for the merged package itself (the collapsed line replaces it).
         if in_workspace_deps {
             if let Some(pkg) = extract_dep_key(trimmed) {
                 if merge_pkgs.contains(pkg.as_str()) {
+                    if !out.contains(&merged_dep_check) {
+                        let indent = &line[..line.len() - trimmed.len()];
+                        out.push_str(&format!("{}{}\n", indent, merged_dep_line));
+                    }
+                    continue;
+                }
+                // Skip the merged package's own pre-existing entry — the
+                // collapsed line (emitted above) replaces it.
+                if pkg == cluster.merged_package {
                     if !out.contains(&merged_dep_check) {
                         let indent = &line[..line.len() - trimmed.len()];
                         out.push_str(&format!("{}{}\n", indent, merged_dep_line));
