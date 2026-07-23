@@ -7,7 +7,11 @@
 //! Phase 1 (`publish rename`): generate a parallel `publish/` workspace where
 //! every `codex-*` crate has been renamed to `lemurclaw-*` without touching the
 //! original `codex-rs/` source tree.
+//!
+//! Phase 2 (`publish bundle`): merge the 23 `lemurclaw-utils-*` crates in
+//! `publish/` into a single `lemurclaw-utils` crate (each as a `pub mod`).
 
+mod bundle;
 mod forks;
 mod manifest;
 mod rename;
@@ -56,6 +60,13 @@ enum PublishKind {
         #[command(subcommand)]
         kind: ForkKind,
     },
+    /// Phase 2: merge the 23 `lemurclaw-utils-*` crates in publish/ into a
+    /// single `lemurclaw-utils` crate (each former crate becomes a `pub mod`).
+    Bundle {
+        /// Print the migration plan without modifying any files.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -90,6 +101,7 @@ fn main() -> Result<()> {
                 ForkKind::Publish { dry_run } => forks::run_publish(dry_run),
                 ForkKind::Rewire => forks::run_rewire(),
             },
+            PublishKind::Bundle { dry_run } => bundle::run(dry_run),
         },
     }
 }
