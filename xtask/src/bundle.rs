@@ -21,6 +21,7 @@ use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// One sub-crate being folded into a merged crate. Fields are `&'static str`
 /// because the static utils cluster uses compile-time constants; the dynamic
@@ -241,10 +242,191 @@ pub fn utils_cluster() -> Cluster {
     }
 }
 
-/// Construct the `core` cluster: codex-core's 84-crate transitive closure,
-/// dynamically computed via `cargo metadata`. Implemented in Stage 2.
+/// Construct the `core` cluster: codex-core's transitive closure (normal deps)
+/// plus extra crates that are cycle-safe to fold in (utils not in the closure,
+/// oss, lmstudio, ollama). Dynamically computed via `cargo metadata` against
+/// the SOURCE codex-rs/ tree, so it self-adapts when upstream adds/removes
+/// crates.
 pub fn core_cluster() -> Result<Cluster> {
-    anyhow::bail!("core cluster not yet implemented (Stage 2); use `--target utils` for now")
+    let repo_root = locate_repo_root()?;
+    let codex_root = repo_root.join("codex-rs");
+    let graph = load_dep_graph(&codex_root)?;
+
+    // 1. Compute core's transitive closure (normal deps only, recursively).
+    let closure = transitive_closure(&graph, "codex-core");
+    if !closure.contains("codex-core") {
+        anyhow::bail!("codex-core not found in dependency graph");
+    }
+
+    // 2. Find extra crates to fold in: crates NOT in the closure whose entire
+    //    codex-* dependency surface is already in the closure ∪ the extras set.
+    //    This discovers the 9 cycle-free utils + oss + lmstudio + ollama.
+    //    We iterate to a fixed point because oss needs lmstudio/ollama (which
+    //    themselves need to be added first).
+    let mut merge_set = closure.clone();
+    loop {
+        let mut added = false;
+        for (pkg, deps) in &graph {
+            if merge_set.contains(pkg.as_str()) {
+                continue;
+            }
+            // Restrict candidates to utils crates (to make utils disappear) plus
+            // lmstudio/ollama (needed to break oss's cycle). Without this gate,
+            // the fixed-point loop would pull in nearly every codex-* crate.
+            let is_candidate =
+                pkg.starts_with("codex-utils-") || pkg == "codex-lmstudio" || pkg == "codex-ollama";
+            if !is_candidate {
+                continue;
+            }
+            // All this crate's normal codex-* deps must be in merge_set.
+            let all_in = deps
+                .iter()
+                .filter(|d| d.starts_with("codex-"))
+                .all(|d| merge_set.contains(d.as_str()));
+            if all_in {
+                merge_set.insert(pkg.clone());
+                added = true;
+            }
+        }
+        if !added {
+            break;
+        }
+    }
+
+    // 3. Warn about potential cycle risks (back-edges from merge-set members to
+    //    external crates that back-depend on the merge set).
+    for pkg in &merge_set {
+        for dep in &graph[pkg] {
+            if !dep.starts_with("codex-") || merge_set.contains(dep.as_str()) {
+                continue;
+            }
+            if let Some(dep_deps) = graph.get(dep) {
+                for b in dep_deps.iter().filter(|d| merge_set.contains(d.as_str())) {
+                    eprintln!(
+                        "warn: cycle risk: {} (merge) → {} (external) → {} (back to merge)",
+                        pkg, dep, b
+                    );
+                }
+            }
+        }
+    }
+
+    // 4. Build SubCrate entries: map each codex-* package to its publish/ dir
+    //    and module name. core itself is excluded (the merged crate IS core).
+    let mut members: Vec<SubCrate> = Vec::new();
+    for pkg in &merge_set {
+        if pkg == "codex-core" {
+            continue;
+        }
+        let (dir, module) = package_to_dir_module(pkg);
+        let lemurclaw_pkg = format!("lemurclaw-{}", &pkg["codex-".len()..]);
+        members.push(SubCrate {
+            dir: dir.leak(),
+            package: lemurclaw_pkg.leak(),
+            module: module.leak(),
+        });
+    }
+    members.sort_by_key(|sc| sc.dir.to_string());
+
+    println!(
+        "core cluster: {} crates in merge set (core + {} members)",
+        merge_set.len(),
+        members.len()
+    );
+
+    Ok(Cluster {
+        source_subdir: "", // core members live at publish/ root level
+        merged_member_path: "core",
+        merged_package: "lemurclaw-core",
+        merged_lib_ident: "lemurclaw_core",
+        members,
+    })
+}
+
+/// Load the codex-* dependency graph from `cargo metadata`. Returns a map of
+/// package name → normal (non-dev, non-build) codex-* dependency names.
+fn load_dep_graph(codex_root: &Path) -> Result<std::collections::HashMap<String, Vec<String>>> {
+    let output = Command::new("cargo")
+        .args([
+            "metadata",
+            "--format-version=1",
+            "--no-deps",
+            "--manifest-path",
+            codex_root.join("Cargo.toml").to_str().unwrap(),
+        ])
+        .output()
+        .context("run cargo metadata")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("cargo metadata failed: {}", stderr);
+    }
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).context("parse metadata json")?;
+    let packages = value
+        .get("packages")
+        .and_then(|v| v.as_array())
+        .context("metadata.packages missing")?;
+
+    let mut graph: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for pkg in packages {
+        let name = pkg.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        if name.is_empty() {
+            continue;
+        }
+        let mut deps = Vec::new();
+        if let Some(dep_arr) = pkg.get("dependencies").and_then(|v| v.as_array()) {
+            for dep in dep_arr {
+                // kind == null → normal dependency (not dev, not build).
+                let kind = dep.get("kind").and_then(|v| v.as_str());
+                if kind.is_some() {
+                    continue;
+                }
+                let dep_name = dep.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                if dep_name.starts_with("codex-") {
+                    deps.push(dep_name.to_string());
+                }
+            }
+        }
+        graph.insert(name.to_string(), deps);
+    }
+    Ok(graph)
+}
+
+/// Compute the transitive closure of `start` (normal deps, recursive).
+fn transitive_closure(
+    graph: &std::collections::HashMap<String, Vec<String>>,
+    start: &str,
+) -> std::collections::HashSet<String> {
+    let mut closure = std::collections::HashSet::new();
+    let mut stack = vec![start.to_string()];
+    while let Some(node) = stack.pop() {
+        if !closure.insert(node.clone()) {
+            continue;
+        }
+        if let Some(deps) = graph.get(&node) {
+            for d in deps {
+                if !closure.contains(d) {
+                    stack.push(d.clone());
+                }
+            }
+        }
+    }
+    closure
+}
+
+/// Map a codex-* package name to its (publish_dir, module_name).
+/// codex-utils-foo → ("utils/foo", "foo")
+/// codex-foo       → ("foo", "foo")  (dir keeps dashes, module uses underscores)
+fn package_to_dir_module(pkg: &str) -> (String, String) {
+    let rest = &pkg["codex-".len()..];
+    if let Some(utils_name) = rest.strip_prefix("utils-") {
+        let dir = format!("utils/{}", utils_name);
+        let module = utils_name.replace('-', "_");
+        (dir, module)
+    } else {
+        (rest.to_string(), rest.replace('-', "_"))
+    }
 }
 
 fn locate_repo_root() -> Result<PathBuf> {
