@@ -693,12 +693,12 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     rewrite_rust_files_in(&merged_dir.join("src"), RewriteScope::IntraCrate, cluster)?;
     for sc in &cluster.members {
         fix_self_refs_in_submodule(&merged_dir.join("src").join(sc.module), sc.module, cluster)?;
+        // Fix include_str!/include_bytes! paths: crate-root assets were moved
+        // into the module, so "../X" paths become "X".
+        fix_include_paths_in_submodule(&merged_dir.join("src").join(sc.module))?;
     }
     if let Some(hm) = host_module {
         fix_self_refs_in_submodule(&merged_dir.join("src").join(hm), hm, cluster)?;
-        // Fix include_str!/include_bytes! relative paths: the host module is
-        // one level deeper now (src/core_internal/ instead of src/), so paths
-        // like include_str!("../prompt.md") need an extra "../".
         fix_include_paths_in_submodule(&merged_dir.join("src").join(hm))?;
     }
     rewrite_downstream(&publish_root, &merged_dir, cluster)?;
@@ -1111,6 +1111,8 @@ fn migrate_host_crate_src(merged_dir: &Path, module: &str) -> Result<()> {
             .with_context(|| format!("move {} -> {}", host_toml.display(), dest_toml.display()))?;
     }
     let _ = bin_dir; // bin/ stays at src/bin/
+                     // Move crate-root assets into the module (same as member crates).
+    move_crate_assets_into_module(merged_dir, &dest_dir)?;
     println!("  ✓ host crate src/ → mod {}", module);
     Ok(())
 }
@@ -1145,11 +1147,13 @@ fn fix_include_paths_recursive(dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// In include_str!/include_bytes! macros, deepen "../" paths by one level:
-/// `include_str!("../foo")` → `include_str!("../../foo")`.
+/// In include_str!/include_bytes! macros, strip one "../" level:
+/// `include_str!("../foo")` → `include_str!("foo")`. This works because crate-
+/// root assets were moved INTO the module dir (alongside the code), so the
+/// assets are now siblings rather than one level up.
 fn fix_include_paths_in_src(src: &str) -> String {
-    src.replace("include_str!(\"../", "include_str!(\"../../")
-        .replace("include_bytes!(\"../", "include_bytes!(\"../../")
+    src.replace("include_str!(\"../", "include_str!(\"")
+        .replace("include_bytes!(\"../", "include_bytes!(\"")
 }
 
 /// Move a sub-crate's `src/` contents into the merged crate as a submodule
@@ -1182,11 +1186,46 @@ fn migrate_subcrate_src(sub_dir: &Path, merged_dir: &Path, module: &str) -> Resu
             .with_context(|| format!("rename {} -> {}", lib_rs.display(), mod_rs.display()))?;
     }
 
+    // Move crate-root asset files/dirs (non-src, non-config) into the module.
+    // include_str!("../X") paths referenced these from src/lib.rs; after the
+    // move, the assets need to be inside the module so the stripped paths work.
+    move_crate_assets_into_module(sub_dir, &dest_dir)?;
+
     println!(
         "  ✓ {} → mod {}",
         sub_dir.file_name().unwrap().to_string_lossy(),
         module
     );
+    Ok(())
+}
+
+/// Move non-src, non-config files/dirs from a crate root into its module dir.
+/// These are assets (templates/, schema/, *.md, *.json, etc.) referenced by
+/// include_str!/include_bytes! with "../" paths.
+fn move_crate_assets_into_module(crate_dir: &Path, module_dir: &Path) -> Result<()> {
+    for entry in fs::read_dir(crate_dir)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let from = entry.path();
+        // Skip src/, Cargo.toml, Cargo.lock, BUILD.bazel, target/, .DS_Store.
+        if name == "src"
+            || name == "Cargo.toml"
+            || name == "Cargo.lock"
+            || name == "BUILD.bazel"
+            || name == "target"
+            || name == ".DS_Store"
+            || name == ".git"
+        {
+            continue;
+        }
+        // Skip the module_dir itself (for host crate, it's inside crate_dir/src/).
+        let to = module_dir.join(&name);
+        if from == *module_dir || to.exists() {
+            continue;
+        }
+        fs::rename(&from, &to)
+            .with_context(|| format!("move asset {} -> {}", from.display(), to.display()))?;
+    }
     Ok(())
 }
 
