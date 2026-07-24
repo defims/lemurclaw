@@ -1244,14 +1244,60 @@ fn fix_sqlx_migrate_paths(src: &str, src_dir: &Path, rs_file: &Path) -> String {
                     continue;
                 }
             }
-            // Already resolves or can't fix — skip past this occurrence.
+            // Already resolves or can't fix — advance past this occurrence
+            // to continue searching for more sqlx::migrate! calls.
             let skip_to = path_start + end + 1;
-            if skip_to > pos {
-                break;
-            }
+            let before = &out[..skip_to];
+            let after_skip = &out[skip_to..];
+            out = format!("{}{}", before, after_skip);
+            // Search only in the remainder to avoid re-matching.
+            // Rebuild from the found position forward.
+            // Simple approach: replace the search string to break the match.
+            // Actually, just continue the while loop — but we need to not
+            // re-find the same occurrence. Since we didn't modify it, advance
+            // by re-searching from skip_to.
+            // Use a different approach: process all matches via replace.
+            break; // Fall through to the replacement approach below.
         }
         break;
     }
+
+    // If the loop above broke without fixing all, do a line-based pass.
+    let crate_root = src_dir.parent().unwrap_or(Path::new("."));
+    let module_final = module;
+    out = out
+        .lines()
+        .map(|line| {
+            if !line.contains("sqlx::migrate!(\"") {
+                return line.to_string();
+            }
+            // Extract the path from sqlx::migrate!("...")
+            let marker = "sqlx::migrate!(\"";
+            if let Some(start) = line.find(marker) {
+                let path_start = start + marker.len();
+                if let Some(end) = line[path_start..].find('"') {
+                    let old_path = &line[path_start..path_start + end];
+                    let resolved = crate_root.join(old_path.trim_start_matches("./"));
+                    if resolved.exists() {
+                        return line.to_string(); // Already resolves.
+                    }
+                    let candidate = src_dir
+                        .join(module_final)
+                        .join(old_path.trim_start_matches("./"));
+                    if candidate.exists() {
+                        let new_path = format!(
+                            "./src/{}/{}",
+                            module_final,
+                            old_path.trim_start_matches("./")
+                        );
+                        return line.replacen(old_path, &new_path, 1);
+                    }
+                }
+            }
+            line.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     out
 }
 
@@ -1702,17 +1748,14 @@ fn fix_self_refs_in_src(
                 // is any of:
                 // (a) a segment that's not a known cross-module name, OR
                 // (b) a segment equal to this submodule's own name, OR
-                // (c) a segment that IS a local module of this submodule AND is
-                //     NOT a member module name (host module case: core_internal's
-                //     own `config` module collides with the `config` member).
-                //     If the segment IS both a local module AND a member module
-                //     name, we do NOT prefix — rewrite_rs already created the
-                //     `crate::<member>` reference correctly, and prefixing would
-                //     break it (the item lives in the member, not the host's
-                //     local module).
+                // (c) a segment that is a local module of this submodule.
+                //     For the host module, ALL `crate::<local_mod>` originally
+                //     meant the host's own module (member crates were external).
+                //     Cross-module refs to members are only created by rewrite_rs
+                //     in OTHER modules, not in the host itself.
                 let is_member = modules.contains(segment);
                 let is_local = local_mods.contains(segment);
-                let is_self = !is_member || segment == module || (is_local && !is_member);
+                let is_self = !is_member || segment == module || is_local;
                 if is_self {
                     // Self-ref: inject module prefix.
                     out.push_str(&format!("crate::{}::{}", module, segment));
