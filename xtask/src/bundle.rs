@@ -1137,7 +1137,7 @@ fn fix_include_paths_recursive(dir: &Path) -> Result<()> {
         } else if path.extension().is_some_and(|e| e == "rs") {
             let raw =
                 fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-            let rewritten = fix_include_paths_in_src(&raw);
+            let rewritten = fix_include_paths_in_src(&raw, &path);
             if rewritten != raw {
                 fs::write(&path, &rewritten)
                     .with_context(|| format!("write {}", path.display()))?;
@@ -1147,82 +1147,186 @@ fn fix_include_paths_recursive(dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// In include_str!/include_bytes! macros, fix relative paths after the module
-/// migration:
-/// 1. Strip one "../" level for simple relative paths (assets moved into module):
-///    `include_str!("../foo")` → `include_str!("foo")`.
-/// 2. Rewrite cross-crate paths `codex-rs/<crate>/X` → `../<module>/X` (the
-///    crate is now a sibling module, its assets moved with it).
-fn fix_include_paths_in_src(src: &str) -> String {
+/// Fix include_str!/include_bytes! relative paths by resolving them against
+/// the actual filesystem. After module migration, paths like `../prompt.md`
+/// may no longer point at the right file. This function:
+/// 1. Rewrites cross-crate paths `codex-rs/<crate>/X` → module-relative.
+/// 2. For each include path, checks if the file exists at the resolved
+///    location. If not, searches the module dir and crate root for the file
+///    and rewrites to the correct relative path.
+fn fix_include_paths_in_src(src: &str, rs_file: &Path) -> String {
+    let rs_dir = rs_file.parent().unwrap_or(Path::new("."));
     let mut out = src.to_string();
-    // First, rewrite cross-crate paths: "../../../codex-rs/models-manager/X"
-    // → "../models_manager/X" (the crate is now a sibling module).
-    // Match any number of leading "../" before "codex-rs/<dir>/".
+
+    // Step 1: Rewrite cross-crate paths ("codex-rs/<crate>/X") to module-
+    // relative paths. The crate is now a sibling module under src/.
+    // We need the merged crate's src/ dir to resolve these.
+    // The rs_file is at .../src/<module>/[...]/file.rs, so src/ is 2+ levels up.
+    let src_dir = find_src_dir(rs_file);
+
     while let Some(start) = out.find("codex-rs/") {
-        // Find the include_str!/include_bytes! opening quote before this.
         let prefix = &out[..start];
         let quote_pos = prefix
             .rfind("include_str!(\"")
             .or_else(|| prefix.rfind("include_bytes!(\""));
         if let Some(qp) = quote_pos {
             let quote_start = qp + prefix[qp..].find('"').unwrap() + 1;
-            // The path between quote_start and start is leading "../" repetitions.
-            let leading = &out[quote_start..start]; // e.g. "../../../"
             let after = &out[start + "codex-rs/".len()..];
-            // Find end of path (closing quote).
             if let Some(end_rel) = after.find('"') {
                 let crate_dir = &after[..end_rel];
-                // Split crate_dir into crate-name/rest (first '/').
                 if let Some(slash) = crate_dir.find('/') {
                     let crate_name = &crate_dir[..slash];
-                    let rest = &crate_dir[slash..]; // includes leading '/'
-                                                    // Convert crate-name (dashes) to module name (underscores).
+                    let rest = &crate_dir[slash..];
                     let module = crate_name.replace('-', "_");
-                    let new_path = format!("../../{}{}", module, rest);
-                    let replace_end = start + "codex-rs/".len() + end_rel;
-                    out.replace_range(quote_start..replace_end, &new_path);
-                    continue;
+                    // Find the file relative to src_dir/<module>/rest
+                    if let Some(sd) = &src_dir {
+                        let candidate = sd.join(&module).join(rest.trim_start_matches('/'));
+                        if candidate.exists() {
+                            // Compute relative path from rs_dir to candidate.
+                            let rel = pathdiff_rel(rs_dir, &candidate);
+                            let replace_end = start + "codex-rs/".len() + end_rel;
+                            out.replace_range(quote_start..replace_end, &rel);
+                            continue;
+                        }
+                    }
                 }
             }
         }
-        break; // Can't handle this occurrence; avoid infinite loop.
+        break;
     }
-    // Then, deepen ONE "../" level for simple relative paths: the module moved
-    // one level deeper, so "../X" needs to become "../../X". But don't double-
-    // deepen paths already at "../../" (from the cross-crate rewrite above).
-    // Match include_str!("../X where X is NOT another "../".
-    let mut result = String::with_capacity(out.len());
-    let mut rest = out.as_str();
-    while let Some(pos) = rest.find("include_str!(\"../") {
-        let after = &rest[pos + "include_str!(\"../".len()..];
-        result.push_str(&rest[..pos]);
-        if after.starts_with("../") {
-            // Already "../../" — don't deepen further.
-            result.push_str("include_str!(\"../");
-            rest = after;
+
+    // Step 2: For each include_str!/include_bytes! with a relative path,
+    // check if the file exists. If not, search for it.
+    out = fix_single_includes(&out, rs_dir, "include_str!(");
+    out = fix_single_includes(&out, rs_dir, "include_bytes!(");
+    out
+}
+
+/// Find the `src/` directory that contains this .rs file's module.
+fn find_src_dir(rs_file: &Path) -> Option<PathBuf> {
+    let mut candidate = rs_file.parent()?;
+    while let Some(parent) = candidate.parent() {
+        if candidate.file_name().is_some_and(|n| n == "src") {
+            return Some(candidate.to_path_buf());
+        }
+        candidate = parent;
+    }
+    None
+}
+
+/// Compute a relative path from `from` to `to` (both absolute or both relative).
+fn pathdiff_rel(from: &Path, to: &Path) -> String {
+    // Simple implementation: walk up from `from` until we find a common
+    // ancestor with `to`, then descend.
+    let from_components: Vec<_> = from.components().collect();
+    let to_components: Vec<_> = to.components().collect();
+    let mut common = 0;
+    for (a, b) in from_components.iter().zip(to_components.iter()) {
+        if a == b {
+            common += 1;
         } else {
-            // Single "../" — deepen to "../../".
-            result.push_str("include_str!(\"../../");
-            rest = after;
+            break;
         }
     }
-    result.push_str(rest);
-    // Same for include_bytes!.
-    let mut final_out = String::with_capacity(result.len());
-    rest = result.as_str();
-    while let Some(pos) = rest.find("include_bytes!(\"../") {
-        let after = &rest[pos + "include_bytes!(\"../".len()..];
-        final_out.push_str(&rest[..pos]);
-        if after.starts_with("../") {
-            final_out.push_str("include_bytes!(\"../");
-            rest = after;
+    let ups = from_components.len() - common;
+    let mut result = String::new();
+    for _ in 0..ups {
+        result.push_str("../");
+    }
+    for comp in &to_components[common..] {
+        result.push_str(&comp.as_os_str().to_string_lossy());
+        result.push('/');
+    }
+    result.trim_end_matches('/').to_string()
+}
+
+/// Fix include_str!/include_bytes! paths by checking if the file exists and
+/// searching for it if not. `macro_name` is "include_str!(" or "include_bytes!(".
+fn fix_single_includes(src: &str, rs_dir: &Path, macro_name: &str) -> String {
+    let quote_prefix = format!("{}\"", macro_name);
+    let mut out = String::with_capacity(src.len());
+    let mut rest = src;
+    while let Some(pos) = rest.find(&quote_prefix) {
+        let path_start = pos + quote_prefix.len();
+        out.push_str(&rest[..path_start]);
+        let after = &rest[path_start..];
+        if let Some(end) = after.find('"') {
+            let path = &after[..end];
+            let resolved = rs_dir.join(path);
+            if resolved.exists() {
+                // Path is fine as-is.
+                out.push_str(path);
+                out.push('"');
+                rest = &after[end + 1..];
+            } else {
+                // File not found — search for it.
+                let filename = Path::new(path)
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string());
+                if let Some(fname) = filename {
+                    // Search: rs_dir and ancestors up to 5 levels, then the
+                    // module dir (rs_dir itself or ancestors), then src/ level.
+                    let found = search_for_file(rs_dir, &fname, &resolved);
+                    if let Some(correct_path) = found {
+                        out.push_str(&correct_path);
+                        out.push('"');
+                        rest = &after[end + 1..];
+                    } else {
+                        // Can't find — leave as-is (will error at compile).
+                        out.push_str(path);
+                        out.push('"');
+                        rest = &after[end + 1..];
+                    }
+                } else {
+                    out.push_str(path);
+                    out.push('"');
+                    rest = &after[end + 1..];
+                }
+            }
         } else {
-            final_out.push_str("include_bytes!(\"../../");
-            rest = after;
+            out.push_str(after);
+            break;
         }
     }
-    final_out.push_str(rest);
-    final_out
+    out.push_str(rest);
+    out
+}
+
+/// Search for a file named `filename` starting from `rs_dir` and walking up,
+/// then looking in sibling directories. Returns the correct relative path
+/// from `rs_dir` to the found file, or None.
+fn search_for_file(rs_dir: &Path, filename: &str, _orig_resolved: &Path) -> Option<String> {
+    // Strategy: walk up from rs_dir, at each level check if the file exists
+    // there or in the directory. Also check the original path's parent dir
+    // name (e.g. "templates/plan.md" → look for "templates/" dirs containing
+    // "plan.md").
+    let mut dir = rs_dir.to_path_buf();
+    for _ in 0..8 {
+        // Check if file is directly here.
+        if dir.join(filename).exists() {
+            return Some(relative_path(rs_dir, &dir.join(filename)));
+        }
+        // Check subdirectories that might contain the file.
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let p = entry.path();
+                if p.is_dir() {
+                    if p.join(filename).exists() {
+                        return Some(relative_path(rs_dir, &p.join(filename)));
+                    }
+                }
+            }
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    None
+}
+
+/// Compute a relative path string from `base` to `target`.
+fn relative_path(base: &Path, target: &Path) -> String {
+    pathdiff_rel(base, target)
 }
 
 /// Move a sub-crate's `src/` contents into the merged crate as a submodule
