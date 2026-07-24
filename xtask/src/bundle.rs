@@ -1957,7 +1957,21 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
         "crate::protocol::account",
     )?;
 
-    // 2. Add `pub use router::ToolCall;` to core_internal/tools/mod.rs if missing.
+    // 2. Fix `crate::protocol::` in exec_server/ files → `crate::exec_server_protocol::`
+    //    exec_server's lib.rs had `use codex_exec_server_protocol as protocol;`
+    //    which made `crate::protocol::X` work (mod at crate root). After merge,
+    //    the alias is `use crate::exec_server_protocol as protocol;` which only
+    //    works without `crate::` prefix. Rewrite `crate::protocol::` → the alias.
+    let exec_server_dir = src_dir.join("exec_server");
+    if exec_server_dir.is_dir() {
+        fix_pattern_in_tree(
+            &exec_server_dir,
+            "crate::protocol::",
+            "crate::exec_server_protocol::",
+        )?;
+    }
+
+    // 3. Add `pub use router::ToolCall;` to core_internal/tools/mod.rs if missing.
     let tools_mod = src_dir.join("core_internal").join("tools").join("mod.rs");
     if tools_mod.is_file() {
         let raw = fs::read_to_string(&tools_mod)?;
