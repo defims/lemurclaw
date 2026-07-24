@@ -1957,20 +1957,25 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
         "crate::protocol::account",
     )?;
 
-    // 2. Fix `crate::protocol::` in exec_server/ files → `crate::exec_server_protocol::protocol::`
+    // 2. Fix exec_server's `use ... as protocol;` alias problem.
     //    exec_server's lib.rs had `use codex_exec_server_protocol as protocol;`
-    //    which made `crate::protocol::X` work (mod at crate root). After merge,
-    //    the alias is `use crate::exec_server_protocol as protocol;` but
-    //    `crate::protocol::X` resolves to the member `protocol` module instead.
-    //    The items are in exec_server_protocol's own `protocol` submodule:
-    //    crate::exec_server_protocol::protocol::X.
-    let exec_server_dir = src_dir.join("exec_server");
-    if exec_server_dir.is_dir() {
-        fix_pattern_in_tree(
-            &exec_server_dir,
-            "crate::protocol::",
-            "crate::exec_server_protocol::protocol::",
-        )?;
+    //    at crate root, making `crate::protocol::X` resolve to exec_server_protocol.
+    //    After merge, the alias is in exec_server/mod.rs (not crate root), and
+    //    `crate::protocol::` resolves to the MEMBER protocol module instead.
+    //
+    //    Solution: add re-exports from exec_server_protocol to exec_server/mod.rs
+    //    so `crate::protocol::X` works via blanket re-export. Replace the
+    //    `use crate::exec_server_protocol as protocol;` alias with re-exports.
+    let exec_server_mod = src_dir.join("exec_server").join("mod.rs");
+    if exec_server_mod.is_file() {
+        let raw = fs::read_to_string(&exec_server_mod)?;
+        let new = raw.replace(
+            "use crate::exec_server_protocol as protocol;",
+            "pub use crate::exec_server_protocol::protocol::*;",
+        );
+        if new != raw {
+            fs::write(&exec_server_mod, new)?;
+        }
     }
 
     // 3. Fix `crate::protocol::EventMsg` / `RolloutItem` in core_internal
