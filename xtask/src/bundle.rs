@@ -1890,11 +1890,73 @@ fn host_module_defines(module_dir: &Path, segment: &str, item: &str) -> bool {
     if item.is_empty() || module_dir.as_os_str().is_empty() {
         return true; // Can't check — default to prefixing (safer for host).
     }
+    // Check both directory module (segment/) and file module (segment.rs).
     let seg_dir = module_dir.join(segment);
-    if !seg_dir.is_dir() {
-        return true; // No local module dir — assume self-ref.
+    let seg_file = module_dir.join(format!("{}.rs", segment));
+    if seg_dir.is_dir() {
+        return grep_in_dir_for_item(&seg_dir, item);
     }
-    grep_in_dir_for_item(&seg_dir, item)
+    if seg_file.is_file() {
+        return grep_in_file_for_item(&seg_file, item);
+    }
+    // Neither exists — the host doesn't have this local module, so the ref
+    // must be a cross-module ref (don't prefix).
+    false
+}
+
+/// Check if a single .rs file defines a public item named `item`.
+fn grep_in_file_for_item(path: &Path, item: &str) -> bool {
+    let raw = match fs::read_to_string(path) {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+    check_defs(&raw, item)
+}
+
+fn check_defs(raw: &str, item: &str) -> bool {
+    for line in raw.lines() {
+        let t = line.trim_start();
+        let def_keywords = [
+            "pub struct ",
+            "pub(crate) struct ",
+            "pub enum ",
+            "pub(crate) enum ",
+            "pub fn ",
+            "pub(crate) fn ",
+            "pub type ",
+            "pub(crate) type ",
+            "pub trait ",
+            "pub(crate) trait ",
+            "pub const ",
+            "pub(crate) const ",
+            "pub static ",
+            "pub(crate) static ",
+            "pub mod ",
+            "pub(crate) mod ",
+            "mod ",
+        ];
+        let is_def = def_keywords.iter().any(|kw| {
+            t.starts_with(kw)
+                && t[kw.len()..].starts_with(item)
+                && t[kw.len() + item.len()..]
+                    .chars()
+                    .next()
+                    .is_some_and(|c| !(c.is_alphanumeric() || c == '_'))
+        });
+        if is_def {
+            return true;
+        }
+        if t.starts_with("pub use ") || t.starts_with("pub(crate) use ") {
+            let after_use = t
+                .strip_prefix("pub use ")
+                .or_else(|| t.strip_prefix("pub(crate) use "))
+                .unwrap_or("");
+            if after_use.starts_with(item) && !after_use[item.len()..].starts_with(':') {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn grep_in_dir_for_item(dir: &Path, item: &str) -> bool {
@@ -1911,55 +1973,8 @@ fn grep_in_dir_for_item(dir: &Path, item: &str) -> bool {
                 }
             } else if path.extension().is_some_and(|e| e == "rs") {
                 if let Ok(raw) = fs::read_to_string(&path) {
-                    for line in raw.lines() {
-                        let t = line.trim_start();
-                        // Only match actual DEFINITIONS (not imports/uses).
-                        let def_keywords = [
-                            "pub struct ",
-                            "pub(crate) struct ",
-                            "pub enum ",
-                            "pub(crate) enum ",
-                            "pub fn ",
-                            "pub(crate) fn ",
-                            "pub type ",
-                            "pub(crate) type ",
-                            "pub trait ",
-                            "pub(crate) trait ",
-                            "pub const ",
-                            "pub(crate) const ",
-                            "pub static ",
-                            "pub(crate) static ",
-                            "pub mod ",
-                            "pub(crate) mod ",
-                            "mod ",
-                        ];
-                        let is_def = def_keywords.iter().any(|kw| {
-                            t.starts_with(kw)
-                                && t[kw.len()..].starts_with(item)
-                                && t[kw.len() + item.len()..]
-                                    .chars()
-                                    .next()
-                                    .is_some_and(|c| !(c.is_alphanumeric() || c == '_'))
-                        });
-                        if is_def {
-                            return true;
-                        }
-                        // Also match `pub use <item>;` or `pub use <item>::` or
-                        // `pub use ... <item>;` (re-export), but NOT `pub use crate::...`
-                        // or `pub use super::...` (those are imports from elsewhere).
-                        if (t.starts_with("pub use ") || t.starts_with("pub(crate) use ")) {
-                            let after_use = t
-                                .strip_prefix("pub use ")
-                                .or_else(|| t.strip_prefix("pub(crate) use "))
-                                .unwrap_or("");
-                            // Must NOT contain `::` before the item (local re-export).
-                            // Pattern: `pub use item;` or `pub use item::{...}`
-                            if after_use.starts_with(item)
-                                && !after_use[item.len()..].starts_with(':')
-                            {
-                                return true;
-                            }
-                        }
+                    if check_defs(&raw, item) {
+                        return true;
                     }
                 }
             }
