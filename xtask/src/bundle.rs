@@ -1957,21 +1957,42 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
         "crate::protocol::account",
     )?;
 
-    // 2. Fix `crate::protocol::` in exec_server/ files → `crate::exec_server_protocol::`
+    // 2. Fix `crate::protocol::` in exec_server/ files → `crate::exec_server_protocol::protocol::`
     //    exec_server's lib.rs had `use codex_exec_server_protocol as protocol;`
     //    which made `crate::protocol::X` work (mod at crate root). After merge,
-    //    the alias is `use crate::exec_server_protocol as protocol;` which only
-    //    works without `crate::` prefix. Rewrite `crate::protocol::` → the alias.
+    //    the alias is `use crate::exec_server_protocol as protocol;` but
+    //    `crate::protocol::X` resolves to the member `protocol` module instead.
+    //    The items are in exec_server_protocol's own `protocol` submodule:
+    //    crate::exec_server_protocol::protocol::X.
     let exec_server_dir = src_dir.join("exec_server");
     if exec_server_dir.is_dir() {
         fix_pattern_in_tree(
             &exec_server_dir,
             "crate::protocol::",
-            "crate::exec_server_protocol::",
+            "crate::exec_server_protocol::protocol::",
         )?;
     }
 
-    // 3. Add `pub use router::ToolCall;` to core_internal/tools/mod.rs if missing.
+    // 3. Fix `crate::protocol::EventMsg` / `RolloutItem` in core_internal
+    //    → `crate::exec_server_protocol::protocol::` (same alias issue but
+    //    referenced from the host module).
+    fix_pattern_in_tree(
+        src_dir,
+        "crate::protocol::EventMsg",
+        "crate::exec_server_protocol::protocol::EventMsg",
+    )?;
+    fix_pattern_in_tree(
+        src_dir,
+        "crate::protocol::RolloutItem",
+        "crate::exec_server_protocol::protocol::RolloutItem",
+    )?;
+
+    // 4. Fix `lemurclaw_core::` in test files within the crate → `crate::`
+    //    (test files reference the crate by its published name, but inside
+    //    the crate itself, they should use `crate::`).
+    fix_pattern_in_tree(src_dir, "lemurclaw_core::", "crate::")?;
+
+    // 5. Add `pub use router::ToolCall;` to core_internal/tools/mod.rs if missing.
     let tools_mod = src_dir.join("core_internal").join("tools").join("mod.rs");
     if tools_mod.is_file() {
         let raw = fs::read_to_string(&tools_mod)?;
