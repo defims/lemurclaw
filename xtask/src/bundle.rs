@@ -686,21 +686,30 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     rewrite_publish_manifest(&publish_root, cluster)?;
 
     // Step 5: rewrite .rs imports + downstream Cargo.toml dep lines.
-    //   - Inside the merged crate:  <lib>_<sub>::  →  crate::<sub>::
-    //     (cross-module refs), then fix self-refs: a sub-module's own
-    //     `crate::Foo` becomes `crate::<module>::Foo`.
-    //   - In downstream crates: <lib>_<sub>:: → <lib>::<sub>::
-    rewrite_rust_files_in(&merged_dir.join("src"), RewriteScope::IntraCrate, cluster)?;
+    //
+    // CRITICAL ORDER: fix_self_refs runs BEFORE rewrite_rs.
+    // At this point, member cross-refs are still `lemurclaw_X::` (not yet
+    // rewritten to `crate::X::`). So any `crate::X::` in the source
+    // unambiguously means the host's OWN module X — no per-item guessing
+    // needed. We prefix all `crate::<local_mod>` to `crate::<module>::<local_mod>`.
+    //
+    //   5a. Fix self-refs (prefix crate::X → crate::<module>::X for local X)
+    //   5b. Fix include_str!/include_bytes! paths
+    //   5c. Rewrite cross-module refs (lemurclaw_X → crate::X)
+    //   5d. Post-merge deterministic fixups
+    //   5e. Downstream rewrite
     for sc in &cluster.members {
         fix_self_refs_in_submodule(&merged_dir.join("src").join(sc.module), sc.module, cluster)?;
-        // Fix include_str!/include_bytes! paths: crate-root assets were moved
-        // into the module, so "../X" paths become "X".
         fix_include_paths_in_submodule(&merged_dir.join("src").join(sc.module))?;
     }
     if let Some(hm) = host_module {
         fix_self_refs_in_submodule(&merged_dir.join("src").join(hm), hm, cluster)?;
         fix_include_paths_in_submodule(&merged_dir.join("src").join(hm))?;
     }
+    // NOW rewrite cross-module refs (lemurclaw_X → crate::X).
+    rewrite_rust_files_in(&merged_dir.join("src"), RewriteScope::IntraCrate, cluster)?;
+    // Post-merge deterministic fixups for non-collision edge cases.
+    post_merge_fixups(&merged_dir.join("src"))?;
     rewrite_downstream(&publish_root, &merged_dir, cluster)?;
 
     println!("\n✓ bundle {} complete.", cluster.merged_package);
@@ -1712,11 +1721,11 @@ fn fix_self_refs_in_src(
     module: &str,
     modules: &std::collections::HashSet<String>,
     local_mods: &std::collections::HashSet<String>,
-    rs_file: &Path,
+    _rs_file: &Path,
 ) -> String {
-    // Walk the source and rewrite `crate::` when the segment after it is not a
-    // known module. We do a careful scan to avoid touching string literals or
-    // `crate::<module>::` cross-refs.
+    // Walk the source and rewrite `crate::` self-refs.
+    // With the pipeline reordered (this runs BEFORE rewrite_rs), any `crate::X`
+    // is a self-ref — member cross-refs are still `lemurclaw_X::`.
     let needle = "crate::";
     let nbytes = needle.len();
     let bytes = src.as_bytes();
@@ -1737,65 +1746,18 @@ fn fix_self_refs_in_src(
                     .count();
             if before_ok && seg_end > seg_start {
                 let segment = &src[seg_start..seg_end];
-                // Prefix this `crate::<segment>` if it's a self-ref. A self-ref
-                // is any of:
-                // (a) a segment that's not a known cross-module name, OR
-                // (b) a segment equal to this submodule's own name (e.g. pty's
-                //     own `pty` child module), OR
-                // (c) a segment that IS a cross-module name BUT is also a local
-                //     module of this submodule (host module case: core_internal's
-                //     own `config` module collides with the `config` member).
-                // Prefix this `crate::<segment>` if it's a self-ref. A self-ref
-                // is any of:
-                // (a) a segment that's not a known cross-module name, OR
-                // (b) a segment equal to this submodule's own name, OR
-                // (c) a segment that is a local module of this submodule.
-                //     For the host module, ALL `crate::<local_mod>` originally
-                //     meant the host's own module (member crates were external).
-                //     Cross-module refs to members are only created by rewrite_rs
-                //     in OTHER modules, not in the host itself.
-                let is_member = modules.contains(segment);
+                // With the pipeline reordered (fix_self_refs BEFORE rewrite_rs),
+                // any `crate::X` at this point is a SELF-REF — member cross-refs
+                // are still `lemurclaw_X::` and haven't been rewritten yet.
+                // So: prefix `crate::X` → `crate::<module>::X` if X is a local
+                // module of this submodule. No per-item guessing needed.
+                //
+                // Exception: skip `crate::feedback_tags` — it's a #[macro_export]
+                // that lives at the crate root, not in any submodule.
                 let is_local = local_mods.contains(segment);
-                // Determine if this `crate::<segment>` is a self-ref.
-                // - If segment is NOT a member → always self-ref (prefix).
-                // - If segment == module name → self-ref (prefix).
-                // - If segment is local but not member → self-ref (prefix).
-                // - If segment is BOTH local AND member (collision): check if
-                //   the referenced ITEM exists in the host's local module.
-                //   If it does → self-ref (prefix). If not → cross-module ref
-                //   (don't prefix, rewrite_rs created it).
-                let is_self = if is_local && is_member && segment != module {
-                    // Collision: read the next path segment (the item name) and
-                    // check if it exists in the host's local module dir.
-                    let item_start = seg_end + 2; // skip "::"
-                    let item_end = item_start
-                        + bytes[item_start..]
-                            .iter()
-                            .take_while(|b| is_ident_byte(**b))
-                            .count();
-                    let item = if item_end > item_start {
-                        &src[item_start..item_end]
-                    } else {
-                        ""
-                    };
-                    // Check if the host's local module defines this item.
-                    let module_dir = rs_file.parent().and_then(|d| {
-                        // Walk up to find the module root (where mod.rs is).
-                        let mut d = d.to_path_buf();
-                        for _ in 0..10 {
-                            if d.file_name().is_some_and(|n| n == module) {
-                                return Some(d);
-                            }
-                            if !d.pop() {
-                                break;
-                            }
-                        }
-                        None
-                    });
-                    host_module_defines(&module_dir.unwrap_or_default(), segment, item)
-                } else {
-                    !is_member || segment == module || is_local
-                };
+                let is_macro_export = segment == "feedback_tags";
+                let is_self = (is_local || !modules.contains(segment) || segment == module)
+                    && !is_macro_export;
                 if is_self {
                     // Self-ref: inject module prefix.
                     out.push_str(&format!("crate::{}::{}", module, segment));
@@ -1982,6 +1944,62 @@ fn grep_in_dir_for_item(dir: &Path, item: &str) -> bool {
         false
     }
     search(dir, item)
+}
+
+/// Post-merge deterministic fixups for edge cases that the pipeline ordering
+/// can't handle automatically. These are known, fixed patterns.
+fn post_merge_fixups(src_dir: &Path) -> Result<()> {
+    // 1. Fix `app_server_protocol::protocol::account` → `protocol::account`
+    //    (the items live in the member `protocol`, not `app_server_protocol`).
+    fix_pattern_in_tree(
+        src_dir,
+        "crate::app_server_protocol::protocol::account",
+        "crate::protocol::account",
+    )?;
+
+    // 2. Add `pub use router::ToolCall;` to core_internal/tools/mod.rs if missing.
+    let tools_mod = src_dir.join("core_internal").join("tools").join("mod.rs");
+    if tools_mod.is_file() {
+        let raw = fs::read_to_string(&tools_mod)?;
+        if !raw.contains("pub use router::ToolCall") {
+            // Check if ToolCall is defined in router.rs
+            let router = src_dir
+                .join("core_internal")
+                .join("tools")
+                .join("router.rs");
+            if router.is_file() {
+                let router_raw = fs::read_to_string(&router)?;
+                if router_raw.contains("pub struct ToolCall")
+                    || router_raw.contains("pub enum ToolCall")
+                {
+                    let new = format!("pub use router::ToolCall;\n{}", raw);
+                    fs::write(&tools_mod, new)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Recursively replace a pattern in all .rs files under dir.
+fn fix_pattern_in_tree(dir: &Path, old: &str, new: &str) -> Result<()> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            fix_pattern_in_tree(&path, old, new)?;
+        } else if path.extension().is_some_and(|e| e == "rs") {
+            let raw = fs::read_to_string(&path)?;
+            if raw.contains(old) {
+                let rewritten = raw.replace(old, new);
+                fs::write(&path, rewritten)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn is_ident_byte(b: u8) -> bool {
