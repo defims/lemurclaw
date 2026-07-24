@@ -1692,7 +1692,7 @@ fn fix_self_refs_recursive(
         } else if path.extension().is_some_and(|e| e == "rs") {
             let raw =
                 fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-            let rewritten = fix_self_refs_in_src(&raw, module, modules, local_mods);
+            let rewritten = fix_self_refs_in_src(&raw, module, modules, local_mods, &path);
             if rewritten != raw {
                 fs::write(&path, &rewritten)
                     .with_context(|| format!("write {}", path.display()))?;
@@ -1712,6 +1712,7 @@ fn fix_self_refs_in_src(
     module: &str,
     modules: &std::collections::HashSet<String>,
     local_mods: &std::collections::HashSet<String>,
+    rs_file: &Path,
 ) -> String {
     // Walk the source and rewrite `crate::` when the segment after it is not a
     // known module. We do a careful scan to avoid touching string literals or
@@ -1755,20 +1756,43 @@ fn fix_self_refs_in_src(
                 //     in OTHER modules, not in the host itself.
                 let is_member = modules.contains(segment);
                 let is_local = local_mods.contains(segment);
-                // For the host module, prefix `crate::<local_mod>` because it
-                // originally meant the host's own module. BUT: some host modules
-                // share names with members AND the referenced items live in the
-                // MEMBER (not the host). These collision modules (e.g. core's
-                // own `tools` doesn't define ToolSpec — that's in codex-tools)
-                // must NOT be prefixed because rewrite_rs created the cross-ref.
-                // We use a heuristic: if the segment is BOTH local AND a member,
-                // check whether the host's local module actually defines public
-                // items (if it does, prefix; if it's a thin wrapper, don't).
-                let is_self = if is_local && is_member && module == "core_internal" {
-                    // Known host modules where the HOST defines the items:
-                    // config (Config, ManagedFeatures, etc.)
-                    // For tools/rollout, items come from the member → don't prefix.
-                    segment == "config"
+                // Determine if this `crate::<segment>` is a self-ref.
+                // - If segment is NOT a member → always self-ref (prefix).
+                // - If segment == module name → self-ref (prefix).
+                // - If segment is local but not member → self-ref (prefix).
+                // - If segment is BOTH local AND member (collision): check if
+                //   the referenced ITEM exists in the host's local module.
+                //   If it does → self-ref (prefix). If not → cross-module ref
+                //   (don't prefix, rewrite_rs created it).
+                let is_self = if is_local && is_member && segment != module {
+                    // Collision: read the next path segment (the item name) and
+                    // check if it exists in the host's local module dir.
+                    let item_start = seg_end + 2; // skip "::"
+                    let item_end = item_start
+                        + bytes[item_start..]
+                            .iter()
+                            .take_while(|b| is_ident_byte(**b))
+                            .count();
+                    let item = if item_end > item_start {
+                        &src[item_start..item_end]
+                    } else {
+                        ""
+                    };
+                    // Check if the host's local module defines this item.
+                    let module_dir = rs_file.parent().and_then(|d| {
+                        // Walk up to find the module root (where mod.rs is).
+                        let mut d = d.to_path_buf();
+                        for _ in 0..10 {
+                            if d.file_name().is_some_and(|n| n == module) {
+                                return Some(d);
+                            }
+                            if !d.pop() {
+                                break;
+                            }
+                        }
+                        None
+                    });
+                    host_module_defines(&module_dir.unwrap_or_default(), segment, item)
                 } else {
                     !is_member || segment == module || is_local
                 };
@@ -1856,6 +1880,61 @@ fn replace_ident_whole(haystack: &str, needle: &str, replacement: &str) -> Strin
         i = ch_end;
     }
     out
+}
+
+/// Check if the host module's local submodule `<module>/<segment>/` defines
+/// a public item named `item`. Used to disambiguate local+member module
+/// name collisions: if the host's own module defines the item, the ref is a
+/// self-ref (needs prefixing); if not, it's a cross-module ref to the member.
+fn host_module_defines(module_dir: &Path, segment: &str, item: &str) -> bool {
+    if item.is_empty() || module_dir.as_os_str().is_empty() {
+        return true; // Can't check — default to prefixing (safer for host).
+    }
+    let seg_dir = module_dir.join(segment);
+    if !seg_dir.is_dir() {
+        return true; // No local module dir — assume self-ref.
+    }
+    grep_in_dir_for_item(&seg_dir, item)
+}
+
+fn grep_in_dir_for_item(dir: &Path, item: &str) -> bool {
+    fn search(dir: &Path, item: &str) -> bool {
+        let entries = match fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return false,
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_dir() {
+                if search(&path, item) {
+                    return true;
+                }
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                if let Ok(raw) = fs::read_to_string(&path) {
+                    // Check for pub definitions: `pub fn <item>`, `pub struct <item>`,
+                    // `pub enum <item>`, `pub type <item>`, `pub use ...<item>`,
+                    // `pub trait <item>`, `pub const <item>`.
+                    for line in raw.lines() {
+                        let t = line.trim_start();
+                        if (t.starts_with("pub ") || t.starts_with("pub(crate) "))
+                            && t.contains(item)
+                        {
+                            // Rough check: the item name appears after a keyword.
+                            if t.contains(&format!(" {}", item))
+                                || t.contains(&format!("::{item}"))
+                                || t.contains(&format!("::{item},"))
+                                || t.contains(&format!("::{item} "))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+    search(dir, item)
 }
 
 fn is_ident_byte(b: u8) -> bool {
