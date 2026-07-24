@@ -1755,7 +1755,23 @@ fn fix_self_refs_in_src(
                 //     in OTHER modules, not in the host itself.
                 let is_member = modules.contains(segment);
                 let is_local = local_mods.contains(segment);
-                let is_self = !is_member || segment == module || is_local;
+                // For the host module, prefix `crate::<local_mod>` because it
+                // originally meant the host's own module. BUT: some host modules
+                // share names with members AND the referenced items live in the
+                // MEMBER (not the host). These collision modules (e.g. core's
+                // own `tools` doesn't define ToolSpec — that's in codex-tools)
+                // must NOT be prefixed because rewrite_rs created the cross-ref.
+                // We use a heuristic: if the segment is BOTH local AND a member,
+                // check whether the host's local module actually defines public
+                // items (if it does, prefix; if it's a thin wrapper, don't).
+                let is_self = if is_local && is_member && module == "core_internal" {
+                    // Known host modules where the HOST defines the items:
+                    // config (Config, ManagedFeatures, etc.)
+                    // For tools/rollout, items come from the member → don't prefix.
+                    segment == "config"
+                } else {
+                    !is_member || segment == module || is_local
+                };
                 if is_self {
                     // Self-ref: inject module prefix.
                     out.push_str(&format!("crate::{}::{}", module, segment));
