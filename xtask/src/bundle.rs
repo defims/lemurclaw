@@ -1985,10 +1985,11 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
         "crate::exec_server_protocol::protocol::RolloutItem",
     )?;
 
-    // 4. Fix `lemurclaw_core::` in test files within the crate → `crate::`
+    // 4. Fix `use lemurclaw_core::` in test files → `use crate::`
     //    (test files reference the crate by its published name, but inside
-    //    the crate itself, they should use `crate::`).
-    fix_pattern_in_tree(src_dir, "lemurclaw_core::", "crate::")?;
+    //    the crate itself, they should use `crate::`). Only rewrite in `use`
+    //    statements — NOT in type positions where `crate::` can't appear.
+    fix_use_lemurclaw_core_in_tree(src_dir)?;
 
     // 5. Add `pub use router::ToolCall;` to core_internal/tools/mod.rs if missing.
     let tools_mod = src_dir.join("core_internal").join("tools").join("mod.rs");
@@ -2078,6 +2079,41 @@ fn fix_pattern_in_tree(dir: &Path, old: &str, new: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Rewrite `use lemurclaw_core::` → `use crate::` in .rs files, but ONLY in
+/// `use` statements (not type positions where `crate::` is invalid mid-path).
+fn fix_use_lemurclaw_core_in_tree(dir: &Path) -> Result<()> {
+    fn process(dir: &Path) -> Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                process(&path)?;
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let raw = fs::read_to_string(&path)?;
+                // Only rewrite lines starting with `use lemurclaw_core::`
+                // (possibly after whitespace or `pub `).
+                let new: String = raw
+                    .lines()
+                    .map(|line| {
+                        let trimmed = line.trim_start();
+                        if trimmed.starts_with("use lemurclaw_core::") {
+                            line.replacen("use lemurclaw_core::", "use crate::", 1)
+                        } else {
+                            line.to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if new != raw {
+                    fs::write(&path, new)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    process(dir)
 }
 
 fn is_ident_byte(b: u8) -> bool {
