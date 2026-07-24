@@ -1963,19 +1963,22 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
     //    After merge, the alias is in exec_server/mod.rs (not crate root), and
     //    `crate::protocol::` resolves to the MEMBER protocol module instead.
     //
-    //    Solution: add re-exports from exec_server_protocol to exec_server/mod.rs
-    //    so `crate::protocol::X` works via blanket re-export. Replace the
-    //    `use crate::exec_server_protocol as protocol;` alias with re-exports.
-    let exec_server_mod = src_dir.join("exec_server").join("mod.rs");
-    if exec_server_mod.is_file() {
-        let raw = fs::read_to_string(&exec_server_mod)?;
-        let new = raw.replace(
-            "use crate::exec_server_protocol as protocol;",
-            "pub use crate::exec_server_protocol::protocol::*;",
-        );
-        if new != raw {
-            fs::write(&exec_server_mod, new)?;
-        }
+    //    Solution: rewrite `crate::protocol::` → `crate::exec_server_protocol::protocol::`
+    //    in exec_server/ files. This correctly routes to exec_server_protocol's own
+    //    protocol submodule where EXEC_METHOD, FS_*_METHOD, etc. are defined.
+    //    Member protocol refs (capabilities, models) use different paths and
+    //    are NOT affected because they go through `crate::protocol::capabilities`
+    //    which the rewrite changes to `crate::exec_server_protocol::protocol::capabilities`
+    //    — but exec_server_protocol::protocol re-exports from member protocol too,
+    //    so it resolves. (protocol.rs has `pub use crate::protocol::*` via
+    //    the original `use codex_protocol::*` re-export.)
+    let exec_server_dir = src_dir.join("exec_server");
+    if exec_server_dir.is_dir() {
+        fix_pattern_in_tree(
+            &exec_server_dir,
+            "crate::protocol::",
+            "crate::exec_server_protocol::protocol::",
+        )?;
     }
 
     // 3. Fix `crate::protocol::EventMsg` / `RolloutItem` in core_internal
