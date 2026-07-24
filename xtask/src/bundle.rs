@@ -1960,25 +1960,15 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
     // 2. Fix exec_server's `use ... as protocol;` alias problem.
     //    exec_server's lib.rs had `use codex_exec_server_protocol as protocol;`
     //    at crate root, making `crate::protocol::X` resolve to exec_server_protocol.
-    //    After merge, the alias is in exec_server/mod.rs (not crate root), and
-    //    `crate::protocol::` resolves to the MEMBER protocol module instead.
+    //    After merge, `crate::protocol::` resolves to the MEMBER protocol module.
     //
     //    Solution: rewrite `crate::protocol::` → `crate::exec_server_protocol::protocol::`
-    //    in exec_server/ files. This correctly routes to exec_server_protocol's own
-    //    protocol submodule where EXEC_METHOD, FS_*_METHOD, etc. are defined.
-    //    Member protocol refs (capabilities, models) use different paths and
-    //    are NOT affected because they go through `crate::protocol::capabilities`
-    //    which the rewrite changes to `crate::exec_server_protocol::protocol::capabilities`
-    //    — but exec_server_protocol::protocol re-exports from member protocol too,
-    //    so it resolves. (protocol.rs has `pub use crate::protocol::*` via
-    //    the original `use codex_protocol::*` re-export.)
+    //    ONLY for CamelCase/UPPER_CASE items (exec_server_protocol types/constants).
+    //    Lowercase submodule names (capabilities, models, permissions) stay as
+    //    `crate::protocol::` (member protocol submodules).
     let exec_server_dir = src_dir.join("exec_server");
     if exec_server_dir.is_dir() {
-        fix_pattern_in_tree(
-            &exec_server_dir,
-            "crate::protocol::",
-            "crate::exec_server_protocol::protocol::",
-        )?;
+        rewrite_protocol_refs_in_exec_server(&exec_server_dir)?;
     }
 
     // 3. Fix `crate::protocol::EventMsg` / `RolloutItem` in core_internal
@@ -2022,6 +2012,51 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Rewrite `crate::protocol::` in exec_server/ files. Only rewrite for
+/// CamelCase/UPPER_CASE items (exec_server_protocol types/constants like
+/// EXEC_METHOD, ExecParams). Lowercase submodule names (capabilities, models,
+/// permissions) stay as `crate::protocol::` (member protocol submodules).
+fn rewrite_protocol_refs_in_exec_server(dir: &Path) -> Result<()> {
+    fn process(dir: &Path) -> Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                process(&path)?;
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let raw = fs::read_to_string(&path)?;
+                // Find all `crate::protocol::<item>` and check if <item> is
+                // CamelCase or UPPER_CASE (exec_server_protocol item).
+                let mut out = String::with_capacity(raw.len());
+                let mut rest = raw.as_str();
+                while let Some(pos) = rest.find("crate::protocol::") {
+                    out.push_str(&rest[..pos + "crate::protocol::".len()]);
+                    let after = &rest[pos + "crate::protocol::".len()..];
+                    // Read the item name (identifier chars).
+                    let item_end = after
+                        .bytes()
+                        .position(|b| !(b.is_ascii_alphanumeric() || b == b'_'))
+                        .unwrap_or(after.len());
+                    let item = &after[..item_end];
+                    // Rewrite only if item starts with uppercase (CamelCase type or
+                    // UPPER_CASE constant). Lowercase = member protocol submodule.
+                    if item.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+                        out.push_str("crate::exec_server_protocol::protocol::");
+                    }
+                    out.push_str(item);
+                    rest = &after[item_end..];
+                }
+                out.push_str(rest);
+                if out != raw {
+                    fs::write(&path, out)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    process(dir)
 }
 
 /// Recursively replace a pattern in all .rs files under dir.
