@@ -1259,25 +1259,16 @@ fn fix_single_includes(src: &str, rs_dir: &Path, macro_name: &str) -> String {
                 out.push('"');
                 rest = &after[end + 1..];
             } else {
-                // File not found — search for it.
-                let filename = Path::new(path)
-                    .file_name()
-                    .map(|f| f.to_string_lossy().to_string());
-                if let Some(fname) = filename {
-                    // Search: rs_dir and ancestors up to 5 levels, then the
-                    // module dir (rs_dir itself or ancestors), then src/ level.
-                    let found = search_for_file(rs_dir, &fname, &resolved);
-                    if let Some(correct_path) = found {
-                        out.push_str(&correct_path);
-                        out.push('"');
-                        rest = &after[end + 1..];
-                    } else {
-                        // Can't find — leave as-is (will error at compile).
-                        out.push_str(path);
-                        out.push('"');
-                        rest = &after[end + 1..];
-                    }
+                // File not found — search for it. Pass the path tail (stripped
+                // of leading "../") so we can match directory structure too.
+                let path_tail = path.trim_start_matches("../");
+                let found = search_for_file(rs_dir, path_tail, &resolved);
+                if let Some(correct_path) = found {
+                    out.push_str(&correct_path);
+                    out.push('"');
+                    rest = &after[end + 1..];
                 } else {
+                    // Can't find — leave as-is (will error at compile).
                     out.push_str(path);
                     out.push('"');
                     rest = &after[end + 1..];
@@ -1292,33 +1283,46 @@ fn fix_single_includes(src: &str, rs_dir: &Path, macro_name: &str) -> String {
     out
 }
 
-/// Search for a file named `filename` starting from `rs_dir` and walking up,
-/// then looking in sibling directories. Returns the correct relative path
-/// from `rs_dir` to the found file, or None.
+/// Search for a file by its path tail (e.g. "schema/generated/X.json" or just
+/// "X.json"). Walk up from `rs_dir`, at each level recursively searching for
+/// the path tail. Returns the correct relative path from `rs_dir` to the file.
 fn search_for_file(rs_dir: &Path, filename: &str, _orig_resolved: &Path) -> Option<String> {
-    // Strategy: walk up from rs_dir, at each level check if the file exists
-    // there or in the directory. Also check the original path's parent dir
-    // name (e.g. "templates/plan.md" → look for "templates/" dirs containing
-    // "plan.md").
+    // The filename may be just "X.json" or a path like "schema/generated/X.json".
+    // Strip leading "../" from the original include path to get the tail.
+    let tail = filename;
     let mut dir = rs_dir.to_path_buf();
-    for _ in 0..8 {
-        // Check if file is directly here.
-        if dir.join(filename).exists() {
-            return Some(relative_path(rs_dir, &dir.join(filename)));
+    for _ in 0..10 {
+        // Check if dir/tail exists (preserves directory structure).
+        if dir.join(tail).exists() {
+            return Some(relative_path(rs_dir, &dir.join(tail)));
         }
-        // Check subdirectories that might contain the file.
-        if let Ok(entries) = fs::read_dir(&dir) {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let p = entry.path();
-                if p.is_dir() {
-                    if p.join(filename).exists() {
-                        return Some(relative_path(rs_dir, &p.join(filename)));
-                    }
-                }
-            }
+        // Also do a recursive search for just the basename.
+        let basename = Path::new(tail).file_name()?.to_string_lossy();
+        if let Some(found) = find_file_recursive(&dir, &basename, 4) {
+            return Some(relative_path(rs_dir, &found));
         }
         if !dir.pop() {
             break;
+        }
+    }
+    None
+}
+
+/// Recursively search for a file named `name` under `dir`, up to `max_depth`.
+fn find_file_recursive(dir: &Path, name: &str, max_depth: usize) -> Option<PathBuf> {
+    if max_depth == 0 {
+        return None;
+    }
+    if dir.join(name).exists() {
+        return Some(dir.join(name));
+    }
+    let entries = fs::read_dir(dir).ok()?;
+    for entry in entries.filter_map(|e| e.ok()) {
+        let p = entry.path();
+        if p.is_dir() {
+            if let Some(found) = find_file_recursive(&p, name, max_depth - 1) {
+                return Some(found);
+            }
         }
     }
     None
