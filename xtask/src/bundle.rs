@@ -1929,6 +1929,9 @@ fn grep_in_dir_for_item(dir: &Path, item: &str) -> bool {
                             "pub(crate) const ",
                             "pub static ",
                             "pub(crate) static ",
+                            "pub mod ",
+                            "pub(crate) mod ",
+                            "mod ",
                         ];
                         let is_def = def_keywords.iter().any(|kw| {
                             t.starts_with(kw)
