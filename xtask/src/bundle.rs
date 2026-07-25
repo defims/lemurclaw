@@ -1962,8 +1962,10 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
     //    at crate root, making `crate::protocol::X` resolve to exec_server_protocol.
     //    After merge, `crate::protocol::` resolves to the MEMBER protocol module.
     //
-    //    Solution: rewrite `crate::protocol::` → `crate::exec_server_protocol::protocol::`
+    //    Solution: rewrite `crate::protocol::` → `crate::exec_server_protocol::`
     //    ONLY for CamelCase/UPPER_CASE items (exec_server_protocol types/constants).
+    //    We use `crate::exec_server_protocol::` (not `::protocol::`) because
+    //    the `protocol` submodule is private and re-exported via `pub use protocol::*`.
     //    Lowercase submodule names (capabilities, models, permissions) stay as
     //    `crate::protocol::` (member protocol submodules).
     let exec_server_dir = src_dir.join("exec_server");
@@ -1971,18 +1973,22 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
         rewrite_protocol_refs_in_exec_server(&exec_server_dir)?;
     }
 
-    // 3. Fix `crate::protocol::EventMsg` / `RolloutItem` in core_internal
-    //    → `crate::exec_server_protocol::protocol::` (same alias issue but
-    //    referenced from the host module).
+    // 3. Fix `crate::protocol::EventMsg` / `RolloutItem` in rollout/ and
+    //    other modules that had `pub(crate) use codex_protocol::protocol;`.
+    //    These resolved `crate::protocol::X` → `codex_protocol::protocol::X`,
+    //    but after merge `crate::protocol::X` hits the member `protocol` module
+    //    which doesn't directly export EventMsg/RolloutItem (they're in the
+    //    public sub-submodule `protocol::protocol`).
+    //    → `crate::protocol::protocol::X`.
     fix_pattern_in_tree(
         src_dir,
         "crate::protocol::EventMsg",
-        "crate::exec_server_protocol::protocol::EventMsg",
+        "crate::protocol::protocol::EventMsg",
     )?;
     fix_pattern_in_tree(
         src_dir,
         "crate::protocol::RolloutItem",
-        "crate::exec_server_protocol::protocol::RolloutItem",
+        "crate::protocol::protocol::RolloutItem",
     )?;
 
     // 4. Fix `use lemurclaw_core::` in test files → `use crate::`
@@ -2012,10 +2018,448 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
             }
         }
     }
+    // 6. Fix `include_dir!("$CARGO_MANIFEST_DIR/src/...")` paths in member
+    //    modules. After merge, the member's src/ became src/<module>/, so
+    //    `$CARGO_MANIFEST_DIR/src/assets/samples` needs to become
+    //    `$CARGO_MANIFEST_DIR/src/<module>/assets/samples`.
+    fix_include_dir_manifest_dir_paths(src_dir)?;
+
+    // 7. Re-export `experimental_api` at crate root. The proc-macro
+    //    `lemurclaw-experimental-api-macros` expands `#[experimental(...)]`
+    //    into code that references `crate::experimental_api::ExperimentalApi`,
+    //    `crate::experimental_api::ExperimentalField`, etc. Before merge,
+    //    `crate::` resolved to `app-server-protocol`; now it resolves to
+    //    `lemurclaw-core`, which doesn't have `experimental_api` at its root.
+    //    Fix: create `src/experimental_api.rs` that re-exports from the member,
+    //    and add `pub mod experimental_api;` to lib.rs.
+    add_reexport_module(src_dir, "experimental_api", "app_server_protocol::experimental_api")?;
+
+    // 8. Re-export `Config` from `config` module. Several downstream crates
+    //    (lmstudio, ollama, utils_oss, core_internal tests) use
+    //    `crate::config::Config`, but `Config` is defined in `core_internal::config`,
+    //    not in the member `config` module (codex-config). Add a re-export so
+    //    `crate::config::Config` resolves correctly.
+    add_reexport_from_host(src_dir, "config", "Config")?;
+
+    // 9. Unify reqwest version. After merge, rmcp (which depends on reqwest
+    //    0.13) and the main crate (which depends on reqwest 0.12) end up in
+    //    the same compilation unit, causing E0308 type mismatches. Fix by
+    //    upgrading the workspace reqwest to 0.13 in publish/Cargo.toml.
+    unify_reqwest_version(src_dir)?;
+
     Ok(())
 }
 
-/// Rewrite `crate::protocol::` in exec_server/ files. Only rewrite for
+/// Create a thin re-export module at the crate root that re-exports items from
+/// a member submodule. This is needed when proc-macro expansions or downstream
+/// code references `crate::<name>::...` but `<name>` is a private submodule of
+/// a member crate (not directly accessible at the crate root).
+///
+/// `source_path` may reference either a public submodule of a member (e.g.
+/// `app_server_protocol::protocol`) or items already re-exported by a member
+/// (e.g. `app_server_protocol` for items it `pub use`'d). If the direct path
+/// to the submodule is private, we fall back to the parent module.
+fn add_reexport_module(src_dir: &Path, module_name: &str, source_path: &str) -> Result<()> {
+    let reexport_file = src_dir.join(format!("{}.rs", module_name));
+    if reexport_file.exists() {
+        return Ok(());
+    }
+    // If source_path contains "::" and the last segment is a private module,
+    // use the parent (which re-exports via `pub use`) instead. E.g.
+    // `app_server_protocol::experimental_api` → `app_server_protocol` because
+    // `experimental_api` is private inside `app_server_protocol` but its items
+    // are re-exported via `pub use experimental_api::*`.
+    let effective_path = if let Some((parent, submodule)) = source_path.rsplit_once("::") {
+        // Check if the submodule directory is private (mod, not pub mod).
+        let submod_dir = src_dir.join(parent.replace("::", "/")).join(submodule);
+        let submod_file = src_dir
+            .join(parent.replace("::", "/"))
+            .join(format!("{}.rs", submodule));
+        let mod_file = src_dir.join(parent.replace("::", "/")).join("mod.rs");
+        let is_private = if submod_dir.is_dir() || submod_file.is_file() {
+            // Check mod.rs for visibility: "pub mod <submodule>" or
+            // "pub(crate) mod <submodule>" means public; bare "mod <submodule>"
+            // means private.
+            if let Ok(raw) = fs::read_to_string(&mod_file) {
+                !raw.lines().any(|line| {
+                    let t = line.trim_start();
+                    (t.starts_with("pub mod ") && t["pub mod ".len()..].starts_with(submodule))
+                        || (t.starts_with("pub(crate) mod ")
+                            && t["pub(crate) mod ".len()..].starts_with(submodule))
+                })
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if is_private { parent } else { source_path }
+    } else {
+        source_path
+    };
+    let content = format!("pub use crate::{}::*;\n", effective_path);
+    fs::write(&reexport_file, content)
+        .with_context(|| format!("write {}", reexport_file.display()))?;
+
+    // Add `pub mod <name>;` to lib.rs if not already present.
+    let lib_rs = src_dir.join("lib.rs");
+    if lib_rs.is_file() {
+        let raw = fs::read_to_string(&lib_rs)?;
+        let decl = format!("pub mod {};", module_name);
+        if !raw.contains(&decl) {
+            let new = format!("{}\n{}\n", raw.trim_end(), decl);
+            fs::write(&lib_rs, new)?;
+        }
+    }
+    Ok(())
+}
+
+/// Re-export a specific type from the host module (`core_internal`) into a
+/// member module, so that `crate::<member>::<Type>` resolves. This is needed
+/// when the original crate depended on the host for this type and after merge
+/// the member module doesn't contain it.
+fn add_reexport_from_host(src_dir: &Path, member_module: &str, type_name: &str) -> Result<()> {
+    let mod_rs = src_dir.join(member_module).join("mod.rs");
+    if !mod_rs.is_file() {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(&mod_rs)?;
+    let reexport = format!("pub use crate::core_internal::{}::{};", member_module, type_name);
+    if raw.contains(&reexport) {
+        return Ok(());
+    }
+    // Add after the last `pub use` line, or at the end.
+    let new = format!("{}\n{}\n", raw.trim_end(), reexport);
+    fs::write(&mod_rs, new)?;
+    Ok(())
+}
+
+/// Unify reqwest version in publish/Cargo.toml. After merging crates that
+/// depend on different major versions of reqwest (e.g. rmcp needs 0.13 while
+/// the workspace pins 0.12), the type mismatch causes E0308 errors. Fix by
+/// upgrading the workspace reqwest entry to the newer version, adding the
+/// `blocking` and `query` features (split out in 0.13), updating feature
+/// names that changed between versions (e.g. `rustls-tls` → `rustls`),
+/// rewriting removed API calls in source files, and commenting out
+/// `with_http_client()` calls that pass a reqwest 0.13 Client to
+/// opentelemetry (which only implements HttpClient for reqwest 0.12).
+fn unify_reqwest_version(src_dir: &Path) -> Result<()> {
+    let publish_root = src_dir
+        .parent()
+        .and_then(|p| p.parent())
+        .unwrap_or_else(|| src_dir);
+    let publish_manifest = publish_root.join("Cargo.toml");
+    if !publish_manifest.is_file() {
+        return Ok(());
+    }
+    // 1. Upgrade workspace reqwest version 0.12 → 0.13, adding `blocking`
+    //    and `query` features (optional in 0.13, required by our code).
+    let raw = fs::read_to_string(&publish_manifest)?;
+    let new = raw.replace(
+        "reqwest = { features = [\"cookies\"], version = \"0.12\" }",
+        "reqwest = { features = [\"blocking\", \"cookies\", \"query\"], version = \"0.13\" }",
+    );
+    if new != raw {
+        fs::write(&publish_manifest, new)?;
+    }
+
+    // 2. In all Cargo.toml files under publish/, replace the `rustls-tls`
+    //    feature of reqwest with `rustls` (renamed in 0.13), and upgrade
+    //    any hardcoded reqwest 0.12 version references to 0.13.
+    for entry in walkdir(publish_root)? {
+        let path = entry.path();
+        if path.file_name() != Some(std::ffi::OsStr::new("Cargo.toml")) {
+            continue;
+        }
+        let raw = fs::read_to_string(&path)?;
+        if !raw.contains("rustls-tls") && !raw.contains("reqwest") {
+            continue;
+        }
+        let mut new = raw.replace("\"rustls-tls\"", "\"rustls\"");
+        new = new.replace("reqwest = { version = \"0.12\"", "reqwest = { version = \"0.13\"");
+        if new != raw {
+            fs::write(&path, new)?;
+        }
+    }
+
+    // 3. Fix `tls_built_in_root_certs(false).add_root_certificate(cert)` →
+    //    `tls_certs_only(std::iter::once(cert))` in otel/otlp.rs.
+    //    In reqwest 0.13, `tls_built_in_root_certs()` was removed in favor
+    //    of `tls_certs_only()` / `tls_certs_merge()`.
+    fix_reqwest_tls_built_in_root_certs(src_dir)?;
+
+    // 4. Comment out `with_http_client(client)` calls in otel code.
+    //    After the upgrade, our reqwest::Client is 0.13, but
+    //    opentelemetry-http only implements HttpClient for reqwest 0.12.
+    //    The default otel client (created from its own reqwest 0.12 dep)
+    //    is used instead; custom TLS config is lost as a known limitation.
+    fix_otel_with_http_client(src_dir)?;
+
+    Ok(())
+}
+
+/// Replace `tls_built_in_root_certs(false).add_root_certificate(cert)` with
+/// `tls_certs_only(std::iter::once(cert))` in otel source files.
+/// In reqwest 0.13, `tls_built_in_root_certs()` was removed; `tls_certs_only()`
+/// is the replacement that both adds the cert and disables built-in roots.
+fn fix_reqwest_tls_built_in_root_certs(src_dir: &Path) -> Result<()> {
+    let otlp_path = src_dir.join("otel").join("otlp.rs");
+    if !otlp_path.is_file() {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(&otlp_path)?;
+    if !raw.contains("tls_built_in_root_certs") {
+        return Ok(());
+    }
+    // Pattern: `.tls_built_in_root_certs(false)\n.add_root_certificate(certificate);`
+    // Replace with: `.tls_certs_only(std::iter::once(certificate));`
+    let new = raw.replace(
+        ".tls_built_in_root_certs(false)\n                .add_root_certificate(certificate);",
+        ".tls_certs_only(std::iter::once(certificate));",
+    );
+    // Also try single-line variant
+    let new = new.replace(
+        ".tls_built_in_root_certs(false).add_root_certificate(certificate);",
+        ".tls_certs_only(std::iter::once(certificate));",
+    );
+    if new != raw {
+        fs::write(&otlp_path, new)?;
+    }
+    Ok(())
+}
+
+/// Comment out `with_http_client(client)` calls in otel source files.
+/// After upgrading reqwest to 0.13, `opentelemetry_http::HttpClient` is only
+/// implemented for reqwest 0.12's Client (the version otel depends on).
+/// Passing our reqwest 0.13 Client causes E0277. The fix is to skip the call
+/// and let otel use its default client (from its own reqwest 0.12 dep).
+/// Custom TLS config is lost as a known merge limitation.
+fn fix_otel_with_http_client(src_dir: &Path) -> Result<()> {
+    let otel_dir = src_dir.join("otel");
+    if !otel_dir.is_dir() {
+        return Ok(());
+    }
+    fn process(dir: &Path) -> Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                process(&path)?;
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let raw = fs::read_to_string(&path)?;
+                if !raw.contains("with_http_client") {
+                    continue;
+                }
+                let new = comment_out_otel_tls_blocks(&raw);
+                if new != raw {
+                    fs::write(&path, new)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    process(&otel_dir)
+}
+
+/// Comment out `if let Some(tls) = tls.as_ref() { ... with_http_client ... }` blocks
+/// and standalone `with_http_client` calls in otel source files. These pass a reqwest
+/// Client to otel's with_http_client, which fails because otel's HttpClient trait is
+/// only implemented for reqwest 0.12.
+fn comment_out_otel_tls_blocks(content: &str) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    let mut modified = false;
+    while i < lines.len() {
+        let line = lines[i];
+        let trimmed = line.trim();
+
+        // Pattern A: `if let Some(tls) = tls.as_ref() {` where with_http_client
+        // appears in the next few lines. Replace entire block with `let _ = tls;`.
+        if trimmed.starts_with("if let Some(tls) = tls.as_ref() {")
+            && i + 1 < lines.len()
+            && lines[i + 1..].iter().take(5).any(|l| l.contains("with_http_client"))
+        {
+            let indent = line.len() - line.trim_start().len();
+            let indent_str: String = line.chars().take(indent).collect();
+            // Find closing brace
+            let mut brace_depth = 1;
+            let mut j = i + 1;
+            while j < lines.len() && brace_depth > 0 {
+                for ch in lines[j].chars() {
+                    match ch {
+                        '{' => brace_depth += 1,
+                        '}' => brace_depth -= 1,
+                        _ => {}
+                    }
+                }
+                if brace_depth == 0 {
+                    break;
+                }
+                j += 1;
+            }
+            // Replace entire block with comment + `let _ = tls;`
+            out.push_str(&format!(
+                "{}// TODO(merge): Custom TLS client disabled — reqwest 0.13 (rmcp) and\n",
+                indent_str
+            ));
+            out.push_str(&format!(
+                "{}//                opentelemetry-http (reqwest 0.12) are incompatible.\n",
+                indent_str
+            ));
+            out.push_str(&format!("{}let _ = tls;\n", indent_str));
+            i = j + 1;
+            modified = true;
+        }
+        // Pattern B: standalone `exporter_builder = exporter_builder.with_http_client(client);`
+        // This appears for async clients where the client was just built unconditionally.
+        // We also need to comment out the preceding `let client = ...build_async_http_client(...)?;`
+        // which may span multiple lines. Since those lines were already emitted to `out`,
+        // we remove them and replace with a comment.
+        else if trimmed == "exporter_builder = exporter_builder.with_http_client(client);" {
+            let indent = line.len() - line.trim_start().len();
+            let indent_str: String = line.chars().take(indent).collect();
+
+            // Walk backwards to find how many preceding lines form the `let client =` block
+            let mut lines_to_remove = 0;
+            if i > 0 {
+                for k in (0..i).rev() {
+                    if lines[k].contains("build_async_http_client") {
+                        lines_to_remove = i - k;
+                        break;
+                    }
+                    // Stop if we hit a line that's clearly not part of the expression
+                    if !lines[k].trim().is_empty()
+                        && !lines[k].trim().starts_with(")?;")
+                        && !lines[k].contains("build_async_http_client")
+                        && !lines[k].trim().ends_with(',')
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // Remove the already-emitted lines from `out` by truncating
+            for _ in 0..lines_to_remove {
+                // Remove last line from out
+                if let Some(pos) = out.rfind('\n') {
+                    out.truncate(pos);
+                }
+            }
+
+            out.push_str(&format!(
+                "\n{}// TODO(merge): with_http_client disabled — reqwest 0.13 (rmcp) and\n",
+                indent_str
+            ));
+            out.push_str(&format!(
+                "{}//                opentelemetry-http (reqwest 0.12) are incompatible.\n",
+                indent_str
+            ));
+            out.push_str(&format!("{}let _ = tls;\n", indent_str));
+            i += 1;
+            modified = true;
+        } else {
+            out.push_str(line);
+            out.push('\n');
+            i += 1;
+        }
+    }
+    if modified {
+        if !content.ends_with('\n') && out.ends_with('\n') {
+            out.pop();
+        }
+        out
+    } else {
+        content.to_string()
+    }
+}
+
+/// Recursively collect all paths under dir.
+fn walkdir(dir: &Path) -> Result<Vec<std::fs::DirEntry>> {
+    let mut result = Vec::new();
+    fn walk(dir: &Path, result: &mut Vec<std::fs::DirEntry>) -> std::io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() && path.file_name() != Some(std::ffi::OsStr::new("target")) {
+                walk(&path, result)?;
+            } else {
+                result.push(entry);
+            }
+        }
+        Ok(())
+    }
+    walk(dir, &mut result).with_context(|| format!("walk {}", dir.display()))?;
+    Ok(result)
+}
+
+/// Fix `include_dir!("$CARGO_MANIFEST_DIR/src/...")` paths in member modules.
+/// After merge, a member crate's `src/` directory became `src/<module>/`, so
+/// any `$CARGO_MANIFEST_DIR/src/` reference needs the module name inserted.
+fn fix_include_dir_manifest_dir_paths(src_dir: &Path) -> Result<()> {
+    fn process(dir: &Path, src_dir: &Path) -> Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                process(&path, src_dir)?;
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let raw = fs::read_to_string(&path)?;
+                // Only process files containing `$CARGO_MANIFEST_DIR/src/`
+                if !raw.contains("$CARGO_MANIFEST_DIR/src/") {
+                    continue;
+                }
+                // Determine the module name from the file path relative to src_dir.
+                // path = src_dir/<module>/[...]/file.rs → module = first component.
+                let rel = path.strip_prefix(src_dir).unwrap_or(&path);
+                let module = rel
+                    .components()
+                    .next()
+                    .and_then(|c| c.as_os_str().to_str())
+                    .unwrap_or("");
+                if module.is_empty() {
+                    continue;
+                }
+                // Check if the referenced path exists at src/<module>/... but not
+                // at src/... (i.e., the path needs the module inserted).
+                let old_prefix = "$CARGO_MANIFEST_DIR/src/";
+                let new_prefix = format!("$CARGO_MANIFEST_DIR/src/{}/", module);
+                let mut out = raw.clone();
+                // For each occurrence, check if the path resolves with the module
+                // name inserted but not without it.
+                let mut search_from = 0usize;
+                while let Some(pos) = out[search_from..].find(old_prefix) {
+                    let abs_pos = search_from + pos;
+                    let after_start = abs_pos + old_prefix.len();
+                    // Read to the closing quote.
+                    let path_tail = out[after_start..]
+                        .find('"')
+                        .map(|end| out[after_start..after_start + end].to_string());
+                    if let Some(path_tail) = path_tail {
+                        let crate_root = src_dir.parent().unwrap_or(Path::new("."));
+                        let without_module = crate_root.join("src").join(&path_tail);
+                        let with_module = crate_root.join("src").join(module).join(&path_tail);
+                        if !without_module.exists() && with_module.exists() {
+                            // Replace: insert module name.
+                            let end = after_start + path_tail.len();
+                            out.replace_range(abs_pos..end, &format!("{}{}", new_prefix, path_tail));
+                            // Continue searching after the replacement.
+                            search_from = abs_pos + new_prefix.len() + path_tail.len();
+                            continue;
+                        }
+                    }
+                    // No fix needed — advance past this occurrence.
+                    search_from = abs_pos + old_prefix.len();
+                }
+                if out != raw {
+                    fs::write(&path, out)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    process(src_dir, src_dir)
+}
 /// CamelCase/UPPER_CASE items (exec_server_protocol types/constants like
 /// EXEC_METHOD, ExecParams). Lowercase submodule names (capabilities, models,
 /// permissions) stay as `crate::protocol::` (member protocol submodules).
@@ -2033,7 +2477,6 @@ fn rewrite_protocol_refs_in_exec_server(dir: &Path) -> Result<()> {
                 let mut out = String::with_capacity(raw.len());
                 let mut rest = raw.as_str();
                 while let Some(pos) = rest.find("crate::protocol::") {
-                    out.push_str(&rest[..pos + "crate::protocol::".len()]);
                     let after = &rest[pos + "crate::protocol::".len()..];
                     // Read the item name (identifier chars).
                     let item_end = after
@@ -2044,7 +2487,17 @@ fn rewrite_protocol_refs_in_exec_server(dir: &Path) -> Result<()> {
                     // Rewrite only if item starts with uppercase (CamelCase type or
                     // UPPER_CASE constant). Lowercase = member protocol submodule.
                     if item.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-                        out.push_str("crate::exec_server_protocol::protocol::");
+                        // Replace `crate::protocol::<UPPER>` with
+                        // `crate::exec_server_protocol::<UPPER>`. The
+                        // exec_server_protocol crate re-exports everything from
+                        // its private `protocol` submodule via `pub use protocol::*`,
+                        // so we must NOT include `protocol::` in the path (that
+                        // would hit E0603: module `protocol` is private).
+                        out.push_str(&rest[..pos]);
+                        out.push_str("crate::exec_server_protocol::");
+                    } else {
+                        // Keep `crate::protocol::<lowercase>` as-is (member submodule).
+                        out.push_str(&rest[..pos + "crate::protocol::".len()]);
                     }
                     out.push_str(item);
                     rest = &after[item_end..];
