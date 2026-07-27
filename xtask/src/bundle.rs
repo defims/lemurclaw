@@ -176,6 +176,9 @@ const MERGED_LIB_IDENT: &str = "lemurclaw_utils";
 /// for the resulting crate. Parameterizes the bundle logic so the same code
 /// path serves both the `utils` cluster and the `core` cluster.
 pub(crate) struct Cluster {
+    /// Short identifier for this cluster (e.g. "core", "extensions").
+    /// Used to dispatch cluster-specific post-merge fixups.
+    pub name: &'static str,
     /// Subdirectory under `publish/` where the source crates live
     /// (e.g. `"utils"`). Empty string means crates live at the publish/ root.
     pub source_subdir: &'static str,
@@ -227,6 +230,7 @@ impl Cluster {
 /// merged (the 6 cycle-causing ones stay standalone — see MERGE_DIRS).
 pub(crate) fn utils_cluster() -> Cluster {
     Cluster {
+        name: "utils",
         source_subdir: "utils",
         merged_member_path: "utils/utils",
         merged_package: MERGED_PACKAGE,
@@ -358,12 +362,262 @@ pub(crate) fn core_cluster() -> Result<Cluster> {
     );
 
     Ok(Cluster {
+        name: "core",
         source_subdir: "", // core members live at publish/ root level
         merged_member_path: "core",
         merged_package: "lemurclaw-core",
         merged_lib_ident: "lemurclaw_core",
         members,
     })
+}
+
+/// Construct the `extensions` cluster: 9 extension crates under publish/ext/
+/// merged into `lemurclaw-extensions`. No host crate -- creates a fresh merged
+/// crate at publish/ext/extensions/.
+pub(crate) fn extensions_cluster() -> Cluster {
+    Cluster {
+        name: "extensions",
+        source_subdir: "ext",
+        merged_member_path: "ext/extensions",
+        merged_package: "lemurclaw-extensions",
+        merged_lib_ident: "lemurclaw_extensions",
+        members: vec![
+            SubCrate {
+                dir: "agent",
+                package: "lemurclaw-agent-extension",
+                module: "agent",
+            },
+            SubCrate {
+                dir: "connectors",
+                package: "lemurclaw-connectors-extension",
+                module: "connectors",
+            },
+            SubCrate {
+                dir: "goal",
+                package: "lemurclaw-goal-extension",
+                module: "goal",
+            },
+            SubCrate {
+                dir: "guardian",
+                package: "lemurclaw-guardian",
+                module: "guardian",
+            },
+            SubCrate {
+                dir: "image-generation",
+                package: "lemurclaw-image-generation-extension",
+                module: "image_generation",
+            },
+            SubCrate {
+                dir: "mcp",
+                package: "lemurclaw-mcp-extension",
+                module: "mcp",
+            },
+            SubCrate {
+                dir: "memories",
+                package: "lemurclaw-memories-extension",
+                module: "memories",
+            },
+            SubCrate {
+                dir: "skills",
+                package: "lemurclaw-skills-extension",
+                module: "skills",
+            },
+            SubCrate {
+                dir: "web-search",
+                package: "lemurclaw-web-search-extension",
+                module: "web_search",
+            },
+        ],
+    }
+}
+
+/// Construct the `server` cluster: 12 server-layer crates merged into
+/// `lemurclaw-server`. No host crate -- creates a fresh merged crate at
+/// publish/server/.
+pub(crate) fn server_cluster() -> Cluster {
+    Cluster {
+        name: "server",
+        source_subdir: "",
+        merged_member_path: "server",
+        merged_package: "lemurclaw-server",
+        merged_lib_ident: "lemurclaw_server",
+        members: vec![
+            SubCrate {
+                dir: "app-server",
+                package: "lemurclaw-app-server",
+                module: "app_server",
+            },
+            SubCrate {
+                dir: "app-server-transport",
+                package: "lemurclaw-app-server-transport",
+                module: "app_server_transport",
+            },
+            SubCrate {
+                dir: "app-server-daemon",
+                package: "lemurclaw-app-server-daemon",
+                module: "app_server_daemon",
+            },
+            SubCrate {
+                dir: "app-server-client",
+                package: "lemurclaw-app-server-client",
+                module: "app_server_client",
+            },
+            SubCrate {
+                dir: "app-server-test-client",
+                package: "lemurclaw-app-server-test-client",
+                module: "app_server_test_client",
+            },
+            SubCrate {
+                dir: "backend-client",
+                package: "lemurclaw-backend-client",
+                module: "backend_client",
+            },
+            SubCrate {
+                dir: "codex-backend-openapi-models",
+                package: "lemurclaw-backend-openapi-models",
+                module: "backend_openapi_models",
+            },
+            SubCrate {
+                dir: "cloud-config",
+                package: "lemurclaw-cloud-config",
+                module: "cloud_config",
+            },
+            SubCrate {
+                dir: "cloud-tasks-client",
+                package: "lemurclaw-cloud-tasks-client",
+                module: "cloud_tasks_client",
+            },
+            SubCrate {
+                dir: "file-watcher",
+                package: "lemurclaw-file-watcher",
+                module: "file_watcher",
+            },
+            SubCrate {
+                dir: "external-agent-migration",
+                package: "lemurclaw-external-agent-migration",
+                module: "external_agent_migration",
+            },
+            SubCrate {
+                dir: "memories/write",
+                package: "lemurclaw-memories-write",
+                module: "memories_write",
+            },
+            // The following 6 crates were moved from the cli cluster to avoid a
+            // circular dependency: server's app-server-client and app-server both
+            // depend on arg0, uds, chatgpt, home; arg0 depends on linux-sandbox;
+            // linux-sandbox depends on process-hardening.
+            SubCrate {
+                dir: "arg0",
+                package: "lemurclaw-arg0",
+                module: "arg0",
+            },
+            SubCrate {
+                dir: "chatgpt",
+                package: "lemurclaw-chatgpt",
+                module: "chatgpt",
+            },
+            SubCrate {
+                dir: "codex-home",
+                package: "lemurclaw-home",
+                module: "home",
+            },
+            SubCrate {
+                dir: "uds",
+                package: "lemurclaw-uds",
+                module: "uds",
+            },
+            SubCrate {
+                dir: "linux-sandbox",
+                package: "lemurclaw-linux-sandbox",
+                module: "linux_sandbox",
+            },
+            SubCrate {
+                dir: "process-hardening",
+                package: "lemurclaw-process-hardening",
+                module: "process_hardening",
+            },
+        ],
+    }
+}
+
+/// Construct the `tui` cluster: ansi-escape + message-history merged into the
+/// existing `lemurclaw-tui` crate (host-crate pattern -- publish/tui/ already
+/// exists, its src/ migrates to src/tui_internal/).
+pub(crate) fn tui_cluster() -> Cluster {
+    Cluster {
+        name: "tui",
+        source_subdir: "",
+        merged_member_path: "tui",
+        merged_package: "lemurclaw-tui",
+        merged_lib_ident: "lemurclaw_tui",
+        members: vec![
+            SubCrate {
+                dir: "ansi-escape",
+                package: "lemurclaw-ansi-escape",
+                module: "ansi_escape",
+            },
+            SubCrate {
+                dir: "message-history",
+                package: "lemurclaw-message-history",
+                module: "message_history",
+            },
+        ],
+    }
+}
+
+/// Construct the `cli` cluster: 14 CLI-layer crates merged into the existing
+/// `lemurclaw-cli` crate (host-crate pattern -- publish/cli/ already exists,
+/// its src/ migrates to src/cli_internal/).
+pub(crate) fn cli_cluster() -> Cluster {
+    Cluster {
+        name: "cli",
+        source_subdir: "",
+        merged_member_path: "cli",
+        merged_package: "lemurclaw-cli",
+        merged_lib_ident: "lemurclaw_cli",
+        members: vec![
+            SubCrate {
+                dir: "cloud-tasks",
+                package: "lemurclaw-cloud-tasks",
+                module: "cloud_tasks",
+            },
+            SubCrate {
+                dir: "cloud-tasks-mock-client",
+                package: "lemurclaw-cloud-tasks-mock-client",
+                module: "cloud_tasks_mock_client",
+            },
+            SubCrate {
+                dir: "code-mode-host",
+                package: "lemurclaw-code-mode-host",
+                module: "code_mode_host",
+            },
+            SubCrate {
+                dir: "core-api",
+                package: "lemurclaw-core-api",
+                module: "core_api",
+            },
+            SubCrate {
+                dir: "exec",
+                package: "lemurclaw-exec",
+                module: "exec",
+            },
+            SubCrate {
+                dir: "mcp-server",
+                package: "lemurclaw-mcp-server",
+                module: "mcp_server",
+            },
+            SubCrate {
+                dir: "responses-api-proxy",
+                package: "lemurclaw-responses-api-proxy",
+                module: "responses_api_proxy",
+            },
+            SubCrate {
+                dir: "stdio-to-uds",
+                package: "lemurclaw-stdio-to-uds",
+                module: "stdio_to_uds",
+            },
+        ],
+    }
 }
 
 /// Load the codex-* dependency graph from `cargo metadata`. Returns a map of
@@ -640,7 +894,8 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     // core's own source. Migrate core's own src/ into a submodule first, so
     // create_merged_crate can overwrite lib.rs cleanly.
     let host_module = if host_crate_exists {
-        let host_mod = "core_internal";
+        let host_mod = format!("{}_internal", cluster.name);
+        let host_mod: &str = host_mod.leak();
         migrate_host_crate_src(&merged_dir, host_mod)?;
         Some(host_mod)
     } else {
@@ -673,6 +928,34 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     // Step 2: move each member's src/ into the merged crate.
     for sc in &cluster.members {
         migrate_subcrate_src(&source_root.join(sc.dir), &merged_dir, sc.module)?;
+    }
+
+    // Step 2.5: handle member build.rs files before deletion.
+    // Non-trivial build.rs (e.g. cli's macOS -ObjC link arg) that belong to
+    // the HOST crate are already at the crate root and unaffected. Member
+    // build.rs files (e.g. linux-sandbox's trivial rerun-if-env-changed) are
+    // not moved by migrate_subcrate_src and will be deleted with their crate
+    // dir. For non-trivial member build.rs, warn so they can be handled manually.
+    for sc in &cluster.members {
+        let build_rs = source_root.join(sc.dir).join("build.rs");
+        if build_rs.is_file() {
+            let raw = fs::read_to_string(&build_rs)
+                .with_context(|| format!("read {}", build_rs.display()))?;
+            // Trivial build.rs: only rerun-if-env-changed directives — safe to discard.
+            let is_trivial = raw.lines().all(|line| {
+                let t = line.trim();
+                t.is_empty()
+                    || t.starts_with("fn main()")
+                    || t.contains("cargo:rerun-if-env-changed")
+                    || t == "}"
+            });
+            if !is_trivial {
+                eprintln!(
+                    "warn: member {} has non-trivial build.rs — contents will be lost after merge",
+                    sc.dir
+                );
+            }
+        }
     }
 
     // Step 3: delete the merged member dirs (standalone ones stay).
@@ -709,7 +992,7 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     // NOW rewrite cross-module refs (lemurclaw_X → crate::X).
     rewrite_rust_files_in(&merged_dir.join("src"), RewriteScope::IntraCrate, cluster)?;
     // Post-merge deterministic fixups for non-collision edge cases.
-    post_merge_fixups(&merged_dir.join("src"))?;
+    post_merge_fixups(&merged_dir.join("src"), cluster)?;
     rewrite_downstream(&publish_root, &merged_dir, cluster)?;
 
     println!("\n✓ bundle {} complete.", cluster.merged_package);
@@ -1492,7 +1775,8 @@ fn move_crate_assets_into_module(crate_dir: &Path, module_dir: &Path) -> Result<
         let entry = entry?;
         let name = entry.file_name();
         let from = entry.path();
-        // Skip src/, Cargo.toml, Cargo.lock, BUILD.bazel, target/, .DS_Store.
+        // Skip src/, Cargo.toml, Cargo.lock, BUILD.bazel, target/, .DS_Store,
+        // build.rs (handled separately — merged into host crate root if needed).
         if name == "src"
             || name == "Cargo.toml"
             || name == "Cargo.lock"
@@ -1500,6 +1784,7 @@ fn move_crate_assets_into_module(crate_dir: &Path, module_dir: &Path) -> Result<
             || name == "target"
             || name == ".DS_Store"
             || name == ".git"
+            || name == "build.rs"
         {
             continue;
         }
@@ -1948,7 +2233,19 @@ fn grep_in_dir_for_item(dir: &Path, item: &str) -> bool {
 
 /// Post-merge deterministic fixups for edge cases that the pipeline ordering
 /// can't handle automatically. These are known, fixed patterns.
-fn post_merge_fixups(src_dir: &Path) -> Result<()> {
+fn post_merge_fixups(src_dir: &Path, cluster: &Cluster) -> Result<()> {
+    match cluster.name {
+        "core" => post_merge_fixups_core(src_dir),
+        "extensions" => post_merge_fixups_extensions(src_dir),
+        "server" => post_merge_fixups_server(src_dir),
+        "tui" => post_merge_fixups_tui(src_dir),
+        "cli" => post_merge_fixups_cli(src_dir),
+        _ => Ok(()),
+    }
+}
+
+/// Core-specific post-merge fixups (the original 9 deterministic fixups).
+fn post_merge_fixups_core(src_dir: &Path) -> Result<()> {
     // 1. Fix `app_server_protocol::protocol::account` → `protocol::account`
     //    (the items live in the member `protocol`, not `app_server_protocol`).
     fix_pattern_in_tree(
@@ -2032,7 +2329,11 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
     //    `lemurclaw-core`, which doesn't have `experimental_api` at its root.
     //    Fix: create `src/experimental_api.rs` that re-exports from the member,
     //    and add `pub mod experimental_api;` to lib.rs.
-    add_reexport_module(src_dir, "experimental_api", "app_server_protocol::experimental_api")?;
+    add_reexport_module(
+        src_dir,
+        "experimental_api",
+        "app_server_protocol::experimental_api",
+    )?;
 
     // 8. Re-export `Config` from `config` module. Several downstream crates
     //    (lmstudio, ollama, utils_oss, core_internal tests) use
@@ -2047,6 +2348,30 @@ fn post_merge_fixups(src_dir: &Path) -> Result<()> {
     //    upgrading the workspace reqwest to 0.13 in publish/Cargo.toml.
     unify_reqwest_version(src_dir)?;
 
+    Ok(())
+}
+
+/// Extensions-specific post-merge fixups. Populated iteratively as
+/// compilation errors surface.
+fn post_merge_fixups_extensions(_src_dir: &Path) -> Result<()> {
+    Ok(())
+}
+
+/// Server-specific post-merge fixups. Populated iteratively as
+/// compilation errors surface.
+fn post_merge_fixups_server(_src_dir: &Path) -> Result<()> {
+    Ok(())
+}
+
+/// TUI-specific post-merge fixups. Populated iteratively as
+/// compilation errors surface.
+fn post_merge_fixups_tui(_src_dir: &Path) -> Result<()> {
+    Ok(())
+}
+
+/// CLI-specific post-merge fixups. Populated iteratively as
+/// compilation errors surface.
+fn post_merge_fixups_cli(_src_dir: &Path) -> Result<()> {
     Ok(())
 }
 
@@ -2093,7 +2418,11 @@ fn add_reexport_module(src_dir: &Path, module_name: &str, source_path: &str) -> 
         } else {
             false
         };
-        if is_private { parent } else { source_path }
+        if is_private {
+            parent
+        } else {
+            source_path
+        }
     } else {
         source_path
     };
@@ -2124,7 +2453,10 @@ fn add_reexport_from_host(src_dir: &Path, member_module: &str, type_name: &str) 
         return Ok(());
     }
     let raw = fs::read_to_string(&mod_rs)?;
-    let reexport = format!("pub use crate::core_internal::{}::{};", member_module, type_name);
+    let reexport = format!(
+        "pub use crate::core_internal::{}::{};",
+        member_module, type_name
+    );
     if raw.contains(&reexport) {
         return Ok(());
     }
@@ -2176,7 +2508,10 @@ fn unify_reqwest_version(src_dir: &Path) -> Result<()> {
             continue;
         }
         let mut new = raw.replace("\"rustls-tls\"", "\"rustls\"");
-        new = new.replace("reqwest = { version = \"0.12\"", "reqwest = { version = \"0.13\"");
+        new = new.replace(
+            "reqwest = { version = \"0.12\"",
+            "reqwest = { version = \"0.13\"",
+        );
         if new != raw {
             fs::write(&path, new)?;
         }
@@ -2278,7 +2613,10 @@ fn comment_out_otel_tls_blocks(content: &str) -> String {
         // appears in the next few lines. Replace entire block with `let _ = tls;`.
         if trimmed.starts_with("if let Some(tls) = tls.as_ref() {")
             && i + 1 < lines.len()
-            && lines[i + 1..].iter().take(5).any(|l| l.contains("with_http_client"))
+            && lines[i + 1..]
+                .iter()
+                .take(5)
+                .any(|l| l.contains("with_http_client"))
         {
             let indent = line.len() - line.trim_start().len();
             let indent_str: String = line.chars().take(indent).collect();
@@ -2442,7 +2780,10 @@ fn fix_include_dir_manifest_dir_paths(src_dir: &Path) -> Result<()> {
                         if !without_module.exists() && with_module.exists() {
                             // Replace: insert module name.
                             let end = after_start + path_tail.len();
-                            out.replace_range(abs_pos..end, &format!("{}{}", new_prefix, path_tail));
+                            out.replace_range(
+                                abs_pos..end,
+                                &format!("{}{}", new_prefix, path_tail),
+                            );
                             // Continue searching after the replacement.
                             search_from = abs_pos + new_prefix.len() + path_tail.len();
                             continue;

@@ -78,6 +78,14 @@ enum BundleTarget {
     Utils,
     /// Merge core's 84-crate closure into `lemurclaw-core` (utils disappears).
     Core,
+    /// Merge 9 extension crates into `lemurclaw-extensions`.
+    Extensions,
+    /// Merge 12 server-layer crates into `lemurclaw-server`.
+    Server,
+    /// Merge ansi-escape + message-history into `lemurclaw-tui` (host-crate).
+    Tui,
+    /// Merge 14 CLI-layer crates into `lemurclaw-cli` (host-crate).
+    Cli,
 }
 
 #[derive(Subcommand)]
@@ -116,6 +124,10 @@ fn main() -> Result<()> {
                 let cluster = match target {
                     BundleTarget::Utils => bundle::utils_cluster(),
                     BundleTarget::Core => bundle::core_cluster()?,
+                    BundleTarget::Extensions => bundle::extensions_cluster(),
+                    BundleTarget::Server => bundle::server_cluster(),
+                    BundleTarget::Tui => bundle::tui_cluster(),
+                    BundleTarget::Cli => bundle::cli_cluster(),
                 };
                 bundle::run(&cluster, dry_run)
             }
