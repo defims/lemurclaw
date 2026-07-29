@@ -26,7 +26,9 @@ use codex_exec_server::CreateDirectoryOptions;
 use codex_exec_server::Environment;
 use codex_exec_server::HttpRedirectPolicy;
 use codex_exec_server::HttpRequestParams;
+use codex_features::Feature;
 use codex_login::CodexAuth;
+use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_mcp::MCP_SANDBOX_STATE_META_CAPABILITY;
 use codex_mcp::SandboxState;
 use codex_models_manager::manager::RefreshStrategy;
@@ -46,6 +48,7 @@ use codex_protocol::openai_models::TruncationPolicyConfig;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::McpInvocation;
+use codex_protocol::protocol::McpStartupStatus;
 use codex_protocol::protocol::McpToolCallBeginEvent;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::RolloutItem;
@@ -539,6 +542,81 @@ fn assert_cwd_tool_output(structured: &Value, expected_cwd: &Path) {
     );
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mcp_namespace_instructions_are_bounded_without_hiding_tools() -> anyhow::Result<()> {
+    skip_if_wine_exec!(
+        Ok(()),
+        "requires a Windows test_stdio_server in the Wine-exec environment"
+    );
+    skip_if_no_network!(Ok(()));
+
+    let server = responses::start_mock_server().await;
+    let expected_description = "é".repeat(499);
+    let instructions = format!("{expected_description}🦀keep the valid MCP server");
+    let response = mount_sse_once(
+        &server,
+        responses::sse(vec![
+            responses::ev_response_created("resp-1"),
+            responses::ev_assistant_message("msg-1", "done"),
+            responses::ev_completed("resp-1"),
+        ]),
+    )
+    .await;
+    let command = remote_aware_stdio_server_bin()?;
+    let fixture = test_codex()
+        .with_model_info_override("gpt-5.4", |model| model.supports_search_tool = false)
+        .with_config(move |config| {
+            insert_mcp_server(
+                config,
+                "bounded",
+                stdio_transport(
+                    command,
+                    Some(HashMap::from([(
+                        "MCP_TEST_SERVER_INSTRUCTIONS".to_string(),
+                        instructions,
+                    )])),
+                    Vec::new(),
+                ),
+                TestMcpServerOptions {
+                    environment_id: remote_aware_environment_id(),
+                    ..Default::default()
+                },
+            );
+        })
+        .build_with_auto_env(&server)
+        .await?;
+    wait_for_mcp_server(&fixture.codex, "bounded").await?;
+
+    fixture
+        .codex
+        .submit(read_only_user_turn(&fixture, "show the bounded MCP tools"))
+        .await?;
+    wait_for_event(&fixture.codex, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
+
+    let body = response.single_request().body_json();
+    let namespace = body
+        .get("tools")
+        .and_then(Value::as_array)
+        .and_then(|tools| {
+            tools
+                .iter()
+                .find(|tool| tool.get("name").and_then(Value::as_str) == Some("mcp__bounded"))
+        })
+        .expect("valid MCP server should remain exposed");
+    assert_eq!(
+        namespace.get("description").and_then(Value::as_str),
+        Some(expected_description.as_str())
+    );
+    assert!(
+        responses::namespace_child_tool(&body, "mcp__bounded", "echo").is_some(),
+        "bounding the namespace must not hide a valid MCP tool"
+    );
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[serial(mcp_test_value)]
 async fn stdio_server_round_trip() -> anyhow::Result<()> {
@@ -556,7 +634,7 @@ async fn stdio_server_round_trip() -> anyhow::Result<()> {
     let server_name = "rmcp";
     let namespace = format!("mcp__{server_name}");
 
-    mount_sse_once(
+    let search_mock = mount_sse_once(
         &server,
         responses::sse(vec![
             responses::ev_response_created("resp-1"),
@@ -592,6 +670,8 @@ async fn stdio_server_round_trip() -> anyhow::Result<()> {
     .await;
 
     let expected_env_value = "propagated-env";
+    let expected_description = "é".repeat(499);
+    let instructions = format!("{expected_description}🦀keep the complete MCP metadata");
     let rmcp_test_server_bin = remote_aware_stdio_server_bin()?;
 
     let fixture = test_codex()
@@ -601,10 +681,10 @@ async fn stdio_server_round_trip() -> anyhow::Result<()> {
                 server_name,
                 stdio_transport(
                     rmcp_test_server_bin,
-                    Some(HashMap::from([(
-                        "MCP_TEST_VALUE".to_string(),
-                        expected_env_value.to_string(),
-                    )])),
+                    Some(HashMap::from([
+                        ("MCP_TEST_VALUE".to_string(), expected_env_value.to_string()),
+                        ("MCP_TEST_SERVER_INSTRUCTIONS".to_string(), instructions),
+                    ])),
                     Vec::new(),
                 ),
                 TestMcpServerOptions {
@@ -671,9 +751,42 @@ async fn stdio_server_round_trip() -> anyhow::Result<()> {
 
     wait_for_event(&fixture.codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
+    let search_request = search_mock.single_request().body_json();
+    let search_description = search_request
+        .get("tools")
+        .and_then(Value::as_array)
+        .and_then(|tools| {
+            tools
+                .iter()
+                .find(|tool| tool.get("type").and_then(Value::as_str) == Some("tool_search"))
+        })
+        .and_then(|tool| tool.get("description").and_then(Value::as_str))
+        .expect("the model should receive a tool search description");
+    assert!(
+        search_description.len() < 5 * 1024,
+        "the complete tool search description must remain bounded"
+    );
+    assert!(search_description.contains(&format!("- rmcp: {expected_description}")));
+    assert!(!search_description.contains("🦀keep the complete MCP metadata"));
+
     let search_output = call_mock
         .single_request()
         .tool_search_output(search_call_id);
+    let searched_namespace = search_output
+        .get("tools")
+        .and_then(Value::as_array)
+        .and_then(|tools| {
+            tools
+                .iter()
+                .find(|tool| tool.get("name").and_then(Value::as_str) == Some(namespace.as_str()))
+        })
+        .expect("tool search should return the RMCP namespace");
+    assert_eq!(
+        searched_namespace
+            .get("description")
+            .and_then(Value::as_str),
+        Some(expected_description.as_str())
+    );
     assert!(
         responses::namespace_child_tool(&search_output, &namespace, "echo").is_some(),
         "tool_search should surface the RMCP echo tool: {search_output:?}"
@@ -805,6 +918,89 @@ server_names = ["history", "notes"]
     assert_eq!(output_json["echo"], "ECHOING: ping");
 
     server.verify().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn apps_enabled_turn_skips_pending_optional_mcp_without_cached_tools() -> anyhow::Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let server = responses::start_mock_server().await;
+    let apps_server = AppsTestServer::mount(&server).await?;
+    let apps_base_url = apps_server.chatgpt_base_url.clone();
+    let response_mock = mount_sse_once(
+        &server,
+        responses::sse(vec![
+            responses::ev_response_created("resp-1"),
+            responses::ev_assistant_message("msg-1", "done"),
+            responses::ev_completed("resp-1"),
+        ]),
+    )
+    .await;
+    let pending_mcp_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let pending_mcp_url = format!("http://{}/mcp", pending_mcp_listener.local_addr()?);
+
+    let fixture = test_codex()
+        .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
+        .with_config(move |config| {
+            config
+                .features
+                .enable(Feature::Apps)
+                .expect("test config should allow Apps override");
+            config.chatgpt_base_url = apps_base_url;
+            insert_mcp_server(
+                config,
+                "pending_optional",
+                McpServerTransportConfig::StreamableHttp {
+                    url: pending_mcp_url,
+                    bearer_token_env_var: None,
+                    http_headers: None,
+                    env_http_headers: None,
+                },
+                TestMcpServerOptions::default(),
+            );
+        })
+        .build_with_auto_env(&server)
+        .await?;
+
+    let (_pending_mcp_connection, _) =
+        tokio::time::timeout(Duration::from_secs(5), pending_mcp_listener.accept())
+            .await
+            .context("optional MCP startup should connect before the first turn")??;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let event = fixture
+                .codex
+                .next_event()
+                .await
+                .context("event stream ended before Codex Apps became ready")?;
+            if let EventMsg::McpStartupUpdate(update) = event.msg
+                && update.server == CODEX_APPS_MCP_SERVER_NAME
+                && matches!(update.status, McpStartupStatus::Ready)
+            {
+                break Ok::<(), anyhow::Error>(());
+            }
+        }
+    })
+    .await
+    .context("Codex Apps should finish starting before the first turn")??;
+
+    tokio::time::timeout(Duration::from_secs(5), fixture.submit_turn("hello"))
+        .await
+        .context("a pending optional MCP must not block the first turn")??;
+    let body = response_mock.single_request().body_json();
+    assert!(body["input"].to_string().contains("<apps_instructions>"));
+    let tools = body["tools"].as_array().expect("model request tools");
+    assert!(tools.iter().all(|tool| {
+        tool.get("name")
+            .or_else(|| tool.get("type"))
+            .and_then(Value::as_str)
+            .is_none_or(|name| !name.starts_with("mcp__pending_optional"))
+    }));
+
+    tokio::time::timeout(Duration::from_secs(2), fixture.codex.shutdown_and_wait())
+        .await
+        .context("shutdown should cancel pending optional MCP startup")??;
     Ok(())
 }
 

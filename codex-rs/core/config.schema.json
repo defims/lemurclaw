@@ -633,6 +633,9 @@
             "realtime_conversation": {
               "type": "boolean"
             },
+            "recommended_plugins": {
+              "type": "boolean"
+            },
             "remote_compaction_v2": {
               "type": "boolean"
             },
@@ -1849,6 +1852,10 @@
           "type": "boolean"
         },
         "root_agent_usage_hint_text": {
+          "type": "string"
+        },
+        "subagent_developer_instructions": {
+          "description": "Overrides inherited developer instructions for subagents without role-specific instructions.",
           "type": "string"
         },
         "subagent_usage_hint_text": {
@@ -5184,6 +5191,9 @@
           "type": "boolean"
         },
         "realtime_conversation": {
+          "type": "boolean"
+        },
+        "recommended_plugins": {
           "type": "boolean"
         },
         "remote_compaction_v2": {

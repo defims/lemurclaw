@@ -141,7 +141,11 @@ pub(crate) async fn handle_mcp_tool_call(
     };
 
     sess.refresh_mcp_if_dirty().await;
-    let current_binding = sess.services.mcp_runtime.current_binding().await;
+    let current_binding = sess
+        .services
+        .mcp_runtime
+        .current_binding_for_call(&server)
+        .await;
     let Some(prepared_call) = current_binding
         .as_ref()
         .and_then(|binding| binding.prepare_call(&server, &tool_name))
@@ -424,7 +428,7 @@ async fn handle_approved_mcp_tool_call(
                         .await;
                     let rewritten_arguments = rewrite_mcp_tool_arguments_for_openai_files(
                         sess,
-                        turn_context,
+                        step_context,
                         arguments_value,
                         metadata.openai_file_input_optional_fields.as_ref(),
                     )
@@ -1846,6 +1850,7 @@ fn parse_mcp_tool_approval_elicitation_response(
         }
         ElicitationAction::Decline => McpToolApprovalDecision::Decline { message: None },
         ElicitationAction::Cancel => McpToolApprovalDecision::Cancel,
+        _ => McpToolApprovalDecision::Cancel,
     }
 }
 
