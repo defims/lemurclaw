@@ -75,9 +75,7 @@ pub fn run_size() -> Result<()> {
     if all_ok {
         println!("✓ All measured crates fit under the 10MB compressed limit.");
     } else {
-        println!(
-            "✗ At least one crate exceeds the limit OR failed to package. See above."
-        );
+        println!("✗ At least one crate exceeds the limit OR failed to package. See above.");
     }
 
     Ok(())
@@ -101,12 +99,7 @@ fn measure_crate(codex_root: &Path, crate_name: &str) -> Result<Measurement> {
     // Pipe `git ls-files -z` to `tar -T - --null` to `gzip` to capture
     // compressed size without writing a temp file.
     let ls_output = Command::new("git")
-        .args([
-            "-C",
-            crate_dir.to_str().unwrap_or("."),
-            "ls-files",
-            "-z",
-        ])
+        .args(["-C", crate_dir.to_str().unwrap_or("."), "ls-files", "-z"])
         .output()
         .context("git ls-files")?;
     if !ls_output.status.success() {
@@ -132,10 +125,7 @@ fn measure_crate(codex_root: &Path, crate_name: &str) -> Result<Measurement> {
 
     let output = tar_output.wait_with_output().context("tar wait")?;
     if !output.status.success() {
-        anyhow::bail!(
-            "tar failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        anyhow::bail!("tar failed: {}", String::from_utf8_lossy(&output.stderr));
     }
     let crate_bytes = output.stdout.len() as u64;
 
@@ -300,10 +290,7 @@ fn extract_patch_entries(manifest: &str) -> Vec<PatchEntry> {
         if in_patch && !trimmed.is_empty() && !trimmed.starts_with('#') {
             if let Some(eq) = trimmed.find('=') {
                 let key = trimmed[..eq].trim().to_string();
-                out.push(PatchEntry {
-                    key,
-                    line_idx: idx,
-                });
+                out.push(PatchEntry { key, line_idx: idx });
             }
         }
     }
@@ -342,7 +329,9 @@ fn locate_codex_root() -> Result<PathBuf> {
     let candidates = [
         cwd.join("codex-rs"),
         cwd.join("..").join("codex-rs"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("codex-rs"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("codex-rs"),
     ];
     for c in &candidates {
         if c.join("Cargo.toml").exists() {
@@ -357,9 +346,7 @@ fn locate_codex_root() -> Result<PathBuf> {
 
 fn locate_crate_dir(codex_root: &Path, crate_name: &str) -> Result<PathBuf> {
     // crate_name like "codex-core" -> dir "core"
-    let suffix = crate_name
-        .strip_prefix("codex-")
-        .unwrap_or(crate_name);
+    let suffix = crate_name.strip_prefix("codex-").unwrap_or(crate_name);
     let direct = codex_root.join(suffix);
     if direct.is_dir() {
         return Ok(direct);

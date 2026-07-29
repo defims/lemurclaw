@@ -110,7 +110,10 @@ fn locate_repo_root() -> Result<PathBuf> {
 pub fn run_clone() -> Result<()> {
     let repo_root = locate_repo_root()?;
     let forks_dir = forks_root(&repo_root);
-    println!("Phase 1.5 — fork clone\n  output: {}\n", forks_dir.display());
+    println!(
+        "Phase 1.5 — fork clone\n  output: {}\n",
+        forks_dir.display()
+    );
     fs::create_dir_all(&forks_dir).context("create publish.forks/")?;
 
     for fork in FORKS {
@@ -131,7 +134,14 @@ pub fn run_clone() -> Result<()> {
         }
         // Fetch the specific commit (unshallow as needed).
         let fetch_status = Command::new("git")
-            .args(["-C", dest.to_str().unwrap(), "fetch", "--depth=1", "origin", fork.rev])
+            .args([
+                "-C",
+                dest.to_str().unwrap(),
+                "fetch",
+                "--depth=1",
+                "origin",
+                fork.rev,
+            ])
             .status()
             .context("spawn git fetch")?;
         if !fetch_status.success() {
@@ -159,12 +169,13 @@ pub fn run_clone() -> Result<()> {
 pub fn run_prepare() -> Result<()> {
     let repo_root = locate_repo_root()?;
     let forks_dir = forks_root(&repo_root);
-    println!("Phase 1.5 — fork prepare\n  source: {}\n", forks_dir.display());
+    println!(
+        "Phase 1.5 — fork prepare\n  source: {}\n",
+        forks_dir.display()
+    );
 
     if !forks_dir.exists() {
-        anyhow::bail!(
-            "publish.forks/ missing — run `xtask publish fork clone` first"
-        );
+        anyhow::bail!("publish.forks/ missing — run `xtask publish fork clone` first");
     }
 
     for fork in FORKS {
@@ -266,10 +277,8 @@ fn rewrite_fork_manifest(raw: &str, fork: &ForkSpec) -> Result<String> {
             // Check if this is a sub-table for one of our internal fork deps.
             // Format: `[dependencies.tungstenite]` or `[dev-dependencies.tungstenite]`.
             if let Some(dep_name) = find_fork_dep_subtable(trimmed) {
-                if let Some(&(_, lemurclaw_name)) = fork
-                    .internal_fork_deps
-                    .iter()
-                    .find(|(k, _)| *k == dep_name)
+                if let Some(&(_, lemurclaw_name)) =
+                    fork.internal_fork_deps.iter().find(|(k, _)| *k == dep_name)
                 {
                     in_fork_dep_subtable = Some(dep_name);
                     let version = find_internal_dep_version(fork, dep_name);
@@ -320,9 +329,7 @@ fn rewrite_fork_manifest(raw: &str, fork: &ForkSpec) -> Result<String> {
         // value is the one we injected right after the [lib] header. (Without
         // this we'd emit a duplicate `name =` for forks like crossterm that
         // already pin it upstream.)
-        if current_section.as_deref() == Some("[lib]")
-            && trimmed.starts_with("name = ")
-        {
+        if current_section.as_deref() == Some("[lib]") && trimmed.starts_with("name = ") {
             continue;
         }
 
@@ -361,7 +368,11 @@ fn rewrite_fork_manifest(raw: &str, fork: &ForkSpec) -> Result<String> {
 fn find_fork_dep_subtable<'a>(s: &'a str) -> Option<&'a str> {
     // Match `[dependencies.<X>]` or `[dev-dependencies.<X>]` or
     // `[build-dependencies.<X>]`. Return <X>.
-    for prefix in ["[dependencies.", "[dev-dependencies.", "[build-dependencies."] {
+    for prefix in [
+        "[dependencies.",
+        "[dev-dependencies.",
+        "[build-dependencies.",
+    ] {
         if let Some(rest) = s.strip_prefix(prefix) {
             if let Some(inner) = rest.strip_suffix(']') {
                 return Some(inner);
@@ -408,10 +419,7 @@ fn rewrite_inline_fork_dep(trimmed: &str, fork: &ForkSpec) -> Option<String> {
             if !before.ends_with('{') {
                 before.push_str(", ");
             }
-            return Some(format!(
-                "{}package = \"{}\" }}",
-                before, lemurclaw_name
-            ));
+            return Some(format!("{}package = \"{}\" }}", before, lemurclaw_name));
         }
         let _ = prefix_eq;
     }
@@ -455,9 +463,10 @@ pub fn run_publish(dry_run: bool) -> Result<()> {
         } else {
             println!("✗");
             let stderr = String::from_utf8_lossy(&out.stderr);
-            for line in stderr.lines().filter(|l| {
-                l.starts_with("error") || l.contains("Uploading")
-            }) {
+            for line in stderr
+                .lines()
+                .filter(|l| l.starts_with("error") || l.contains("Uploading"))
+            {
                 eprintln!("    {}", line);
             }
             if dry_run {

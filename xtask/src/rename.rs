@@ -53,7 +53,10 @@ pub fn run() -> Result<()> {
 
     // 1. Discover all crates via cargo metadata.
     let (publishable, excluded_count) = discover_crates(&codex_root)?;
-    println!("Discovered {} crates in source workspace.", publishable.len() + excluded_count);
+    println!(
+        "Discovered {} crates in source workspace.",
+        publishable.len() + excluded_count
+    );
     println!(
         "Publishing {} crates (excluding {} bin-only / sample / publish=false).",
         publishable.len(),
@@ -97,11 +100,17 @@ pub fn run() -> Result<()> {
         let lock = fs::read_to_string(&src_lock)
             .with_context(|| format!("read {}", src_lock.display()))?;
         let new_lock = rewrite_lockfile(&lock, &publishable);
-        fs::write(publish_root.join("Cargo.lock"), new_lock)
-            .context("write publish/Cargo.lock")?;
+        fs::write(publish_root.join("Cargo.lock"), new_lock).context("write publish/Cargo.lock")?;
     }
 
-    // 5. Verify with cargo check.
+    // 5. Apply the full-scope brand rewrite (Codex→lemurclaw: env vars, paths,
+    //    CLI flags, internal protocol identifiers, system prompts, telemetry).
+    //    This covers everything beyond what source_rewrite's AST pass and the
+    //    bundle post-merge display-text fixups handle. Runs before cargo check
+    //    so the workspace compiles with the rename in place.
+    crate::bundle::rewrite_brand_full(&publish_root)?;
+
+    // 6. Verify with cargo check.
     println!();
     println!("Running `cargo check --workspace` in publish/ ...");
     let status = Command::new("cargo")
@@ -217,10 +226,7 @@ fn is_excluded(name: &str, rel_dir: &str, manifest: &CrateManifest) -> bool {
         return true;
     }
     // bin-only sample crates
-    let bin_only = matches!(
-        name,
-        "codex-bwrap" | "codex-thread-manager-sample"
-    );
+    let bin_only = matches!(name, "codex-bwrap" | "codex-thread-manager-sample");
     if bin_only {
         return true;
     }
@@ -244,8 +250,7 @@ fn should_drop_bins(manifest: &CrateManifest) -> bool {
     // a lib.rs". For simplicity, we drop [[bin]] sections unconditionally on
     // any crate that has a [lib] — that's safe because a lib-only crate won't
     // have [[bin]] sections.
-    manifest.doc.get("bin").is_some()
-        || manifest.doc.get("lib").is_some()
+    manifest.doc.get("bin").is_some() || manifest.doc.get("lib").is_some()
 }
 
 struct ProcessOutcome {
@@ -350,11 +355,7 @@ fn rewrite_rust_files(dir: &Path) -> Result<()> {
                     Ok(true) => {}
                     Ok(false) => {}
                     Err(e) => {
-                        eprintln!(
-                            "warn: failed to rewrite {}: {}",
-                            path.display(),
-                            e
-                        );
+                        eprintln!("warn: failed to rewrite {}: {}", path.display(), e);
                     }
                 }
             }
@@ -472,8 +473,5 @@ fn rewrite_lockfile(lock: &str, publishable: &[CrateInfo]) -> String {
 }
 
 fn line_renamed_package_name(line: &str, old: &str, new: &str) -> String {
-    line.replace(
-        &format!("\"{}\"", old),
-        &format!("\"{}\"", new),
-    )
+    line.replace(&format!("\"{}\"", old), &format!("\"{}\"", new))
 }

@@ -21,8 +21,8 @@ use syn::{Ident, ItemUse, UseTree};
 /// Rewrite a single Rust source file in place. Returns true if any change was
 /// made.
 pub fn rewrite_file(path: &Path) -> Result<bool> {
-    let src = std::fs::read_to_string(path)
-        .with_context(|| format!("read source {}", path.display()))?;
+    let src =
+        std::fs::read_to_string(path).with_context(|| format!("read source {}", path.display()))?;
     let new_src = match rewrite_string(&src) {
         Some(s) => s,
         None => return Ok(false),
@@ -327,7 +327,10 @@ fn rewrite_line_surgical(line: &str) -> String {
                 let vis = &trimmed[..vis_len];
                 return format!(
                     "{}{}use lemurclaw_{}{}",
-                    leading_ws, vis, &after[..end], suffix
+                    leading_ws,
+                    vis,
+                    &after[..end],
+                    suffix
                 );
             }
         }
@@ -346,7 +349,10 @@ fn rewrite_line_surgical(line: &str) -> String {
                 let vis = &trimmed[..vis_len];
                 return format!(
                     "{}{}extern crate lemurclaw_{}{}",
-                    leading_ws, vis, &after[..end], suffix
+                    leading_ws,
+                    vis,
+                    &after[..end],
+                    suffix
                 );
             }
         }

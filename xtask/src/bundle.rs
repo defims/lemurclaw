@@ -573,8 +573,8 @@ pub(crate) fn cli_cluster() -> Cluster {
         name: "cli",
         source_subdir: "",
         merged_member_path: "cli",
-        merged_package: "lemurclaw-cli",
-        merged_lib_ident: "lemurclaw_cli",
+        merged_package: "lemurclaw",
+        merged_lib_ident: "lemurclaw",
         members: vec![
             SubCrate {
                 dir: "cloud-tasks",
@@ -2348,6 +2348,274 @@ fn post_merge_fixups_core(src_dir: &Path) -> Result<()> {
     //    upgrading the workspace reqwest to 0.13 in publish/Cargo.toml.
     unify_reqwest_version(src_dir)?;
 
+    // 10. Add crate-root re-exports from core_internal. Downstream crates
+    //     (server, tui, cli) and extensions import many types from the crate
+    //     root (e.g. `lemurclaw_core::CodexThread`) that originally lived at
+    //     codex-core's root but after merge are inside `core_internal`.
+    add_core_root_reexports(src_dir)?;
+
+    // 11. Add member-module re-exports from core_internal. Some downstream
+    //     imports target sub-modules like `lemurclaw_core::config::*` or
+    //     `lemurclaw_core::sandboxing::*`, but those member modules don't
+    //     contain the items (they're in core_internal's sub-modules).
+    add_core_member_reexports(src_dir)?;
+
+    // 12. Fix otel code that was broken by the post-merge fixup pipeline.
+    //     The fix_otel_with_http_client() function in step 9 leaves dangling
+    //     `let client = ...` assignments and unused `mut` that cause compile
+    //     errors. Clean these up.
+    fix_otel_dangling_assignments(src_dir)?;
+
+    Ok(())
+}
+
+/// Add crate-root re-exports from `core_internal` to `core/src/lib.rs`.
+/// Downstream crates import many types from the crate root that, after the
+/// mega-crate merge, live inside the `core_internal` host module.
+fn add_core_root_reexports(src_dir: &Path) -> Result<()> {
+    let lib_rs = src_dir.join("lib.rs");
+    if !lib_rs.is_file() {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(&lib_rs)?;
+
+    // The full list of symbols downstream crates import as `lemurclaw_core::<X>`.
+    // These are all `pub use`-ed by core_internal/mod.rs.
+    let reexports = [
+        "CodexThread",
+        "context",
+        "NewThread",
+        "StartThreadOptions",
+        "ThreadManager",
+        "image_generation_artifact_path",
+        "parse_turn_item",
+        "web_search_action_detail",
+        "X_CODEX_TURN_METADATA_HEADER",
+        "AttestationContext",
+        "AttestationProvider",
+        "GenerateAttestationFuture",
+        "ExecPolicyError",
+        "check_execpolicy_for_warnings",
+        "resolve_installation_id",
+        "exec",
+        "path_utils",
+        "CodexThreadSettingsOverrides",
+        "ForkSnapshot",
+        "INTERACTIVE_SESSION_SOURCES",
+        "McpManager",
+        "SleepFuture",
+        "SteerInputError",
+        "ThreadConfigSnapshot",
+        "TimeFuture",
+        "TimeProvider",
+        "ModelClient",
+        "Prompt",
+        "ResponseEvent",
+        "RolloutRecorder",
+        "content_items_to_text",
+        "detached_memory_responses_metadata",
+        "otel_init",
+        "truncate_rollout_after_turn_id",
+        "truncate_rollout_before_turn_id",
+        "util",
+        "exec_env",
+        "CodexAppsToolsCache",
+        "review_prompts",
+        "local_agent_graph_store_from_state_db",
+        "build_models_manager",
+        "thread_store_from_config",
+        "LoadedAgentsMd",
+        "StateDbHandle",
+        "ThreadShutdownReport",
+        "find_thread_meta_by_name_str",
+        "format_exec_policy_error_with_source",
+        "init_state_db",
+        "spawn",
+        "spawn_command_under_linux_sandbox",
+    ];
+
+    // Check if re-exports are already present (idempotent).
+    let marker = "pub use core_internal::CodexThread;";
+    if raw.contains(marker) {
+        return Ok(());
+    }
+
+    let mut block = String::from("\n// Re-export key types from core_internal at the crate root for downstream\n// crates that previously imported them from codex-core's root.\n");
+    for sym in &reexports {
+        block.push_str(&format!("pub use core_internal::{};\n", sym));
+    }
+
+    let new = format!("{}\n{}", raw.trim_end(), block);
+    fs::write(&lib_rs, new)?;
+    println!("  ✓ Added {} crate-root re-exports to lib.rs", reexports.len());
+    Ok(())
+}
+
+/// Add re-exports from `core_internal` into member modules (config, sandboxing,
+/// skills, connectors, windows_sandbox). Downstream crates import items as
+/// `lemurclaw_core::config::<X>` etc., but the member module doesn't have them.
+fn add_core_member_reexports(src_dir: &Path) -> Result<()> {
+    // config/mod.rs: re-export from core_internal::config + a few cross-module.
+    let config_mod = src_dir.join("config").join("mod.rs");
+    if config_mod.is_file() {
+        let config_reexports = [
+            "find_codex_home",
+            "StartedNetworkProxy",
+            "ConfigOverrides",
+            "deserialize_config_toml_with_base",
+            "edit",
+            "validate_feature_requirements_for_config_toml",
+            "permission_profile_catalog",
+            "ConfigBuilder",
+            "set_project_trust_level",
+            "ConfigTomlLoadResult",
+            "PermissionProfileSnapshot",
+            "Permissions",
+            "TerminalResizeReflowConfig",
+            "TerminalResizeReflowMaxRows",
+            "load_config_toml_with_layer_stack",
+            "resolve_bootstrap_auth_keyring_backend_kind",
+            "resolve_bootstrap_auth_route_config",
+            "resolve_oss_provider",
+            "resolve_profile_v2_config_path",
+            "NetworkProxySpec",
+            "ExtraConfig",
+            "GhostSnapshotConfig",
+            "MultiAgentV2Config",
+            "ThreadStoreConfig",
+            "log_dir",
+        ];
+        let raw = fs::read_to_string(&config_mod)?;
+        if !raw.contains("pub use crate::core_internal::config::find_codex_home") {
+            let mut block = String::from(
+                "\n// Re-export core_internal::config items for downstream crates.\n",
+            );
+            for sym in &config_reexports {
+                block.push_str(&format!(
+                    "pub use crate::core_internal::config::{};\n",
+                    sym
+                ));
+            }
+            // Cross-module re-exports needed by downstream crates.
+            block.push_str("pub use crate::sandboxing::system_bwrap_warning;\n");
+            block.push_str("pub use crate::network_proxy::NetworkProxyAuditMetadata;\n");
+            let new = format!("{}\n{}", raw.trim_end(), block);
+            fs::write(&config_mod, new)?;
+            println!("  ✓ Added config member re-exports");
+        }
+    }
+
+    // sandboxing/mod.rs: re-export from core_internal::sandboxing.
+    let sandboxing_mod = src_dir.join("sandboxing").join("mod.rs");
+    if sandboxing_mod.is_file() {
+        let raw = fs::read_to_string(&sandboxing_mod)?;
+        if !raw.contains("pub use crate::core_internal::sandboxing::ExecRequest") {
+            let block = "\n// Re-export core_internal::sandboxing items for downstream crates.\npub use crate::core_internal::sandboxing::ExecRequest;\npub use crate::core_internal::sandboxing::SandboxPermissions;\npub use crate::core_internal::sandboxing::execute_env;\n";
+            let new = format!("{}\n{}", raw.trim_end(), block);
+            fs::write(&sandboxing_mod, new)?;
+            println!("  ✓ Added sandboxing member re-exports");
+        }
+    }
+
+    // skills/mod.rs: re-export from core_internal::skills + core_skills.
+    let skills_mod = src_dir.join("skills").join("mod.rs");
+    if skills_mod.is_file() {
+        let raw = fs::read_to_string(&skills_mod)?;
+        if !raw.contains("pub use crate::core_internal::skills::SkillMetadata") {
+            let block = "\n// Re-export core_internal skills types for downstream crates.\npub use crate::core_skills::SkillsLoadInput;\npub use crate::core_skills::SkillsService;\npub use crate::core_internal::skills::SkillMetadata;\npub use crate::core_internal::skills::SkillError;\n";
+            let new = format!("{}\n{}", raw.trim_end(), block);
+            fs::write(&skills_mod, new)?;
+            println!("  ✓ Added skills member re-exports");
+        }
+    }
+
+    // connectors/mod.rs: re-export from core_internal::connectors.
+    let connectors_mod = src_dir.join("connectors").join("mod.rs");
+    if connectors_mod.is_file() {
+        let raw = fs::read_to_string(&connectors_mod)?;
+        if !raw.contains("pub use crate::core_internal::connectors::AccessibleConnectorsStatus")
+        {
+            let block = "\n// Re-export core_internal connector functions for downstream crates.\npub use crate::core_internal::connectors::AccessibleConnectorsStatus;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_environment_manager;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_mcp_manager;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_options;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_options_and_status;\npub use crate::core_internal::connectors::list_cached_accessible_connectors_from_mcp_tools;\npub use crate::core_internal::connectors::with_app_enabled_state;\n";
+            let new = format!("{}\n{}", raw.trim_end(), block);
+            fs::write(&connectors_mod, new)?;
+            println!("  ✓ Added connectors member re-exports");
+        }
+    }
+
+    // windows_sandbox/mod.rs: re-export from core_internal::windows_sandbox.
+    let ws_mod = src_dir.join("windows_sandbox").join("mod.rs");
+    if ws_mod.is_file() {
+        let raw = fs::read_to_string(&ws_mod)?;
+        if !raw.contains("pub use crate::core_internal::windows_sandbox::WindowsSandboxLevelExt")
+        {
+            let block = "\n// Re-export core_internal windows_sandbox types for downstream crates.\npub use crate::core_internal::windows_sandbox::WindowsSandboxLevelExt;\npub use crate::core_internal::windows_sandbox::WindowsSandboxSetupMode;\npub use crate::core_internal::windows_sandbox::WindowsSandboxSetupRequest;\npub use crate::core_internal::windows_sandbox::sandbox_setup_is_complete;\npub use crate::core_internal::windows_sandbox::run_windows_sandbox_setup;\n";
+            let new = format!("{}\n{}", raw.trim_end(), block);
+            fs::write(&ws_mod, new)?;
+            println!("  ✓ Added windows_sandbox member re-exports");
+        }
+    }
+
+    Ok(())
+}
+
+/// Fix otel code broken by the post-merge fixup pipeline. The
+/// `fix_otel_with_http_client()` function (called from `unify_reqwest_version`)
+/// comments out `with_http_client()` calls but leaves dangling
+/// `let client = crate::otel::otlp::build_async_http_client(...)` assignments
+/// and unused `mut` qualifiers. This cleans them up.
+fn fix_otel_dangling_assignments(src_dir: &Path) -> Result<()> {
+    // provider.rs: remove dangling `let client = build_async_http_client(` lines
+    // and unused `mut` on exporter_builder.
+    let provider = src_dir.join("otel").join("provider.rs");
+    if provider.is_file() {
+        let raw = fs::read_to_string(&provider)?;
+        let mut new = raw.clone();
+
+        // Remove the dangling `let client = crate::otel::otlp::build_async_http_client(`
+        // line that was left by the post-merge comment-out logic. The line is
+        // incomplete (no closing `)`) and followed by the TODO comment.
+        new = new.replace(
+            "                let client = crate::otel::otlp::build_async_http_client(\n",
+            "",
+        );
+
+        // Remove `mut` from `let mut exporter_builder` where the builder is
+        // never mutated (the with_http_client call was commented out).
+        // Only do this for the two SpanExporter spots (not LogExporter).
+        new = new.replace(
+            "let mut exporter_builder = SpanExporter::builder()",
+            "let exporter_builder = SpanExporter::builder()",
+        );
+        new = new.replace(
+            "let mut exporter_builder = LogExporter::builder()",
+            "let exporter_builder = LogExporter::builder()",
+        );
+
+        if new != raw {
+            fs::write(&provider, new)?;
+            println!("  ✓ Fixed otel/provider.rs dangling assignments");
+        }
+    }
+
+    // metrics/client.rs: remove unused `let client = build_http_client(...)` block.
+    let metrics_client = src_dir.join("otel").join("metrics").join("client.rs");
+    if metrics_client.is_file() {
+        let raw = fs::read_to_string(&metrics_client)?;
+        // Remove the dangling client assignment block and unused mut.
+        let old_block = "                let client =\n                    crate::otel::otlp::build_http_client(tls, OTEL_EXPORTER_OTLP_METRICS_TIMEOUT)\n                        .map_err(|err| MetricsError::InvalidConfig {\n                            message: err.to_string(),\n                        })?;\n\n                // TODO(merge): with_http_client disabled — reqwest 0.13 (rmcp) and";
+        let new_block = "                // TODO(merge): with_http_client disabled — reqwest 0.13 (rmcp) and";
+        let mut new = raw.replace(old_block, new_block);
+        // Remove unused mut on MetricExporter builder.
+        new = new.replace(
+            "let mut exporter_builder = opentelemetry_otlp::MetricExporter::builder()",
+            "let exporter_builder = opentelemetry_otlp::MetricExporter::builder()",
+        );
+        if new != raw {
+            fs::write(&metrics_client, new)?;
+            println!("  ✓ Fixed otel/metrics/client.rs dangling assignments");
+        }
+    }
+
     Ok(())
 }
 
@@ -2359,19 +2627,82 @@ fn post_merge_fixups_extensions(_src_dir: &Path) -> Result<()> {
 
 /// Server-specific post-merge fixups. Populated iteratively as
 /// compilation errors surface.
-fn post_merge_fixups_server(_src_dir: &Path) -> Result<()> {
+fn post_merge_fixups_server(src_dir: &Path) -> Result<()> {
+    // Rewrite user-facing display text (Codex→lemurclaw) in the server cluster
+    // (app_server_daemon/update_loop.rs, app_server_test_client/mod.rs).
+    rewrite_brand_display_text(src_dir)?;
     Ok(())
 }
 
-/// TUI-specific post-merge fixups. Populated iteratively as
-/// compilation errors surface.
-fn post_merge_fixups_tui(_src_dir: &Path) -> Result<()> {
+/// TUI-specific post-merge fixups.
+fn post_merge_fixups_tui(src_dir: &Path) -> Result<()> {
+    // 1. Fix include_str! paths in frames.rs. The host crate's src/ moved to
+    //    tui_internal/, so `../frames/` (relative from the crate root) is now
+    //    wrong — the frames directory moved into tui_internal/frames/. Rewrite
+    //    to `frames/` (relative to tui_internal/frames.rs).
+    let frames_rs = src_dir.join("tui_internal").join("frames.rs");
+    if frames_rs.is_file() {
+        let raw = fs::read_to_string(&frames_rs)?;
+        let new = raw.replace("../frames/", "frames/");
+        if new != raw {
+            fs::write(&frames_rs, new)?;
+            println!("  ✓ Fixed tui_internal/frames.rs include_str! paths");
+        }
+    }
+
+    // 2. Add missing dependencies (arboard, libc) to Cargo.toml. These were
+    //    used by the tui host crate but may be missing from the merged
+    //    Cargo.toml if they were only in the host's dep table.
+    let cargo_toml = src_dir.parent().unwrap_or(src_dir).join("Cargo.toml");
+    if cargo_toml.is_file() {
+        let raw = fs::read_to_string(&cargo_toml)?;
+        let mut new = raw.clone();
+        // Add arboard if missing.
+        if !new.contains("arboard") {
+            new = new.replace(
+                "anyhow = { workspace = true }\n",
+                "anyhow = { workspace = true }\narboard = { workspace = true }\n",
+            );
+        }
+        // Add libc if missing.
+        if !new.contains("\nlibc") {
+            new = new.replace(
+                "lemurclaw-server = { workspace = true }\n",
+                "lemurclaw-server = { workspace = true }\nlibc = { workspace = true }\n",
+            );
+        }
+        if new != raw {
+            fs::write(&cargo_toml, new)?;
+            println!("  ✓ Added missing arboard/libc deps to tui Cargo.toml");
+        }
+    }
+
+    // 3. Add crate-root re-exports from tui_internal. Downstream crates
+    //    (cli) import `lemurclaw_tui::ComposerInput` etc.
+    let lib_rs = src_dir.join("lib.rs");
+    if lib_rs.is_file() {
+        let raw = fs::read_to_string(&lib_rs)?;
+        if !raw.contains("pub use tui_internal::ComposerInput") {
+            let block = "\n// Re-export key types from tui_internal at the crate root for downstream crates.\npub use tui_internal::ComposerInput;\npub use tui_internal::ComposerAction;\npub use tui_internal::render_markdown_text;\npub use tui_internal::AppExitInfo;\npub use tui_internal::Cli;\npub use tui_internal::ExitReason;\npub use tui_internal::UpdateAction;\n#[cfg(not(debug_assertions))]\npub use tui_internal::get_update_action;\npub use tui_internal::SessionArchiveAction;\npub use tui_internal::run_session_archive_command;\npub use tui_internal::SessionArchiveCommandOptions;\npub use tui_internal::DeleteConfirmation;\n";
+            let new = format!("{}\n{}", raw.trim_end(), block);
+            fs::write(&lib_rs, new)?;
+            println!("  ✓ Added tui lib.rs re-exports");
+        }
+    }
+
+    // 4. Rewrite user-facing display text (Codex→lemurclaw) across the TUI
+    //    src tree (tui_internal/**) plus insta .snap snapshot placeholders.
+    rewrite_brand_display_text(src_dir)?;
+
     Ok(())
 }
 
 /// CLI-specific post-merge fixups. Populated iteratively as
 /// compilation errors surface.
-fn post_merge_fixups_cli(_src_dir: &Path) -> Result<()> {
+fn post_merge_fixups_cli(src_dir: &Path) -> Result<()> {
+    // Rewrite user-facing display text (Codex→lemurclaw) across the CLI src
+    // tree (main.rs, exec/*, cli_internal/*, cloud_tasks/*).
+    rewrite_brand_display_text(src_dir)?;
     Ok(())
 }
 
@@ -2546,17 +2877,18 @@ fn fix_reqwest_tls_built_in_root_certs(src_dir: &Path) -> Result<()> {
     if !raw.contains("tls_built_in_root_certs") {
         return Ok(());
     }
-    // Pattern: `.tls_built_in_root_certs(false)\n.add_root_certificate(certificate);`
-    // Replace with: `.tls_certs_only(std::iter::once(certificate));`
-    let new = raw.replace(
+    let mut new = raw.clone();
+    // Replace ALL occurrences regardless of indentation. The pattern is:
+    //   .tls_built_in_root_certs(false)\n<indent>.add_root_certificate(certificate);
+    // → .tls_certs_only(std::iter::once(certificate));
+    // We handle both multi-line and single-line variants.
+    for old in [
         ".tls_built_in_root_certs(false)\n                .add_root_certificate(certificate);",
-        ".tls_certs_only(std::iter::once(certificate));",
-    );
-    // Also try single-line variant
-    let new = new.replace(
+        ".tls_built_in_root_certs(false)\n            .add_root_certificate(certificate);",
         ".tls_built_in_root_certs(false).add_root_certificate(certificate);",
-        ".tls_certs_only(std::iter::once(certificate));",
-    );
+    ] {
+        new = new.replace(old, ".tls_certs_only(std::iter::once(certificate));");
+    }
     if new != raw {
         fs::write(&otlp_path, new)?;
     }
@@ -2594,6 +2926,1442 @@ fn fix_otel_with_http_client(src_dir: &Path) -> Result<()> {
         Ok(())
     }
     process(&otel_dir)
+}
+
+/// Rewrite user-facing display text: Codex/codex → lemurclaw.
+///
+/// IMPORTANT: only exact full-string-literal replacements from the table
+/// below. Do NOT use a generic token walk — it would corrupt env vars
+/// (CODEX_*), paths (~/.codex), flag names (--codex-home), identifiers
+/// (codex_home, CodexAuth), telemetry names (codex.thread.*), model slugs
+/// (gpt-5.x-codex), and OpenAI infrastructure URLs. Each `old` pair is
+/// anchored with surrounding context so it only matches display text.
+///
+/// Design choice: target specific files rather than walking the tree, because
+/// (a) exact-string replace is idempotent and safe only when the string is
+/// unambiguous, and (b) most `codex`/`Codex` in any given file is an
+/// identifier/path that must be preserved — file-scoped replace still risks
+/// false hits, so keep `old` strings long enough to be unambiguous within
+/// the file. When a phrase appears multiple times identically in one file,
+/// `str::replace` replaces all occurrences (which is what we want for
+/// replace_all entries).
+///
+/// Env vars (CODEX_*), paths (~/.codex), flag names (--codex-home),
+/// identifiers (codex_home, CodexAuth), telemetry (codex.thread.*),
+/// model slugs (gpt-5.x-codex), and OpenAI infrastructure URLs
+/// (com.openai.codex, github.com/openai/codex, @openai/codex,
+/// chatgpt.com/codex) are all PRESERVED — they never appear as the `old`
+/// side of any pair.
+fn rewrite_brand_display_text(src_dir: &Path) -> Result<()> {
+    // Each entry: (relative path under src_dir, old, new).
+    // Paths are cluster-relative: cli fixup → publish/cli/src/, tui fixup →
+    // publish/tui/src/, server fixup → publish/server/src/.
+    let edits: &[(&str, &str, &str)] = &[
+        // ===== CLI cluster (publish/cli/src/) =====
+        // main.rs — top-level CLI doc comments, usage, and user messages.
+        ("main.rs", "/// Codex CLI", "/// lemurclaw CLI"),
+        (
+            "main.rs",
+            "override_usage = \"codex [OPTIONS] [PROMPT]\\n       codex [OPTIONS] <COMMAND> [ARGS]\"",
+            "override_usage = \"lemurclaw [OPTIONS] [PROMPT]\\n       lemurclaw [OPTIONS] <COMMAND> [ARGS]\"",
+        ),
+        (
+            "main.rs",
+            "the generic `codex` command name that users run.",
+            "the generic `lemurclaw` command name that users run.",
+        ),
+        (
+            "main.rs",
+            "/// Run Codex non-interactively.",
+            "/// Run lemurclaw non-interactively.",
+        ),
+        (
+            "main.rs",
+            "/// Manage external MCP servers for Codex.",
+            "/// Manage external MCP servers for lemurclaw.",
+        ),
+        (
+            "main.rs",
+            "/// Manage Codex plugins.",
+            "/// Manage lemurclaw plugins.",
+        ),
+        (
+            "main.rs",
+            "/// Start Codex as an MCP server (stdio).",
+            "/// Start lemurclaw as an MCP server (stdio).",
+        ),
+        (
+            "main.rs",
+            "/// Update Codex to the latest version.",
+            "/// Update lemurclaw to the latest version.",
+        ),
+        (
+            "main.rs",
+            "/// Diagnose local Codex installation",
+            "/// Diagnose local lemurclaw installation",
+        ),
+        (
+            "main.rs",
+            "/// Run commands within a Codex-provided sandbox.",
+            "/// Run commands within a lemurclaw-provided sandbox.",
+        ),
+        (
+            "main.rs",
+            "/// Apply the latest diff produced by Codex agent",
+            "/// Apply the latest diff produced by lemurclaw agent",
+        ),
+        (
+            "main.rs",
+            "/// [EXPERIMENTAL] Browse tasks from Codex Cloud",
+            "/// [EXPERIMENTAL] Browse tasks from lemurclaw Cloud",
+        ),
+        (
+            "main.rs",
+            "/// [internal] Generate internal JSON Schema artifacts for Codex tooling.",
+            "/// [internal] Generate internal JSON Schema artifacts for lemurclaw tooling.",
+        ),
+        // "this version of Codex." appears 5× in main.rs (replace_all).
+        (
+            "main.rs",
+            "this version of Codex.",
+            "this version of lemurclaw.",
+        ),
+        (
+            "main.rs",
+            "printenv OPENAI_API_KEY | codex login --with-api-key",
+            "printenv OPENAI_API_KEY | lemurclaw login --with-api-key",
+        ),
+        (
+            "main.rs",
+            "printenv CODEX_ACCESS_TOKEN | codex login --with-access-token",
+            "printenv CODEX_ACCESS_TOKEN | lemurclaw login --with-access-token",
+        ),
+        (
+            "main.rs",
+            "Updating Codex via `{cmd_str}`...",
+            "Updating lemurclaw via `{cmd_str}`...",
+        ),
+        ("main.rs", "Please restart Codex.", "Please restart lemurclaw."),
+        (
+            "main.rs",
+            "`codex update` is not available in debug builds. Install a release build of Codex to use this command.",
+            "`lemurclaw update` is not available in debug builds. Install a release build of lemurclaw to use this command.",
+        ),
+        (
+            "main.rs",
+            "Could not detect the Codex installation method.",
+            "Could not detect the lemurclaw installation method.",
+        ),
+        (
+            "main.rs",
+            "Codex executable path is not configured",
+            "lemurclaw executable path is not configured",
+        ),
+        (
+            "main.rs",
+            "run `codex login` or set CODEX_API_KEY",
+            "run `lemurclaw login` or set CODEX_API_KEY",
+        ),
+        (
+            "main.rs",
+            "Codex's interactive TUI may not work in this terminal.",
+            "lemurclaw's interactive TUI may not work in this terminal.",
+        ),
+        (
+            "main.rs",
+            "failed to move damaged Codex local database files",
+            "failed to move damaged lemurclaw local database files",
+        ),
+        (
+            "main.rs",
+            "`codex sandbox` is not supported on this operating system",
+            "`lemurclaw sandbox` is not supported on this operating system",
+        ),
+        (
+            "main.rs",
+            "--profile only applies to runtime commands and `codex mcp`: `codex`, `codex exec`, `codex review`, `codex resume`, `codex archive`, `codex delete`, `codex unarchive`, `codex fork`, `codex mcp`, `codex sandbox`, and `codex debug prompt-input`.",
+            "--profile only applies to runtime commands and `lemurclaw mcp`: `lemurclaw`, `lemurclaw exec`, `lemurclaw review`, `lemurclaw resume`, `lemurclaw archive`, `lemurclaw delete`, `lemurclaw unarchive`, `lemurclaw fork`, `lemurclaw mcp`, `lemurclaw sandbox`, and `lemurclaw debug prompt-input`.",
+        ),
+        // "not `codex {subcommand}`" appears 2× (replace_all).
+        (
+            "main.rs",
+            "not `codex {subcommand}`",
+            "not `lemurclaw {subcommand}`",
+        ),
+        (
+            "main.rs",
+            "`--strict-config` is not supported for `codex {subcommand}`",
+            "`--strict-config` is not supported for `lemurclaw {subcommand}`",
+        ),
+        // exec/cli.rs
+        (
+            "exec/cli.rs",
+            "override_usage = \"codex exec [OPTIONS] [PROMPT]\\n       codex exec [OPTIONS] <COMMAND> [ARGS]\"",
+            "override_usage = \"lemurclaw exec [OPTIONS] [PROMPT]\\n       lemurclaw exec [OPTIONS] <COMMAND> [ARGS]\"",
+        ),
+        (
+            "exec/cli.rs",
+            "/// Allow running Codex outside a Git repository.",
+            "/// Allow running lemurclaw outside a Git repository.",
+        ),
+        // exec/event_processor_with_human_output.rs — "codex".style appears 2×.
+        (
+            "exec/event_processor_with_human_output.rs",
+            "\"codex\".style(self.italic).style(self.magenta)",
+            "\"lemurclaw\".style(self.italic).style(self.magenta)",
+        ),
+        (
+            "exec/event_processor_with_human_output.rs",
+            "OpenAI Codex v{VERSION}",
+            "OpenAI lemurclaw v{VERSION}",
+        ),
+        // exec/mod.rs (merged from exec/lib.rs)
+        (
+            "exec/mod.rs",
+            "Error finding codex home: {err}",
+            "Error finding lemurclaw home: {err}",
+        ),
+        // cli_internal/login.rs
+        (
+            "cli_internal/login.rs",
+            "Use `codex login --device-auth` instead.",
+            "Use `lemurclaw login --device-auth` instead.",
+        ),
+        (
+            "cli_internal/login.rs",
+            "printenv OPENAI_API_KEY | codex login --with-api-key",
+            "printenv OPENAI_API_KEY | lemurclaw login --with-api-key",
+        ),
+        (
+            "cli_internal/login.rs",
+            "printenv CODEX_ACCESS_TOKEN | codex login --with-access-token",
+            "printenv CODEX_ACCESS_TOKEN | lemurclaw login --with-access-token",
+        ),
+        // cli_internal/sandbox_setup.rs (--codex-home flag NOT touched)
+        (
+            "cli_internal/sandbox_setup.rs",
+            "`codex sandbox setup` currently requires --elevated",
+            "`lemurclaw sandbox setup` currently requires --elevated",
+        ),
+        // cli_internal/mcp_cmd.rs
+        (
+            "cli_internal/mcp_cmd.rs",
+            "override_usage = \"codex mcp add [OPTIONS]",
+            "override_usage = \"lemurclaw mcp add [OPTIONS]",
+        ),
+        (
+            "cli_internal/mcp_cmd.rs",
+            "Run `codex mcp login {name}` to login.",
+            "Run `lemurclaw mcp login {name}` to login.",
+        ),
+        (
+            "cli_internal/mcp_cmd.rs",
+            "Try `codex mcp add my-tool -- my-command`.",
+            "Try `lemurclaw mcp add my-tool -- my-command`.",
+        ),
+        (
+            "cli_internal/mcp_cmd.rs",
+            "remove: codex mcp remove {}",
+            "remove: lemurclaw mcp remove {}",
+        ),
+        // cli_internal/marketplace_cmd.rs — bin_name + after_help strings.
+        (
+            "cli_internal/marketplace_cmd.rs",
+            "bin_name = \"codex plugin marketplace\"",
+            "bin_name = \"lemurclaw plugin marketplace\"",
+        ),
+        (
+            "cli_internal/marketplace_cmd.rs",
+            "bin_name = \"codex plugin marketplace add\"",
+            "bin_name = \"lemurclaw plugin marketplace add\"",
+        ),
+        (
+            "cli_internal/marketplace_cmd.rs",
+            "bin_name = \"codex plugin marketplace list\"",
+            "bin_name = \"lemurclaw plugin marketplace list\"",
+        ),
+        (
+            "cli_internal/marketplace_cmd.rs",
+            "bin_name = \"codex plugin marketplace upgrade\"",
+            "bin_name = \"lemurclaw plugin marketplace upgrade\"",
+        ),
+        (
+            "cli_internal/marketplace_cmd.rs",
+            "bin_name = \"codex plugin marketplace remove\"",
+            "bin_name = \"lemurclaw plugin marketplace remove\"",
+        ),
+        // Every "codex plugin marketplace" in after_help examples → lemurclaw.
+        (
+            "cli_internal/marketplace_cmd.rs",
+            "codex plugin marketplace",
+            "lemurclaw plugin marketplace",
+        ),
+        (
+            "cli_internal/marketplace_cmd.rs",
+            "List plugin marketplaces Codex is currently considering",
+            "List plugin marketplaces lemurclaw is currently considering",
+        ),
+        // cli_internal/plugin_cmd.rs — bin_name + after_help strings.
+        (
+            "cli_internal/plugin_cmd.rs",
+            "bin_name = \"codex plugin\"",
+            "bin_name = \"lemurclaw plugin\"",
+        ),
+        (
+            "cli_internal/plugin_cmd.rs",
+            "bin_name = \"codex plugin add\"",
+            "bin_name = \"lemurclaw plugin add\"",
+        ),
+        (
+            "cli_internal/plugin_cmd.rs",
+            "bin_name = \"codex plugin list\"",
+            "bin_name = \"lemurclaw plugin list\"",
+        ),
+        (
+            "cli_internal/plugin_cmd.rs",
+            "bin_name = \"codex plugin remove\"",
+            "bin_name = \"lemurclaw plugin remove\"",
+        ),
+        // Every "codex plugin" in after_help examples → lemurclaw plugin.
+        (
+            "cli_internal/plugin_cmd.rs",
+            "codex plugin add",
+            "lemurclaw plugin add",
+        ),
+        (
+            "cli_internal/plugin_cmd.rs",
+            "codex plugin list",
+            "lemurclaw plugin list",
+        ),
+        (
+            "cli_internal/plugin_cmd.rs",
+            "codex plugin remove",
+            "lemurclaw plugin remove",
+        ),
+        // cli_internal/state_db_recovery.rs
+        (
+            "cli_internal/state_db_recovery.rs",
+            "Codex couldn't start because its local database appears to be damaged.",
+            "lemurclaw couldn't start because its local database appears to be damaged.",
+        ),
+        (
+            "cli_internal/state_db_recovery.rs",
+            "Moving the damaged local database aside so Codex can rebuild it from saved data.",
+            "Moving the damaged local database aside so lemurclaw can rebuild it from saved data.",
+        ),
+        (
+            "cli_internal/state_db_recovery.rs",
+            "Codex rebuilt its local database.",
+            "lemurclaw rebuilt its local database.",
+        ),
+        (
+            "cli_internal/state_db_recovery.rs",
+            "Codex detected a damaged local database, moved it into a backup folder",
+            "lemurclaw detected a damaged local database, moved it into a backup folder",
+        ),
+        (
+            "cli_internal/state_db_recovery.rs",
+            "Run `codex doctor` to check your setup",
+            "Run `lemurclaw doctor` to check your setup",
+        ),
+        (
+            "cli_internal/state_db_recovery.rs",
+            "Codex couldn't start because another Codex process is using its local data.",
+            "lemurclaw couldn't start because another lemurclaw process is using its local data.",
+        ),
+        (
+            "cli_internal/state_db_recovery.rs",
+            "Quit any other copies of Codex that may still be running",
+            "Quit any other copies of lemurclaw that may still be running",
+        ),
+        // cli_internal/doctor/output.rs
+        (
+            "cli_internal/doctor/output.rs",
+            "bold(\"Codex Doctor\", options)",
+            "bold(\"lemurclaw Doctor\", options)",
+        ),
+        (
+            "cli_internal/doctor/output.rs",
+            "Run codex doctor without --summary for detailed diagnostics.",
+            "Run lemurclaw doctor without --summary for detailed diagnostics.",
+        ),
+        // cli_internal/doctor/background.rs
+        (
+            "cli_internal/doctor/background.rs",
+            "Run codex app-server daemon version for more details.",
+            "Run lemurclaw app-server daemon version for more details.",
+        ),
+        // cli_internal/doctor/git.rs
+        (
+            "cli_internal/doctor/git.rs",
+            "so Codex can inspect Git metadata.",
+            "so lemurclaw can inspect Git metadata.",
+        ),
+        (
+            "cli_internal/doctor/git.rs",
+            "so Codex can inspect repository metadata.",
+            "so lemurclaw can inspect repository metadata.",
+        ),
+        (
+            "cli_internal/doctor/git.rs",
+            "the bundled Git executable Codex resolves first.",
+            "the bundled Git executable lemurclaw resolves first.",
+        ),
+        // cli_internal/doctor/runtime.rs
+        (
+            "cli_internal/doctor/runtime.rs",
+            "repair the bundled Codex package.",
+            "repair the bundled lemurclaw package.",
+        ),
+        // cli_internal/doctor/updates.rs (keep CODEX_MANAGED_PACKAGE_ROOT)
+        (
+            "cli_internal/doctor/updates.rs",
+            "Reinstall or update Codex so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT.",
+            "Reinstall or update lemurclaw so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT.",
+        ),
+        // cli_internal/doctor/mod.rs (merged from doctor.rs; keep
+        // "PATH codex entries:" and @openai/codex npm refs untouched).
+        (
+            "cli_internal/doctor/mod.rs",
+            "then rerun codex doctor.",
+            "then rerun lemurclaw doctor.",
+        ),
+        (
+            "cli_internal/doctor/mod.rs",
+            "failed to load Codex config",
+            "failed to load lemurclaw config",
+        ),
+        (
+            "cli_internal/doctor/mod.rs",
+            "Run codex login again or provide a supported auth env var.",
+            "Run lemurclaw login again or provide a supported auth env var.",
+        ),
+        (
+            "cli_internal/doctor/mod.rs",
+            "no Codex credentials were found",
+            "no lemurclaw credentials were found",
+        ),
+        (
+            "cli_internal/doctor/mod.rs",
+            "Run codex login or provide an API key through a supported auth env var.",
+            "Run lemurclaw login or provide an API key through a supported auth env var.",
+        ),
+        (
+            "cli_internal/doctor/mod.rs",
+            "Fix auth storage access or run codex login again.",
+            "Fix auth storage access or run lemurclaw login again.",
+        ),
+        (
+            "cli_internal/doctor/mod.rs",
+            "Reinstall or update Codex so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT.",
+            "Reinstall or update lemurclaw so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT.",
+        ),
+        // cli_internal/doctor/thread_inventory.rs — 2 occurrences (replace_all).
+        (
+            "cli_internal/doctor/thread_inventory.rs",
+            "Start Codex with no state DB present so startup backfill can create it from rollout files.",
+            "Start lemurclaw with no state DB present so startup backfill can create it from rollout files.",
+        ),
+        // cloud_tasks/mod.rs (merged from cloud-tasks/src/lib.rs)
+        (
+            "cloud_tasks/mod.rs",
+            "Please run 'codex login' to sign in with ChatGPT, then re-run 'codex cloud'.",
+            "Please run 'lemurclaw login' to sign in with ChatGPT, then re-run 'lemurclaw cloud'.",
+        ),
+        (
+            "cloud_tasks/mod.rs",
+            "run `codex cloud` to list available environments",
+            "run `lemurclaw cloud` to list available environments",
+        ),
+        (
+            "cloud_tasks/mod.rs",
+            "run `codex cloud` to pick the desired environment id",
+            "run `lemurclaw cloud` to pick the desired environment id",
+        ),
+        (
+            "cloud_tasks/mod.rs",
+            "format!(\"codex cloud list --cursor='{cursor}'\")",
+            "format!(\"lemurclaw cloud list --cursor='{cursor}'\")",
+        ),
+
+        // ===== TUI cluster (publish/tui/src/, files under tui_internal/) =====
+        // tui_internal/slash_command.rs
+        (
+            "tui_internal/slash_command.rs",
+            "create an AGENTS.md file with instructions for Codex",
+            "create an AGENTS.md file with instructions for lemurclaw",
+        ),
+        (
+            "tui_internal/slash_command.rs",
+            "exit Codex",
+            "exit lemurclaw",
+        ),
+        (
+            "tui_internal/slash_command.rs",
+            "use skills to improve how Codex performs specific tasks",
+            "use skills to improve how lemurclaw performs specific tasks",
+        ),
+        (
+            "tui_internal/slash_command.rs",
+            "choose a communication style for Codex",
+            "choose a communication style for lemurclaw",
+        ),
+        (
+            "tui_internal/slash_command.rs",
+            "choose what Codex is allowed to do",
+            "choose what lemurclaw is allowed to do",
+        ),
+        (
+            "tui_internal/slash_command.rs",
+            "log out of Codex",
+            "log out of lemurclaw",
+        ),
+        // tui_internal/history_cell/session.rs
+        (
+            "tui_internal/history_cell/session.rs",
+            " - create an AGENTS.md file with instructions for Codex",
+            " - create an AGENTS.md file with instructions for lemurclaw",
+        ),
+        (
+            "tui_internal/history_cell/session.rs",
+            " - choose what Codex is allowed to do",
+            " - choose what lemurclaw is allowed to do",
+        ),
+        (
+            "tui_internal/history_cell/session.rs",
+            "Span::from(\"OpenAI Codex\").bold()",
+            "Span::from(\"OpenAI lemurclaw\").bold()",
+        ),
+        (
+            "tui_internal/history_cell/session.rs",
+            "format!(\"OpenAI Codex (v{})\", self.version)",
+            "format!(\"OpenAI lemurclaw (v{})\", self.version)",
+        ),
+        (
+            "tui_internal/history_cell/session.rs",
+            ">_ OpenAI Codex (vX)",
+            ">_ OpenAI lemurclaw (vX)",
+        ),
+        // tui_internal/status/card.rs
+        (
+            "tui_internal/status/card.rs",
+            "Span::from(\"OpenAI Codex\").bold()",
+            "Span::from(\"OpenAI lemurclaw\").bold()",
+        ),
+        (
+            "tui_internal/status/card.rs",
+            "API key configured (run codex login to use ChatGPT)",
+            "API key configured (run lemurclaw login to use ChatGPT)",
+        ),
+        // tui_internal/history_cell/approvals.rs — sentence-fragment spans
+        // (replace_all on each).
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " codex to run ",
+            " lemurclaw to run ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " codex network access to ",
+            " lemurclaw network access to ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " codex to always run commands that start with ",
+            " lemurclaw to always run commands that start with ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " Codex network access to ",
+            " lemurclaw network access to ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " for codex to run ",
+            " for lemurclaw to run ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " before codex could run ",
+            " before lemurclaw could run ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " before codex could access ",
+            " before lemurclaw could access ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " the request for codex network access to ",
+            " the request for lemurclaw network access to ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " for codex to apply ",
+            " for lemurclaw to apply ",
+        ),
+        (
+            "tui_internal/history_cell/approvals.rs",
+            " before codex could apply ",
+            " before lemurclaw could apply ",
+        ),
+        // tui_internal/bottom_pane/approval_overlay.rs — 5× label + 1× test
+        // (replace_all keeps tests passing).
+        (
+            "tui_internal/bottom_pane/approval_overlay.rs",
+            "No, and tell Codex what to do differently",
+            "No, and tell lemurclaw what to do differently",
+        ),
+        (
+            "tui_internal/bottom_pane/approval_overlay.rs",
+            "✔ You approved codex to run",
+            "✔ You approved lemurclaw to run",
+        ),
+        // "Ask Codex to do anything" — replace_all in these .rs files
+        // (the 52 .snap files are handled separately below).
+        (
+            "tui_internal/bottom_pane/mod.rs",
+            "Ask Codex to do anything",
+            "Ask lemurclaw to do anything",
+        ),
+        (
+            "tui_internal/bottom_pane/chat_composer.rs",
+            "Ask Codex to do anything",
+            "Ask lemurclaw to do anything",
+        ),
+        (
+            "tui_internal/bottom_pane/chat_composer/slash_input.rs",
+            "Ask Codex to do anything",
+            "Ask lemurclaw to do anything",
+        ),
+        (
+            "tui_internal/bottom_pane/chat_composer/history_search.rs",
+            "Ask Codex to do anything",
+            "Ask lemurclaw to do anything",
+        ),
+        (
+            "tui_internal/keymap_setup.rs",
+            "Ask Codex to do anything",
+            "Ask lemurclaw to do anything",
+        ),
+        // tui_internal/model_migration.rs (do NOT touch gpt-5.x-codex slugs).
+        (
+            "tui_internal/model_migration.rs",
+            "Codex just got an upgrade. Introducing {target_display_name}.",
+            "lemurclaw just got an upgrade. Introducing {target_display_name}.",
+        ),
+        (
+            "tui_internal/model_migration.rs",
+            "Choose how you'd like Codex to proceed.",
+            "Choose how you'd like lemurclaw to proceed.",
+        ),
+        // tui_internal/bottom_pane/list_selection_view.rs — test fixtures
+        // (do NOT touch gpt-5.1-codex / gpt-4.1-codex name: fields).
+        (
+            "tui_internal/bottom_pane/list_selection_view.rs",
+            "Optimized for Codex. Balance of reasoning quality and coding ability.",
+            "Optimized for lemurclaw. Balance of reasoning quality and coding ability.",
+        ),
+        (
+            "tui_internal/bottom_pane/list_selection_view.rs",
+            "Optimized for Codex. Cheaper, faster, but less capable.",
+            "Optimized for lemurclaw. Cheaper, faster, but less capable.",
+        ),
+        // tui_internal/bottom_pane/memories_settings_view.rs
+        (
+            "tui_internal/bottom_pane/memories_settings_view.rs",
+            "Choose how Codex uses and creates memories.",
+            "Choose how lemurclaw uses and creates memories.",
+        ),
+        (
+            "tui_internal/bottom_pane/memories_settings_view.rs",
+            "for the current Codex home.",
+            "for the current lemurclaw home.",
+        ),
+        // tui_internal/keymap_setup/debug.rs
+        (
+            "tui_internal/keymap_setup/debug.rs",
+            "Tip: Codex can only inspect keys your terminal sends.",
+            "Tip: lemurclaw can only inspect keys your terminal sends.",
+        ),
+        (
+            "tui_internal/keymap_setup/debug.rs",
+            "your terminal is not sending that key to Codex.",
+            "your terminal is not sending that key to lemurclaw.",
+        ),
+        (
+            "tui_internal/keymap_setup/debug.rs",
+            "Press any key to see what Codex receives.",
+            "Press any key to see what lemurclaw receives.",
+        ),
+        // tui_internal/keymap_setup/picker.rs
+        (
+            "tui_internal/keymap_setup/picker.rs",
+            "See the key Codex detects and any shortcuts assigned to it.",
+            "See the key lemurclaw detects and any shortcuts assigned to it.",
+        ),
+        // tui_internal/pets/image_protocol.rs
+        (
+            "tui_internal/pets/image_protocol.rs",
+            "Run Codex outside tmux to use pets.",
+            "Run lemurclaw outside tmux to use pets.",
+        ),
+        (
+            "tui_internal/pets/image_protocol.rs",
+            "Run Codex outside Zellij to use pets.",
+            "Run lemurclaw outside Zellij to use pets.",
+        ),
+        (
+            "tui_internal/pets/image_protocol.rs",
+            "or run Codex outside tmux.",
+            "or run lemurclaw outside tmux.",
+        ),
+        // tui_internal/tooltips.rs (keep chatgpt.com/codex URL).
+        (
+            "tui_internal/tooltips.rs",
+            "Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true",
+            "Run 'lemurclaw app' or visit https://chatgpt.com/codex?app-landing-page=true",
+        ),
+        (
+            "tui_internal/tooltips.rs",
+            "*New* Build faster with Codex.",
+            "*New* Build faster with lemurclaw.",
+        ),
+        (
+            "tui_internal/tooltips.rs",
+            "Codex is included in your plan for free",
+            "lemurclaw is included in your plan for free",
+        ),
+        // The filter must match the tooltip text above (lockstep).
+        (
+            "tui_internal/tooltips.rs",
+            "line.contains(\"codex app\")",
+            "line.contains(\"lemurclaw app\")",
+        ),
+        // tui_internal/tooltips.txt (loaded via include_str!, user-visible;
+        // keep ~/.codex/config.toml, Discord URL, developers.openai.com URL,
+        // community.openai.com URL untouched).
+        (
+            "tui_internal/tooltips.txt",
+            "when Codex asks for confirmation",
+            "when lemurclaw asks for confirmation",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "ask Codex to use one",
+            "ask lemurclaw to use one",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "Run `codex app` to open the Desktop app",
+            "Run `lemurclaw app` to open the Desktop app",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "how Codex communicates",
+            "how lemurclaw communicates",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "`codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp`",
+            "`lemurclaw mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp`",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "Visit the Codex community forum: https://community.openai.com/c/codex/37",
+            "Visit the lemurclaw community forum: https://community.openai.com/c/codex/37",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "from Codex using `!`",
+            "from lemurclaw using `!`",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "See the Codex keymap documentation",
+            "See the lemurclaw keymap documentation",
+        ),
+        (
+            "tui_internal/tooltips.txt",
+            "running `codex resume`",
+            "running `lemurclaw resume`",
+        ),
+        // tui_internal/app/config_persistence.rs
+        (
+            "tui_internal/app/config_persistence.rs",
+            "but Codex could not refresh the effective config: {err}",
+            "but lemurclaw could not refresh the effective config: {err}",
+        ),
+        // tui_internal/app/input.rs
+        (
+            "tui_internal/app/input.rs",
+            "before starting Codex.",
+            "before starting lemurclaw.",
+        ),
+        // tui_internal/app/background_requests.rs — remediation messages only
+        // (KEEP err.contains("codex plugins are disabled") and
+        // err.contains("update codex") — they match remote server output).
+        (
+            "tui_internal/app/background_requests.rs",
+            "Ask a workspace admin to enable Codex plugins or plugin sharing.",
+            "Ask a workspace admin to enable lemurclaw plugins or plugin sharing.",
+        ),
+        (
+            "tui_internal/app/background_requests.rs",
+            "Update Codex, then try opening the shared plugin again.",
+            "Update lemurclaw, then try opening the shared plugin again.",
+        ),
+        (
+            "tui_internal/app/background_requests.rs",
+            "Plugin sharing is disabled for this Codex session.",
+            "Plugin sharing is disabled for this lemurclaw session.",
+        ),
+        // tui_internal/app/event_dispatch.rs — 2× (replace_all).
+        (
+            "tui_internal/app/event_dispatch.rs",
+            "Codex can now safely edit files and execute commands in your computer",
+            "lemurclaw can now safely edit files and execute commands in your computer",
+        ),
+        // tui_internal/external_agent_config_migration_flow.rs
+        (
+            "tui_internal/external_agent_config_migration_flow.rs",
+            "Start Codex locally and run /import.",
+            "Start lemurclaw locally and run /import.",
+        ),
+        (
+            "tui_internal/external_agent_config_migration_flow.rs",
+            "while Codex is connected to the local app-server daemon. Stop the daemon, restart Codex, and run /import.",
+            "while lemurclaw is connected to the local app-server daemon. Stop the daemon, restart lemurclaw, and run /import.",
+        ),
+        // tui_internal/external_agent_config_migration/render.rs — 2×.
+        (
+            "tui_internal/external_agent_config_migration/render.rs",
+            "Codex may add files to your current project folder.",
+            "lemurclaw may add files to your current project folder.",
+        ),
+        // tui_internal/bottom_pane/hooks_browser_view.rs
+        (
+            "tui_internal/bottom_pane/hooks_browser_view.rs",
+            "Right before Codex ends its turn",
+            "Right before lemurclaw ends its turn",
+        ),
+        // tui_internal/app/thread_goal_actions.rs
+        (
+            "tui_internal/app/thread_goal_actions.rs",
+            "Run `codex` to start a saved session, or `codex resume` / `/resume` to reopen one.",
+            "Run `lemurclaw` to start a saved session, or `lemurclaw resume` / `/resume` to reopen one.",
+        ),
+        // tui_internal/bottom_pane/status_surface_preview.rs
+        // (leave CodexVersion enum, gpt-5.2-codex model slugs untouched).
+        (
+            "tui_internal/bottom_pane/status_surface_preview.rs",
+            "StatusSurfacePreviewItem::AppName => \"codex\"",
+            "StatusSurfacePreviewItem::AppName => \"lemurclaw\"",
+        ),
+
+        // ===== Server cluster (publish/server/src/) =====
+        // app_server_daemon/update_loop.rs
+        (
+            "app_server_daemon/update_loop.rs",
+            "standalone Codex updater exited with status {status}",
+            "standalone lemurclaw updater exited with status {status}",
+        ),
+        // app_server_test_client/mod.rs (merged from lib.rs; leave --codex-bin
+        // flag, codex_bin ident, SpawnCodex variant untouched).
+        (
+            "app_server_test_client/mod.rs",
+            "author = \"Codex\", version, about = \"Bootstrap Codex app-server\"",
+            "author = \"lemurclaw\", version, about = \"Bootstrap lemurclaw app-server\"",
+        ),
+        (
+            "app_server_test_client/mod.rs",
+            "started codex app-server",
+            "started lemurclaw app-server",
+        ),
+        (
+            "app_server_test_client/mod.rs",
+            "[codex app-server exited: {status}]",
+            "[lemurclaw app-server exited: {status}]",
+        ),
+        // app_server/mod.rs (merged from app-server/src/lib.rs) — SQLite state-db
+        // recovery messages shown to the user. These mirror the CLI
+        // state_db_recovery.rs strings already rewritten above. NOTE: leave the
+        // `codex-app-server` telemetry/identifier name (OTEL_SERVICE_NAME) and
+        // `codex-app-server-test-config.toml` test path untouched.
+        (
+            "app_server/mod.rs",
+            "\"Codex rebuilt its local database.\"",
+            "\"lemurclaw rebuilt its local database.\"",
+        ),
+        (
+            "app_server/mod.rs",
+            "\"Codex local database at {} appears damaged. Moving it into a backup folder so the app server can rebuild it from saved data.\"",
+            "\"lemurclaw local database at {} appears damaged. Moving it into a backup folder so the app server can rebuild it from saved data.\"",
+        ),
+        (
+            "app_server/mod.rs",
+            "\"Moved damaged Codex local database file {} to {}\"",
+            "\"Moved damaged lemurclaw local database file {} to {}\"",
+        ),
+        // chatgpt/chatgpt_client.rs (merged from chatgpt/src/chatgpt_client.rs)
+        // — user-facing auth error messages. "Codex backend auth" appears 2×
+        // (replace_all); the two `codex login` variants differ by backticks.
+        (
+            "chatgpt/chatgpt_client.rs",
+            "ChatGPT backend requests require Codex backend auth",
+            "ChatGPT backend requests require lemurclaw backend auth",
+        ),
+        (
+            "chatgpt/chatgpt_client.rs",
+            "ChatGPT account ID not available, please re-run `codex login`",
+            "ChatGPT account ID not available, please re-run `lemurclaw login`",
+        ),
+        (
+            "chatgpt/chatgpt_client.rs",
+            "ChatGPT account ID not available, please re-run codex login",
+            "ChatGPT account ID not available, please re-run lemurclaw login",
+        ),
+        // chatgpt/connectors.rs (merged from chatgpt/src/connectors.rs) — same
+        // auth message family plus a connectors-specific variant.
+        (
+            "chatgpt/connectors.rs",
+            "ChatGPT connectors require Codex backend auth",
+            "ChatGPT connectors require lemurclaw backend auth",
+        ),
+        (
+            "chatgpt/connectors.rs",
+            "ChatGPT backend requests require Codex backend auth",
+            "ChatGPT backend requests require lemurclaw backend auth",
+        ),
+        (
+            "chatgpt/connectors.rs",
+            "ChatGPT account ID not available, please re-run codex login",
+            "ChatGPT account ID not available, please re-run lemurclaw login",
+        ),
+        // app_server_daemon/managed_install.rs — error messages about the
+        // managed install. "managed Codex" appears 5× across binary/version
+        // messages (replace_all). NOTE: the `codex`/`codex.exe` binary basename
+        // and `codex_bin` ident below them are NOT touched (they resolve the
+        // real on-disk binary).
+        (
+            "app_server_daemon/managed_install.rs",
+            "managed Codex",
+            "managed lemurclaw",
+        ),
+        // app_server_daemon/client.rs — notification title shown to the user.
+        (
+            "app_server_daemon/client.rs",
+            "\"Codex App Server Daemon\"",
+            "\"lemurclaw App Server Daemon\"",
+        ),
+        // memories_write/guard.rs (merged from memories/write/src/guard.rs) —
+        // startup warning message.
+        (
+            "memories_write/guard.rs",
+            "skipping memories startup because Codex rate limits are below the configured threshold",
+            "skipping memories startup because lemurclaw rate limits are below the configured threshold",
+        ),
+    ];
+
+    let mut changed = 0usize;
+    for (rel, old, new) in edits {
+        let path = src_dir.join(rel);
+        if path.is_file() {
+            let raw = fs::read_to_string(&path)
+                .with_context(|| format!("read {}", path.display()))?;
+            if raw.contains(old) {
+                fs::write(&path, raw.replace(old, new))
+                    .with_context(|| format!("write {}", path.display()))?;
+                changed += 1;
+            }
+        }
+    }
+
+    // Snapshots: replace ONLY the "Ask Codex to do anything" placeholder in
+    // insta .snap files under the tui src tree (decision (a)). Do NOT touch
+    // any other codex/Codex inside .snap files — they contain model slugs,
+    // identifiers, etc. that must stay. This keeps tests passing without a
+    // separate `cargo insta accept` step.
+    let snap_old = "Ask Codex to do anything";
+    let snap_new = "Ask lemurclaw to do anything";
+    fn rewrite_snaps(dir: &Path, old: &str, new: &str, changed: &mut usize) -> Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                rewrite_snaps(&path, old, new, changed)?;
+            } else if path.extension().is_some_and(|e| e == "snap") {
+                let raw = fs::read_to_string(&path)
+                    .with_context(|| format!("read {}", path.display()))?;
+                if raw.contains(old) {
+                    fs::write(&path, raw.replace(old, new))
+                        .with_context(|| format!("write {}", path.display()))?;
+                    *changed += 1;
+                }
+            }
+        }
+        Ok(())
+    }
+    rewrite_snaps(src_dir, snap_old, snap_new, &mut changed)?;
+
+    if changed > 0 {
+        println!(
+            "  ✓ Rewrote brand display text (Codex→lemurclaw) in {} files",
+            changed
+        );
+    }
+    Ok(())
+}
+
+/// Full-scope brand rewriter: Codex/codex → lemurclaw across the whole
+/// `publish/` tree, covering categories BEYOND display text — environment
+/// variables (`CODEX_*` → `LEMURCLAW_*`), filesystem paths (`~/.codex` →
+/// `~/.lemurclaw`, `/etc/codex/` → `/etc/lemurclaw/`), CLI flags
+/// (`--codex-*` → `--lemurclaw-*`), internal protocol identifiers
+/// (`codex://`, `CodexErrorInfo` type name, protobuf packages, internal
+/// type/daemon/binary names), system prompts (model identity text), and
+/// emit-only telemetry names.
+///
+/// ## Why a separate function from `rewrite_brand_display_text`
+/// That function is an exact-string table (each `old` anchored with enough
+/// context to be unambiguous within a file) because it targets `.rs` files
+/// where brand words sit next to identifiers that must stay (`codex_home`,
+/// `CodexAuth`). Most `codex`/`Codex` here is pure brand with no such
+/// collisions, so a tree scan with a B-zone placeholder guard is cleaner and
+/// more maintainable than hand-listing hundreds of pairs.
+///
+/// ## Why a scan, not merge-relative paths
+/// Merge moves member `src/` under unpredictable module dirs (`core_internal/`,
+/// `login/`, …), so fixed paths are fragile. Scanning `publish_root` and
+/// editing any matching source file is robust to merge re-pathing.
+///
+/// ## Scope split (A-zone here; B-zone preserved)
+/// The B-zone — strings sent to the OpenAI cloud and validated/consumed
+/// there — is PRESERVED via placeholder protection. lemurclaw talks directly
+/// to OpenAI's cloud (`chatgpt.com/codex-backend`), so renaming those would
+/// break live integrations. B-zone = model slugs (`gpt-5.x-codex`), the
+/// `originator` header values (`codex_cli_rs` etc.), the JWT audience
+/// (`codex-app-server` in `agent-identity`), the `codex_exec` originator,
+/// analytics `event_type` wire values, and the `codexErrorInfo` JSON field
+/// name (on-wire, brand-irrelevant). Each is stashed before editing and
+/// restored after, so a loose `\bCodex\b` match can never touch them.
+pub(crate) fn rewrite_brand_full(publish_root: &Path) -> Result<()> {
+    println!("\n🔄 Full-scope brand rewrite (Codex→lemurclaw) across publish/…");
+
+    // Files worth scanning. Skip target/ (walkdir already does), .snap
+    // (regenerated by tests), .lock (handled by rename), and build artifacts.
+    let wanted_exts: &[&str] = &["rs", "toml", "json", "ts", "md", "txt", "sh", "html", "py"];
+
+    // B-zone tokens to protect: stash → rewrite → restore. Each is a literal
+    // string that must survive unchanged. Order matters only for determinism.
+    // (See function docstring for why each is preserved.)
+    let protected: &[&str] = &[
+        // Model slugs (real OpenAI API model names).
+        "gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.1-codex", "gpt-5-codex",
+        "gpt-5.1-codex-max", "gpt-5.2-codex-sonic",
+        // Originator header values (cloud gates first-party on these).
+        "codex_cli_rs", "codex-tui", "codex_vscode", "codex_atlas",
+        "codex_chatgpt_desktop", "codex_desktop", "codex-cli",
+        "codex-app-server-sdk", "codex_sdk_ts",
+        // JWT audience (cloud validates the `aud` claim).
+        "codex-app-server",
+        // codex_exec originator (outbound Originator header).
+        "codex_exec",
+        // Analytics event_type wire values (backend consumes by name).
+        "codex_app_mentioned", "codex_app_used", "codex_thread_initialized",
+        "codex_turn_event", "codex_turn_steer_event", "codex_goal_event",
+        "codex_guardian_review", "codex_hook_run", "codex_review_event",
+        "codex_command_execution_event", "codex_compaction_event",
+        "codex_web_search_event", "codex_image_generation_event",
+        "codex_mcp_tool_call_event", "codex_dynamic_tool_call_event",
+        "codex_collab_agent_tool_call_event", "codex_file_change_event",
+        "codex_plugin_used", "codex_plugin_enabled", "codex_plugin_disabled",
+        "codex_plugin_installed", "codex_plugin_uninstalled",
+        "codex_plugin_install_requested", "codex_plugin_install_failed",
+        "codex_onboarding_external_agent_import_complete",
+        "codex_onboarding_external_agent_import_failure",
+        // On-wire JSON field name (brand-irrelevant; renaming changes wire).
+        "codexErrorInfo",
+        // Cloud URLs / OpenAI infrastructure.
+        "openai/codex", "chatgpt.com/codex", "developers.openai.com/codex",
+        "community.openai.com/c/codex", "@openai/codex", "com.openai.codex",
+        "codex-backend",
+    ];
+
+    let mut files_scanned = 0usize;
+    let mut files_changed = 0usize;
+    let mut occ_total = 0usize;
+
+    for entry in walkdir(publish_root)? {
+        let path = entry.path();
+        // Extension filter.
+        let is_wanted = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| wanted_exts.contains(&e));
+        if !is_wanted {
+            continue;
+        }
+        // Skip snapshot dirs entirely (tests regenerate them).
+        if path
+            .components()
+            .any(|c| c.as_os_str() == "snapshots")
+        {
+            continue;
+        }
+
+        let raw = match fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(_) => continue, // binary/symlink/non-utf8 — skip quietly.
+        };
+        files_scanned += 1;
+
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let new = rewrite_brand_full_text(&raw, ext, protected, &mut occ_total);
+        if new != raw {
+            fs::write(&path, &new)
+                .with_context(|| format!("write {}", path.display()))?;
+            files_changed += 1;
+        }
+    }
+
+    println!(
+        "  ✓ Full brand rewrite: {} occurrences in {} files (scanned {})",
+        occ_total, files_changed, files_scanned
+    );
+
+    // File renames: when a generated file is named after a type/identifier that
+    // the content rewrite changed, the filename must follow or imports break.
+    // E.g. `CodexErrorInfo.ts` whose content now exports `LemurclawErrorInfo`,
+    // referenced by `index.ts` as `from "./LemurclawErrorInfo"`. Rename the
+    // file to match. (Generated schemas are regenerated upstream; this keeps
+    // the publish tree internally consistent.)
+    let file_renames: &[(&str, &str)] = &[
+        ("CodexErrorInfo.ts", "LemurclawErrorInfo.ts"),
+        ("CodexErrorInfo.json", "LemurclawErrorInfo.json"),
+    ];
+    let mut renamed = 0usize;
+    for entry in walkdir(publish_root)? {
+        let path = entry.path();
+        let fname = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n,
+            None => continue,
+        };
+        let new_name = file_renames
+            .iter()
+            .find(|(old, _)| *old == fname)
+            .map(|(_, new)| *new);
+        if let Some(new_name) = new_name {
+            let new_path = path.with_file_name(new_name);
+            fs::rename(&path, &new_path)
+                .with_context(|| format!("rename {} → {}", path.display(), new_path.display()))?;
+            renamed += 1;
+        }
+    }
+    if renamed > 0 {
+        println!("  ✓ Renamed {} generated schema files to match type names", renamed);
+    }
+
+    Ok(())
+}
+
+/// Apply the A-zone brand rewrites to a single file's text, with B-zone
+/// `protected` tokens stashed via placeholders and restored afterwards.
+/// `occ_count` accumulates the number of A-zone replacements made.
+///
+/// `ext` is the file extension (no dot): `.rs` files get the surgical
+/// literal-table treatment only (identifiers must not be touched); non-`.rs`
+/// prose files (`.md`, `.txt`, `.json`, `.ts`, `.html`) additionally get a
+/// word-boundary `Codex`/`codex` → `lemurclaw` pass for brand/identity text.
+fn rewrite_brand_full_text(
+    raw: &str,
+    ext: &str,
+    protected: &[&str],
+    occ_count: &mut usize,
+) -> String {
+    // 1. Stash B-zone tokens behind unique placeholders that contain no
+    //    `codex`/`Codex` substring, so subsequent rewrites can't touch them.
+    let mut s = String::with_capacity(raw.len());
+    let mut stashed: Vec<String> = Vec::new();
+    let mut cur = raw;
+    let mut buf = String::new();
+    for tok in protected {
+        if !cur.contains(tok) {
+            continue;
+        }
+        buf.clear();
+        let mut last = 0;
+        for (idx, _) in cur.match_indices(tok) {
+            buf.push_str(&cur[last..idx]);
+            let marker = format!("\x00BRAND_PROTECT_{}\x00", stashed.len());
+            buf.push_str(&marker);
+            stashed.push((*tok).to_string());
+            last = idx + tok.len();
+        }
+        buf.push_str(&cur[last..]);
+        s = buf.clone();
+        cur = &s;
+    }
+    let working = if stashed.is_empty() { raw.to_string() } else { s };
+
+    // 2. Apply A-zone rewrites. Each rule is (find, replace). Order matters:
+    //    longer/more-specific patterns first so they win over generic ones.
+    let rules: &[(&str, &str)] = &[
+        // --- A1: environment variable VALUES (string literals) ---
+        // These are the on-wire env-var names read at runtime. The constant
+        // *identifiers* (CODEX_HOME_ENV_VAR) are already renamed by
+        // source_rewrite's AST pass; only the quoted string literals remain.
+        // Match the quoted form to stay surgical.
+        ("\"CODEX_SANDBOX_NETWORK_DISABLED\"", "\"LEMURCLAW_SANDBOX_NETWORK_DISABLED\""),
+        ("\"CODEX_SANDBOX\"", "\"LEMURCLAW_SANDBOX\""),
+        ("\"CODEX_HOME\"", "\"LEMURCLAW_HOME\""),
+        ("\"CODEX_API_KEY\"", "\"LEMURCLAW_API_KEY\""),
+        ("\"CODEX_ACCESS_TOKEN\"", "\"LEMURCLAW_ACCESS_TOKEN\""),
+        ("\"CODEX_SQLITE_HOME\"", "\"LEMURCLAW_SQLITE_HOME\""),
+        ("\"CODEX_CA_CERTIFICATE\"", "\"LEMURCLAW_CA_CERTIFICATE\""),
+        ("\"CODEX_PERMISSION_PROFILE\"", "\"LEMURCLAW_PERMISSION_PROFILE\""),
+        ("\"CODEX_THREAD_ID\"", "\"LEMURCLAW_THREAD_ID\""),
+        ("\"CODEX_ESCALATE_SOCKET\"", "\"LEMURCLAW_ESCALATE_SOCKET\""),
+        ("\"CODEX_ROLLOUT_TRACE_ROOT\"", "\"LEMURCLAW_ROLLOUT_TRACE_ROOT\""),
+        ("\"CODEX_CONNECTORS_TOKEN\"", "\"LEMURCLAW_CONNECTORS_TOKEN\""),
+        ("\"CODEX_CODE_MODE_HOST_PATH\"", "\"LEMURCLAW_CODE_MODE_HOST_PATH\""),
+        ("\"CODEX_EXEC_SERVER_URL\"", "\"LEMURCLAW_EXEC_SERVER_URL\""),
+        ("\"CODEX_EXEC_SERVER_NOISE_AUTH_TOKEN\"", "\"LEMURCLAW_EXEC_SERVER_NOISE_AUTH_TOKEN\""),
+        ("\"CODEX_AUTHAPI_BASE_URL\"", "\"LEMURCLAW_AUTHAPI_BASE_URL\""),
+        ("\"CODEX_REFRESH_TOKEN_URL_OVERRIDE\"", "\"LEMURCLAW_REFRESH_TOKEN_URL_OVERRIDE\""),
+        ("\"CODEX_REVOKE_TOKEN_URL_OVERRIDE\"", "\"LEMURCLAW_REVOKE_TOKEN_URL_OVERRIDE\""),
+        ("\"CODEX_APP_SERVER_LOGIN_CLIENT_ID\"", "\"LEMURCLAW_APP_SERVER_LOGIN_CLIENT_ID\""),
+        ("\"CODEX_INTERNAL_ORIGINATOR_OVERRIDE\"", "\"LEMURCLAW_INTERNAL_ORIGINATOR_OVERRIDE\""),
+        ("\"CODEX_NETWORK_PROXY_ACTIVE\"", "\"LEMURCLAW_NETWORK_PROXY_ACTIVE\""),
+        ("\"CODEX_NETWORK_ALLOW_LOCAL_BINDING\"", "\"LEMURCLAW_NETWORK_ALLOW_LOCAL_BINDING\""),
+        ("\"CODEX_NETWORK_PROXY_CREDENTIAL_BROKER_ACTIVE\"", "\"LEMURCLAW_NETWORK_PROXY_CREDENTIAL_BROKER_ACTIVE\""),
+        ("\"CODEX_NETWORK_PROXY_BROKERED_CREDENTIALS\"", "\"LEMURCLAW_NETWORK_PROXY_BROKERED_CREDENTIALS\""),
+        ("\"CODEX_NETWORK_PROXY_ATTRIBUTION\"", "\"LEMURCLAW_NETWORK_PROXY_ATTRIBUTION\""),
+        ("\"CODEX_NETWORK_POLICY_VIOLATION\"", "\"LEMURCLAW_NETWORK_POLICY_VIOLATION\""),
+        ("\"CODEX_PROXY_GIT_SSH_COMMAND\"", "\"LEMURCLAW_PROXY_GIT_SSH_COMMAND\""),
+        // Managed-install contract (JS shim + Rust; scattered, no constant).
+        ("CODEX_MANAGED_BY_NPM", "LEMURCLAW_MANAGED_BY_NPM"),
+        ("CODEX_MANAGED_BY_PNPM", "LEMURCLAW_MANAGED_BY_PNPM"),
+        ("CODEX_MANAGED_BY_BUN", "LEMURCLAW_MANAGED_BY_BUN"),
+        ("CODEX_MANAGED_PACKAGE_ROOT", "LEMURCLAW_MANAGED_PACKAGE_ROOT"),
+        // Cloud-tasks inline reads.
+        ("CODEX_CLOUD_TASKS_BASE_URL", "LEMURCLAW_CLOUD_TASKS_BASE_URL"),
+        ("CODEX_CLOUD_TASKS_MODE", "LEMURCLAW_CLOUD_TASKS_MODE"),
+        ("CODEX_CLOUD_TASKS_FORCE_INTERNAL", "LEMURCLAW_CLOUD_TASKS_FORCE_INTERNAL"),
+        // Remote auth token.
+        ("CODEX_REMOTE_AUTH_TOKEN", "LEMURCLAW_REMOTE_AUTH_TOKEN"),
+        // Misc inline env vars.
+        ("CODEX_GITHUB_TOKEN", "LEMURCLAW_GITHUB_TOKEN"),
+        ("CODEX_STARTING_DIFF", "LEMURCLAW_STARTING_DIFF"),
+        // Generic catch-up for any remaining quoted CODEX_* test/dev vars
+        // (CODEX_TEST_*, CODEX_APP_SERVER_*, CODEX_LOG, CODEX_BIN, …). The
+        // quoted form keeps it to string literals, not identifiers.
+        // NOTE: applied last via the loop below as a prefix rule.
+    ];
+
+    let mut out = working;
+    for (find, repl) in rules {
+        if out.contains(find) {
+            let n = out.matches(find).count();
+            *occ_count += n;
+            out = out.replace(find, repl);
+        }
+    }
+    // Generic quoted-prefix catch-up for remaining CODEX_* string literals
+    // not enumerated above (test/dev/build markers). Anchored on the quoted
+    // `"CODEX_` opener to stay within string literals.
+    out = replace_quoted_prefix(&out, "\"CODEX_", "\"LEMURCLAW_", occ_count);
+
+    // --- A2: filesystem paths ---
+    // `.codex` directory basename → `.lemurclaw`, and `/etc/codex` →
+    // `/etc/lemurclaw`. These are applied broadly because the `.codex` dir
+    // name is always a path, never an identifier — but `com.openai.codex`
+    // (the macOS bundle id / OpenAI infra) is B-zone-protected above, so the
+    // `.codex` substring inside it is already stashed. We match `.codex`
+    // when followed by a path-terminator (quote, slash, whitespace, `$`) so
+    // we don't graze into `codex_home` etc. (which only exist in .rs anyway).
+    //
+    // Match `.codex"` (end of a quoted/raw-string path, any preceding char),
+    // `.codex/` (path continuation), and `.codex` in `$HOME/.codex`-style.
+    let path_rules: &[(&str, &str)] = &[
+        // `.codex` at end of a quoted path segment (e.g. `r"...\.codex"`,
+        // `join(".codex")`, `.expect("create .codex")`).
+        (".codex\"", ".lemurclaw\""),
+        // `/etc/codex` system-config dir (in strings AND comments).
+        ("/etc/codex", "/etc/lemurclaw"),
+        // `~/.codex` and `$HOME/.codex` (home references).
+        ("~/.codex", "~/.lemurclaw"),
+        // The home-dir `.push(".codex")` / `.join(".codex")` literals.
+        ("(\".codex\")", "(\".lemurclaw\")"),
+    ];
+    for (find, repl) in path_rules {
+        if out.contains(find) {
+            let n = out.matches(find).count();
+            *occ_count += n;
+            out = out.replace(find, repl);
+        }
+    }
+
+    // --- A3: CLI flags --codex-* → --lemurclaw-* ---
+    // Process self-re-exec contract; both emitter and matcher are renamed.
+    // The `--codex-` prefix is unambiguous (no identifier uses it).
+    if out.contains("--codex-") {
+        let n = out.matches("--codex-").count();
+        *occ_count += n;
+        out = out.replace("--codex-", "--lemurclaw-");
+    }
+
+    // --- A4: internal protocol identifiers ---
+    let proto_rules: &[(&str, &str)] = &[
+        // URL scheme (emit-side only in this repo).
+        ("codex://", "lemurclaw://"),
+        // Protobuf packages (local gRPC; both ends in-tree).
+        ("codex.thread_config.v1", "lemurclaw.thread_config.v1"),
+        ("codex.exec_server.relay.v1", "lemurclaw.exec_server.relay.v1"),
+        // Daemon client name (local Unix socket).
+        ("codex_app_server_daemon", "lemurclaw_app_server_daemon"),
+        // arg0 helper binary basenames.
+        ("codex-linux-sandbox", "lemurclaw-linux-sandbox"),
+        ("codex-execve-wrapper", "lemurclaw-execve-wrapper"),
+    ];
+    for (find, repl) in proto_rules {
+        if out.contains(find) {
+            let n = out.matches(find).count();
+            *occ_count += n;
+            out = out.replace(find, repl);
+        }
+    }
+    // `CodexErrorInfo` TYPE name → `LemurclawErrorInfo` (not on-wire; only the
+    // TS type name + JSON schema $ref def name + Rust enum name). The field
+    // name `codexErrorInfo` is B-zone-protected above.
+    if out.contains("CodexErrorInfo") {
+        let n = out.matches("CodexErrorInfo").count();
+        *occ_count += n;
+        out = out.replace("CodexErrorInfo", "LemurclawErrorInfo");
+    }
+
+    // --- A6: emit-only telemetry names + OTEL service.name ---
+    // `codex-app-server` as an OTEL service.name tag is emit-only (cloud
+    // doesn't reject on it). The JWT audience of the same literal is
+    // B-zone-protected above. Other `codex.*` metric names are emit-only too.
+    let telem_rules: &[(&str, &str)] = &[
+        // Metric name prefixes (emit-only; OTel backend just sees a new name).
+        ("codex.thread.", "lemurclaw.thread."),
+        ("codex.windows_sandbox.", "lemurclaw.windows_sandbox."),
+        ("codex.apps.refresh.", "lemurclaw.apps.refresh."),
+        ("codex.apps.installed.", "lemurclaw.apps.installed."),
+        ("codex.cloud_config_bundle.", "lemurclaw.cloud_config_bundle."),
+    ];
+    for (find, repl) in telem_rules {
+        if out.contains(find) {
+            let n = out.matches(find).count();
+            *occ_count += n;
+            out = out.replace(find, repl);
+        }
+    }
+
+    // --- A5: system prompt / brand-word identity text ---
+    // Pure brand `\bCodex\b` → `lemurclaw` and `\bcodex\b` → `lemurclaw` in
+    // prose/doc/prompt contexts. Applied LAST and ONLY to non-.rs files,
+    // because .rs source is full of identifiers (`codex_home`, `CodexAuth`)
+    // that must stay — those are handled by source_rewrite's AST pass, not
+    // here. Doing this broadly on .rs would corrupt identifiers. Brand-word
+    // rewrite for .rs *display* text is already covered by
+    // rewrite_brand_display_text's exact-string table.
+    //
+    // Non-.rs prose files (prompts, tooltips.txt, README/docs, models.json
+    // instructions_template) carry Codex as the product/model identity with
+    // no identifier collisions, so a word-boundary replace is safe here.
+    // B-zone tokens (model slugs, URLs, analytics names) are already stashed.
+    let is_prose = match ext {
+        "rs" => false,
+        _ => true,
+    };
+    if is_prose {
+        // Titlecase "Codex" → "lemurclaw" on word boundaries. Use the ASCII
+        // boundary heuristic: Codex preceded by start/non-alnum and followed
+        // by non-alnum (so "CodexAuth" / "CodexErrorInfo" — already protected
+        // or identifier-adjacent — are NOT matched; only the standalone word).
+        out = replace_word_boundary(&out, "Codex", "lemurclaw", occ_count);
+        // lowercase "codex" → "lemurclaw" on word boundaries (e.g. "run codex",
+        // "the codex cli"). Protects "codex_home"/"codex://" (the latter is
+        // already rewritten above to lemurclaw://, and the former only appears
+        // in .rs which is excluded here).
+        out = replace_word_boundary(&out, "codex", "lemurclaw", occ_count);
+    }
+
+    // 3. Restore B-zone tokens.
+    if stashed.is_empty() {
+        return out;
+    }
+    let mut restored = out;
+    for (i, tok) in stashed.iter().enumerate() {
+        let marker = format!("\x00BRAND_PROTECT_{}\x00", i);
+        if restored.contains(&marker) {
+            restored = restored.replace(&marker, tok);
+        }
+    }
+    restored
+}
+
+/// Replace `needle` with `repl` only where it appears as a standalone word
+/// (bounded by non-alphanumeric `_`-excluding edges on both sides). This
+/// prevents matching `needle` inside larger identifiers — e.g. `Codex` won't
+/// match in `CodexAuth`, and `codex` won't match in `codex_home` or
+/// `codex://`. Counts replacements into `occ_count`.
+fn replace_word_boundary(s: &str, needle: &str, repl: &str, occ_count: &mut usize) -> String {
+    if needle.is_empty() || !s.contains(needle) {
+        return s.to_string();
+    }
+    // A word boundary char is anything that is NOT an ASCII alphanumeric.
+    // (Underscore IS treated as a word char here, matching Rust ident rules,
+    // so `codex_home` stays intact.)
+    let is_boundary = |c: char| !c.is_ascii_alphanumeric() && c != '_';
+    let mut out = String::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let nb = needle.as_bytes();
+    let mut i = 0;
+    let mut count = 0usize;
+    while i < bytes.len() {
+        if i + nb.len() <= bytes.len() && &bytes[i..i + nb.len()] == nb {
+            // Check left boundary (start-of-string or boundary char before).
+            let left_ok = i == 0
+                || s[..i].chars().next_back().is_some_and(is_boundary);
+            // Check right boundary (end-of-string or boundary char after).
+            let right_ok = if i + nb.len() == bytes.len() {
+                true
+            } else {
+                s[i + nb.len()..].chars().next().is_some_and(is_boundary)
+            };
+            if left_ok && right_ok {
+                out.push_str(repl);
+                i += nb.len();
+                count += 1;
+                continue;
+            }
+        }
+        // Advance by one char to stay UTF-8 safe.
+        let ch = s[i..].chars().next().unwrap_or('_');
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    *occ_count += count;
+    out
+}
+
+/// Replace every occurrence of a quoted string-literal opener prefix.
+/// Walks `s` finding each `prefix` (e.g. `"CODEX_`) and, for the matching
+/// close quote, rewrites the opener to `repl` (e.g. `"LEMURCLAW_`). Only the
+/// opener prefix changes; the rest of the literal (the variable suffix) is
+//  untouched. Counts replacements into `occ_count`.
+fn replace_quoted_prefix(s: &str, prefix: &str, repl: &str, occ_count: &mut usize) -> String {
+    if !s.contains(prefix) {
+        return s.to_string();
+    }
+    // Count distinct string-literal occurrences of the opener.
+    let n = s.matches(prefix).count();
+    *occ_count += n;
+    s.replace(prefix, repl)
 }
 
 /// Comment out `if let Some(tls) = tls.as_ref() { ... with_http_client ... }` blocks
