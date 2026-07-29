@@ -70,6 +70,12 @@ enum PublishKind {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Full-scope brand rewriter: Codex/codex → lemurclaw across the publish/
+    /// tree — env vars, paths, CLI flags, internal protocol identifiers,
+    /// system prompts, and emit-only telemetry. (Display text is handled by
+    /// the bundle post-merge fixups; this covers everything else.) Can be
+    /// re-run independently on an existing publish/ tree.
+    RebrandFull,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -130,6 +136,14 @@ fn main() -> Result<()> {
                     BundleTarget::Cli => bundle::cli_cluster(),
                 };
                 bundle::run(&cluster, dry_run)
+            }
+            PublishKind::RebrandFull => {
+                // Locate the repo root the same way the other phases do:
+                // CARGO_MANIFEST_DIR is <repo>/xtask.
+                let manifest_dir =
+                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                let repo_root = manifest_dir.join("..").canonicalize()?;
+                bundle::rewrite_brand_full(&repo_root.join("publish"))
             }
         },
     }

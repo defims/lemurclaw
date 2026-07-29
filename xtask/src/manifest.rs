@@ -23,8 +23,8 @@ impl CrateManifest {
     pub fn read(path: &Path) -> Result<Self> {
         let raw = std::fs::read_to_string(path)
             .with_context(|| format!("read manifest {}", path.display()))?;
-        let doc: toml::Value = toml::from_str(&raw)
-            .with_context(|| format!("parse manifest {}", path.display()))?;
+        let doc: toml::Value =
+            toml::from_str(&raw).with_context(|| format!("parse manifest {}", path.display()))?;
         Ok(Self {
             path: path.to_path_buf(),
             raw,
@@ -174,11 +174,7 @@ pub fn rename_ident(name: &str) -> String {
 /// We work on the raw string because generated manifests are regular enough
 /// that targeted line-based rewrites are safer than a full toml round-trip
 /// (which would flatten any inline tables and lose formatting).
-pub fn rewrite_crate_manifest(
-    raw: &str,
-    drop_bins: bool,
-    drop_deps: &[String],
-) -> Result<String> {
+pub fn rewrite_crate_manifest(raw: &str, drop_bins: bool, drop_deps: &[String]) -> Result<String> {
     // Parse to validate, then do line-based rewrite to preserve layout.
     let _doc: toml::Value = toml::from_str(raw).context("parse crate manifest")?;
 
@@ -726,10 +722,7 @@ pub fn rewrite_publish_workspace_for_forks(raw: &str) -> Result<String> {
 
 /// If `line` is a workspace.dependencies entry for one of the fork deps,
 /// rewrite it to include `package = "lemurclaw-X"`. Otherwise return None.
-fn rewrite_workspace_fork_dep_line(
-    line: &str,
-    aliases: &[(&str, &str)],
-) -> Option<String> {
+fn rewrite_workspace_fork_dep_line(line: &str, aliases: &[(&str, &str)]) -> Option<String> {
     let trimmed = line.trim_start();
     let indent = &line[..line.len() - trimmed.len()];
 
@@ -743,9 +736,7 @@ fn rewrite_workspace_fork_dep_line(
         if trimmed.starts_with(&bare_prefix) {
             // Form (1): bare version string. Convert to inline table.
             // Extract the version from `ratatui = "0.29.0"`.
-            let after_eq = trimmed
-                .strip_prefix(&format!("{} = ", dep_key))?
-                .trim();
+            let after_eq = trimmed.strip_prefix(&format!("{} = ", dep_key))?.trim();
             let version = after_eq.trim_matches('"');
             return Some(format!(
                 "{}{} = {{ version = \"{}\", package = \"{}\" }}",
@@ -760,7 +751,10 @@ fn rewrite_workspace_fork_dep_line(
             }
             // Insert before the closing `}`.
             let close_idx = trimmed.rfind('}')?;
-            let mut before = trimmed[..close_idx].trim_end().trim_end_matches(',').to_string();
+            let mut before = trimmed[..close_idx]
+                .trim_end()
+                .trim_end_matches(',')
+                .to_string();
             if !before.ends_with('{') {
                 before.push_str(", ");
             }
