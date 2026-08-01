@@ -1,0 +1,39 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-tools"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-code-mode = { workspace = true }
+lemurclaw-connectors = { workspace = true }
+lemurclaw-features = { workspace = true }
+lemurclaw-file-system = { workspace = true }
+lemurclaw-extension-items = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-output-truncation = { workspace = true }
+lemurclaw-utils-pty = { workspace = true }
+lemurclaw-utils-string = { workspace = true }
+jsonptr = { workspace = true }
+rmcp = { workspace = true, default-features = false, features = [
+    "base64",
+    "macros",
+    "schemars",
+    "server",
+] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["raw_value"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+urlencoding = { workspace = true }
+
+[dev-dependencies]
+lemurclaw-utils-cargo-bin = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[lib]
+doctest = false

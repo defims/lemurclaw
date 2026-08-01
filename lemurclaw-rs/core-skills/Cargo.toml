@@ -1,0 +1,45 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-core-skills"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_core_skills"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+lemurclaw-analytics = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-context-fragments = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-model-provider = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-shell-command = { workspace = true }
+lemurclaw-skills = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-output-truncation = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+lemurclaw-utils-plugins = { workspace = true }
+dirs = { workspace = true }
+dunce = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+shlex = { workspace = true }
+tokio = { workspace = true, features = ["fs", "macros", "rt"] }
+toml = { workspace = true }
+tracing = { workspace = true }
+zip = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }

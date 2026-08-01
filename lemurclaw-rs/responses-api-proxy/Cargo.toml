@@ -1,0 +1,28 @@
+[package]
+name = "lemurclaw-responses-api-proxy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lemurclaw_responses_api_proxy"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+lemurclaw-process-hardening = { workspace = true }
+ctor = { workspace = true }
+libc = { workspace = true }
+reqwest = { workspace = true, features = ["blocking", "json", "rustls-tls"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tiny_http = { workspace = true }
+zeroize = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

@@ -1,0 +1,23 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-connectors-extension"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_connectors_extension"
+path = "src/lib.rs"
+doctest = false
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-connectors = { workspace = true }
+lemurclaw-core-plugins = { workspace = true }
+lemurclaw-plugin = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

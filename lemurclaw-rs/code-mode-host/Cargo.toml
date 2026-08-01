@@ -1,0 +1,33 @@
+[package]
+name = "lemurclaw-code-mode-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_code_mode_host"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true, features = ["http1", "tokio", "ws"] }
+clap = { workspace = true, features = ["derive"] }
+lemurclaw-code-mode = { workspace = true }
+lemurclaw-code-mode-protocol = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["io-std", "io-util", "macros", "net", "process", "rt", "sync", "time"] }
+tokio-util = { workspace = true, features = ["rt"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-cargo-bin = { workspace = true }
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio-tungstenite = { workspace = true }

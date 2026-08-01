@@ -1,0 +1,21 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-skills"
+version.workspace = true
+build = "build.rs"
+
+[lib]
+doctest = false
+name = "lemurclaw_skills"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+include_dir = { workspace = true }
+thiserror = { workspace = true }

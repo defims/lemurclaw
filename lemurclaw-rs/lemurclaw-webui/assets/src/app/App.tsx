@@ -1,0 +1,248 @@
+import { useEffect, useState } from 'react';
+import { useConversation } from './useConversation';
+import { useTheme } from '../hooks/useTheme';
+import { Scrollback } from '../components/Scrollback';
+import { Composer } from '../components/Composer';
+import { ApprovalCard } from '../components/ApprovalCard';
+import { Sidebar } from '../components/Sidebar';
+import { SessionPicker } from '../components/sidebar/SessionPicker';
+import { AgentPanel } from '../components/sidebar/AgentPanel';
+import { TopBar } from '../components/TopBar';
+import { Onboarding } from '../components/Onboarding';
+import { TranscriptPager } from '../components/TranscriptPager';
+import { ModelPicker } from '../components/ModelPicker';
+import { ThemePicker } from '../components/ThemePicker';
+import { SettingsModal, type SettingsSurface } from '../components/settings/SettingsModal';
+import { DiffViewerModal } from '../components/DiffViewerModal';
+import { TextResponseModal } from '../components/TextResponseModal';
+import { sendRequest, hasBridge } from '../transport';
+import { dispatchSlashCommand } from '../components/composer/dispatch';
+import type { SlashCommand, SlashCommandContext, LocalAction } from '../components/composer/slashCommandTypes';
+import type { CellModel } from '../viewModel/types';
+
+type ModalKind = 'none' | 'model' | 'theme' | 'transcript' | 'settings' | 'diff';
+
+/** Top-level GUI application. Spec §4.3 layout: top bar (cwd + model + menu)
+ *  over a main column (scrollback + approvals + composer) sitting beside a
+ *  right sidebar (sessions + agent). Onboarding gates the whole thing until
+ *  auth is resolved. Modal host overlays (TranscriptPager / ModelPicker /
+ *  ThemePicker) render above the main layout.
+ *
+ *  Remaining limitation: Ctrl+T uses ctrl OR meta — safe in the wry webview
+ *  (no browser chrome), but needs revisiting for webui mode (subproject 6)
+ *  where Cmd+T is the browser new-tab shortcut. */
+export function App() {
+  const { state, threadId, interrupt, startTurn, resumeThread } = useConversation();
+  const { theme, setTheme } = useTheme();
+  const [modal, setModal] = useState<ModalKind>('none');
+  /** Which SettingsModal tab to open. Set by /skills, /mcp, etc. before
+   *  flipping modal to 'settings'. */
+  const [settingsSurface, setSettingsSurface] = useState<SettingsSurface>('permissions');
+  /** Bumped by /clear to force-remount Scrollback (UI-only clear; server-side
+   *  conversation state unchanged — NOT equivalent to TUI's ClearUi). */
+  const [clearKey, setClearKey] = useState(0);
+  /** Diff text to show in <DiffViewerModal>. Set by /diff, TopBar 📄 button,
+   *  or FileChangeCell "view full diff" — each sets their own source content. */
+  const [diffSource, setDiffSource] = useState<string | null>(null);
+  /** Toggled by /raw — adds a body class that flattens Scrollback for
+   *  copy-friendly output (simplified vs TUI's full raw mode). */
+  const [rawMode, setRawMode] = useState(false);
+  /** Active TextResponseModal state. Set by /status /usage /debug-config
+   *  (showResponse result). Null when no response modal is open. */
+  const [textResponse, setTextResponse] = useState<{ title: string; loading: boolean; response: unknown; error: string | null } | null>(null);
+  const turnActive = state.activeTurnId !== null;
+
+  const handleLocalAction = (action: LocalAction) => {
+    switch (action) {
+      case 'clear':
+        setClearKey((k) => k + 1);
+        break;
+      case 'new':
+        // Submit /new as a turn — server treats unknown slash commands as
+        // user text (matches TUI fallback for commands without a dedicated
+        // RPC).
+        startTurn([{ type: 'text', text: '/new', text_elements: [] }]);
+        break;
+      case 'quit':
+        // wry webview: window.close() may be a no-op (often blocked by host).
+        // Documented limitation — a future toast could surface "use Cmd+Q".
+        window.close();
+        break;
+      case 'copy': {
+        // Find the latest agent message text across all turns and copy it.
+        // Stage 2 fallback: if there's no agent message yet, silently no-op
+        // (a future toast could say 'nothing to copy').
+        let lastAgent: string | null = null;
+        for (const turn of state.turns) {
+          for (const item of turn.items) {
+            if (item.kind === 'agentMessage' && item.text) lastAgent = item.text;
+          }
+        }
+        if (lastAgent) {
+          navigator.clipboard?.writeText(lastAgent).catch(() => {
+            // clipboard API may be unavailable (permissions / old webview);
+            // fail silently — the user can still select-copy manually.
+          });
+        }
+        break;
+      }
+      case 'raw':
+        // Toggle a body class that flattens Scrollback for copy-friendly
+        // output. Simplified vs TUI's raw mode (which also disables spinners
+        // and reflows cells); this just toggles visual density.
+        setRawMode((v) => !v);
+        break;
+    }
+  };
+
+  const handleSlashCommand = (cmd: SlashCommand, args: string) => {
+    const ctx: SlashCommandContext = {
+      threadId,
+      openSettings: (surface) => {
+        setSettingsSurface(surface);
+        setModal('settings');
+      },
+      openModal: (m) => {
+        // For the diff modal sourced from /diff, default to the current
+        // turn-level diff (TopBar 📄 button does the same).
+        if (m === 'diff') setDiffSource(state.turnDiff?.diff ?? '');
+        setModal(m);
+      },
+      localAction: handleLocalAction,
+      sendRequest: (method, params) => sendRequest(method, params),
+    };
+    const result = dispatchSlashCommand(cmd, args, ctx);
+    // ctx callbacks already fired for openSettings/openModal/localAction/
+    // sendRequest. Handle the categories that need App-level follow-up:
+    if (result.kind === 'sendTurn') {
+      startTurn(result.input);
+    } else if (result.kind === 'showResponse') {
+      // Fire the RPC and display the response (or error) in a modal.
+      setTextResponse({ title: result.title, loading: true, response: null, error: null });
+      sendRequest(result.method, result.params)
+        .then((resp) => setTextResponse({ title: result.title, loading: false, response: resp, error: null }))
+        .catch((e) => setTextResponse({ title: result.title, loading: false, response: null, error: e instanceof Error ? e.message : String(e) }));
+    } else if (result.kind === 'notImplemented' || result.kind === 'notApplicable') {
+      // Simple stub — toast comes later. alert() is synchronous and works
+      // in jsdom tests (stubbed) and in wry (native dialog).
+      window.alert(result.message);
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Esc closes any open modal. The modals also handle Esc themselves via
+      // their own window listeners; this is a safety net for focus edge cases.
+      if (e.key === 'Escape' && modal !== 'none') {
+        setModal('none');
+      }
+      // Ctrl+T (or Cmd+T on mac) opens the transcript pager — but only in
+      // wry mode, where there's no browser chrome to conflict. In browser
+      // (webui) mode Cmd+T is the OS/browser "new tab" shortcut and we let
+      // the browser keep it. Users in webui reach the transcript via the
+      // TopBar button.
+      if (hasBridge() && (e.ctrlKey || e.metaKey) && e.key === 't') {
+        e.preventDefault();
+        setModal('transcript');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modal]);
+
+  return (
+    <Onboarding>
+      <div className={`app-root${rawMode ? ' app-root-raw' : ''}`}>
+        <TopBar
+          cwd={state.cwd}
+          model={state.currentModel}
+          onOpenModelPicker={() => setModal('model')}
+          onOpenThemePicker={() => setModal('theme')}
+          onOpenTranscript={() => setModal('transcript')}
+          onOpenSettings={() => setModal('settings')}
+          onOpenDiff={() => { setDiffSource(state.turnDiff?.diff ?? ''); setModal('diff'); }}
+        />
+        <div className="app-body">
+          <main className="app-main">
+            <div className="app-scrollback" key={clearKey}>
+              <Scrollback
+                state={state}
+                onViewDiff={(cell: CellModel) => {
+                  if (cell.kind !== 'fileChange') return;
+                  // Concatenate this cell's per-file diffs into one blob;
+                  // <DiffText> parses it back into per-file blocks.
+                  setDiffSource(cell.changes.map((c) => c.diff).join('\n'));
+                  setModal('diff');
+                }}
+              />
+            </div>
+            {state.pendingApprovals.length > 0 && (
+              <div className="approvals-queue" data-testid="approvals-queue">
+                {state.pendingApprovals.map((a) => {
+                  // For fileChange approvals, look up the matching cell by
+                  // itemId so the "view full diff" button can show that
+                  // patch's diff in the DiffViewerModal.
+                  const itemId = a.kind === 'fileChange' ? (a.raw.params as { itemId?: string }).itemId : undefined;
+                  const diffForItemId = itemId
+                    ? state.turns
+                        .flatMap((t) => t.items)
+                        .find((i): i is Extract<CellModel, { kind: 'fileChange' }> => i.kind === 'fileChange' && i.itemId === itemId)
+                        ?.changes.map((c) => c.diff).join('\n') ?? null
+                    : null;
+                  return (
+                    <ApprovalCard
+                      key={String(a.requestId)}
+                      approval={a}
+                      diffForApproval={diffForItemId}
+                      onViewDiff={(diff) => { setDiffSource(diff); setModal('diff'); }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            <Composer
+              threadId={threadId}
+              turnActive={turnActive}
+              onInterrupt={interrupt}
+              startTurn={startTurn}
+              onSlashCommand={handleSlashCommand}
+              cwd={state.cwd}
+              fuzzyFiles={state.fuzzySession?.files ?? []}
+            />
+          </main>
+          <Sidebar
+            sections={[
+              { key: 'sessions', title: 'Sessions', body: <SessionPicker activeThreadId={threadId} onResume={resumeThread} /> },
+              { key: 'agents', title: 'Agent', body: <AgentPanel state={state} /> },
+            ]}
+          />
+        </div>
+      </div>
+
+      {modal === 'transcript' && threadId && (
+        <TranscriptPager threadId={threadId} onClose={() => setModal('none')} />
+      )}
+      {modal === 'model' && (
+        <ModelPicker threadId={threadId} onClose={() => setModal('none')} startTurn={startTurn} />
+      )}
+      {modal === 'theme' && (
+        <ThemePicker current={theme} onPick={(t) => setTheme(t)} onClose={() => setModal('none')} />
+      )}
+      {modal === 'settings' && (
+        <SettingsModal onClose={() => setModal('none')} initialSurface={settingsSurface} />
+      )}
+      {modal === 'diff' && diffSource !== null && (
+        <DiffViewerModal diff={diffSource} onClose={() => setModal('none')} />
+      )}
+      {textResponse !== null && (
+        <TextResponseModal
+          title={textResponse.title}
+          response={textResponse.response}
+          loading={textResponse.loading}
+          error={textResponse.error}
+          onClose={() => setTextResponse(null)}
+        />
+      )}
+    </Onboarding>
+  );
+}

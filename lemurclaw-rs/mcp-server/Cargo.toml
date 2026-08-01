@@ -1,0 +1,50 @@
+[package]
+name = "lemurclaw-mcp-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lemurclaw_mcp_server"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+lemurclaw-arg0 = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-home = { workspace = true }
+lemurclaw-image-generation-extension = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-git-attribution = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-cli = { workspace = true }
+lemurclaw-utils-json-to-toml = { workspace = true }
+rmcp = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+shlex = { workspace = true }
+tokio = { workspace = true, features = [
+    "io-std",
+    "macros",
+    "process",
+    "rt-multi-thread",
+    "signal",
+] }
+tracing = { workspace = true, features = ["log"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-shell-command = { workspace = true }
+os_info = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+wiremock = { workspace = true }

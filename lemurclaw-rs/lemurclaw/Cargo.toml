@@ -1,0 +1,30 @@
+[package]
+name = "lemurclaw"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[lib]
+name = "lemurclaw"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lemurclaw"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-transport = { workspace = true }
+lemurclaw-gui = { workspace = true }
+lemurclaw-webui = { workspace = true }
+lemurclaw-tui = { workspace = true }
+lemurclaw-arg0 = { workspace = true }
+lemurclaw-config = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

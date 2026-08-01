@@ -1,0 +1,114 @@
+[package]
+name = "lemurclaw-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[lib]
+name = "lemurclaw_cli"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+clap_complete = { workspace = true }
+lemurclaw-app-server = { workspace = true }
+lemurclaw-app-server-daemon = { workspace = true }
+lemurclaw-app-server-protocol = { workspace = true }
+lemurclaw-app-server-test-client = { workspace = true }
+lemurclaw-arg0 = { workspace = true }
+lemurclaw-api = { workspace = true }
+lemurclaw-chatgpt = { workspace = true }
+lemurclaw-cloud-config = { workspace = true }
+lemurclaw-cloud-tasks = { path = "../cloud-tasks" }
+lemurclaw-utils-cli = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-core-plugins = { workspace = true }
+lemurclaw-home = { workspace = true }
+lemurclaw-http-client = { workspace = true }
+lemurclaw-exec = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-execpolicy = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-features = { workspace = true }
+lemurclaw-git-attribution = { workspace = true }
+lemurclaw-git-utils = { workspace = true }
+lemurclaw-install-context = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-memories-write = { workspace = true }
+lemurclaw-mcp = { workspace = true }
+lemurclaw-mcp-server = { workspace = true }
+lemurclaw-model-provider = { workspace = true }
+lemurclaw-models-manager = { workspace = true }
+lemurclaw-plugin = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-responses-api-proxy = { workspace = true }
+lemurclaw-rmcp-client = { workspace = true }
+lemurclaw-rollout = { workspace = true }
+lemurclaw-rollout-trace = { workspace = true }
+lemurclaw-sandboxing = { workspace = true }
+lemurclaw-state = { workspace = true }
+lemurclaw-stdio-to-uds = { workspace = true }
+lemurclaw-terminal-detection = { workspace = true }
+lemurclaw-tui = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-path = { workspace = true }
+crossterm = { workspace = true }
+http = { workspace = true }
+libc = { workspace = true }
+os_info = { workspace = true }
+owo-colors = { workspace = true }
+regex-lite = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+supports-color = { workspace = true }
+sys-locale = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = [
+    "io-std",
+    "macros",
+    "net",
+    "process",
+    "rt-multi-thread",
+    "signal",
+    "time",
+] }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-appender = { workspace = true }
+tracing-subscriber = { workspace = true }
+unicode-segmentation = { workspace = true }
+url = { workspace = true }
+which = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+codex_windows_sandbox = { package = "lemurclaw-windows-sandbox", path = "../windows-sandbox-rs" }
+windows-sys = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+] }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+assert_matches = { workspace = true }
+lemurclaw-utils-cargo-bin = { workspace = true }
+futures = { workspace = true }
+insta = { workspace = true }
+predicates = { workspace = true }
+pretty_assertions = { workspace = true }
+sqlx = { workspace = true }
+tokio-tungstenite = { workspace = true }
+wiremock = { workspace = true }
+zstd = { workspace = true }
+
+[package.metadata.cargo-shear]
+# These Rust sources are intentionally Bazel-only macrobenchmarks rather than
+# Cargo targets.
+ignored-paths = ["e2e_benches/*.rs"]

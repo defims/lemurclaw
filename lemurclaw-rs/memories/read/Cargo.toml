@@ -1,0 +1,21 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-memories-read"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_memories_read"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-protocol = { workspace = true }
+lemurclaw-shell-command = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

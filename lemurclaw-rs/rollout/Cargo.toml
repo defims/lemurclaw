@@ -1,0 +1,51 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-rollout"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_rollout"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+lemurclaw-extension-items = { workspace = true }
+lemurclaw-file-search = { workspace = true }
+lemurclaw-git-utils = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-state = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-path = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+time = { workspace = true, features = [
+    "formatting",
+    "local-offset",
+    "macros",
+    "parsing",
+] }
+tokio = { workspace = true, features = [
+    "fs",
+    "io-util",
+    "macros",
+    "process",
+    "rt",
+    "sync",
+    "time",
+] }
+tracing = { workspace = true }
+uuid = { workspace = true }
+zstd = { workspace = true }
+
+[dev-dependencies]
+lemurclaw-utils-absolute-path = { workspace = true }
+pretty_assertions = { workspace = true }

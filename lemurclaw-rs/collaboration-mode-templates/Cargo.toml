@@ -1,0 +1,14 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-collaboration-mode-templates"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_collaboration_mode_templates"
+path = "src/lib.rs"
+test = false
+
+[lints]
+workspace = true

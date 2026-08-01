@@ -1,0 +1,38 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-mcp-extension"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_mcp_extension"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-core = { workspace = true }
+lemurclaw-core-plugins = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-connectors = { workspace = true }
+lemurclaw-connectors-extension = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-features = { workspace = true }
+lemurclaw-mcp = { workspace = true }
+lemurclaw-plugin = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+lemurclaw-login = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

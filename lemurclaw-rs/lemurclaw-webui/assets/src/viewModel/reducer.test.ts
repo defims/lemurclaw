@@ -1,0 +1,354 @@
+import { describe, it, expect } from 'vitest';
+import { reducer } from './reducer';
+import { initialState } from './types';
+import type { ConversationState } from './types';
+import type { Thread } from '../types/v2';
+
+function st(over: Partial<ConversationState> = {}): ConversationState {
+  return { ...initialState, ...over };
+}
+
+const FULL_THREAD = {
+  id: 't1', sessionId: 's', forkedFromId: null, parentThreadId: null,
+  preview: '', ephemeral: false, modelProvider: 'p', createdAt: 1,
+  updatedAt: 1, recencyAt: null, status: { type: 'idle' }, path: null,
+  cwd: { path: '/x' }, cliVersion: '0', source: 'Cli', threadSource: null,
+  agentNickname: null, agentRole: null, gitInfo: null, name: null, turns: [],
+} as const;
+
+const EMPTY_TURN = {
+  id: 'tu1', items: [], itemsView: 'full' as const, status: 'inProgress' as const,
+  error: null, startedAt: 1, completedAt: null, durationMs: null,
+} as const;
+
+describe('reducer', () => {
+  it('thread/started sets status (idle) and clears activeTurnId', () => {
+    const next = reducer(st(), { method: 'thread/started', params: { thread: FULL_THREAD } });
+    expect(next.status).toEqual({ type: 'idle' });
+    expect(next.activeTurnId).toBeNull();
+  });
+
+  it('turn/started adds a new turn and sets activeTurnId', () => {
+    const next = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    expect(next.turns).toHaveLength(1);
+    expect(next.turns[0].id).toBe('tu1');
+    expect(next.activeTurnId).toBe('tu1');
+  });
+
+  it('item/started adds a cell derived from the ThreadItem', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterStart = reducer(afterTurn, {
+      method: 'item/started',
+      params: {
+        threadId: 't1', turnId: 'tu1', startedAtMs: 5,
+        item: { type: 'agentMessage', id: 'i1', text: '', phase: null, memoryCitation: null },
+      },
+    });
+    expect(afterStart.turns[0].items).toHaveLength(1);
+    expect(afterStart.turns[0].items[0].kind).toBe('agentMessage');
+  });
+
+  it('item/agentMessage/delta appends to the streaming cell', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterStart = reducer(afterTurn, {
+      method: 'item/started',
+      params: { threadId: 't1', turnId: 'tu1', startedAtMs: 5, item: { type: 'agentMessage', id: 'i1', text: '', phase: null, memoryCitation: null } },
+    });
+    const afterDelta = reducer(afterStart, {
+      method: 'item/agentMessage/delta',
+      params: { threadId: 't1', turnId: 'tu1', itemId: 'i1', delta: 'Hello' },
+    });
+    const cell = afterDelta.turns[0].items.find((c) => c.kind === 'agentMessage');
+    expect(cell && cell.kind === 'agentMessage' && cell.text).toBe('Hello');
+  });
+
+  it('item/completed replaces the streaming cell with the authoritative snapshot', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterStart = reducer(afterTurn, {
+      method: 'item/started', params: { threadId: 't1', turnId: 'tu1', startedAtMs: 5, item: { type: 'agentMessage', id: 'i1', text: '', phase: null, memoryCitation: null } },
+    });
+    const afterDelta = reducer(afterStart, {
+      method: 'item/agentMessage/delta', params: { threadId: 't1', turnId: 'tu1', itemId: 'i1', delta: 'Hel' },
+    });
+    const afterComplete = reducer(afterDelta, {
+      method: 'item/completed',
+      params: {
+        threadId: 't1', turnId: 'tu1', completedAtMs: 9,
+        item: { type: 'agentMessage', id: 'i1', text: 'Hello world', phase: 'final_answer', memoryCitation: null },
+      },
+    });
+    const cell = afterComplete.turns[0].items.find((c) => c.kind === 'agentMessage');
+    expect(cell && cell.kind === 'agentMessage' && cell.text).toBe('Hello world');
+    expect(cell && cell.kind === 'agentMessage' && cell.phase).toBe('final_answer');
+  });
+
+  it('ServerRequest commandExecution adds a pendingApproval', () => {
+    const next = reducer(st(), {
+      method: 'item/commandExecution/requestApproval', id: 42,
+      params: { threadId: 't1', turnId: 'tu1', itemId: 'i1', startedAtMs: 1, environmentId: null, command: 'ls', cwd: { path: '/x' }, commandActions: null },
+    });
+    expect(next.pendingApprovals).toHaveLength(1);
+    expect(next.pendingApprovals[0].kind).toBe('commandExecution');
+    expect(next.pendingApprovals[0].requestId).toBe(42);
+  });
+
+  it('serverRequest/resolved removes the matching pendingApproval', () => {
+    const afterReq = reducer(st(), {
+      method: 'item/commandExecution/requestApproval', id: 42,
+      params: { threadId: 't1', turnId: 'tu1', itemId: 'i1', startedAtMs: 1, environmentId: null, command: 'ls', cwd: { path: '/x' }, commandActions: null },
+    });
+    const afterResolved = reducer(afterReq, {
+      method: 'serverRequest/resolved',
+      params: { requestId: 42 },
+    });
+    expect(afterResolved.pendingApprovals).toHaveLength(0);
+  });
+
+  it('turn/completed marks the active turn completed', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterComplete = reducer(afterTurn, {
+      method: 'turn/completed',
+      params: { threadId: 't1', turn: { ...EMPTY_TURN, status: 'completed', completedAt: 2, durationMs: 1000 } },
+    });
+    expect(afterComplete.turns[0].status).toBe('completed');
+    expect(afterComplete.activeTurnId).toBeNull();
+  });
+
+  it('thread/started captures cwd from thread.cwd', () => {
+    const thread = { ...FULL_THREAD, cwd: '/home/user/proj' } as unknown as Thread;
+    const next = reducer(st(), { method: 'thread/started', params: { thread } });
+    expect(next.cwd).toBe('/home/user/proj');
+  });
+
+  it('model/rerouted sets currentModel to toModel', () => {
+    const afterTurn = reducer(st(), { method: 'thread/started', params: { thread: FULL_THREAD } });
+    const next = reducer(afterTurn, {
+      method: 'model/rerouted',
+      params: { threadId: 't1', turnId: 'tu1', fromModel: 'gpt-4', toModel: 'gpt-4o', reason: 'highRiskCyberActivity' },
+    });
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
+  it('turn/diff/updated stores turnId + diff without touching other state', () => {
+    const before = reducer(st(), { method: 'thread/started', params: { thread: FULL_THREAD } });
+    const next = reducer(before, {
+      method: 'turn/diff/updated',
+      params: { threadId: 't1', turnId: 'tu1', diff: 'diff --git a/x b/x\n+hello\n' },
+    });
+    expect(next.turnDiff).toEqual({ turnId: 'tu1', diff: 'diff --git a/x b/x\n+hello\n' });
+    // Other fields unchanged.
+    expect(next.status).toBe(before.status);
+    expect(next.cwd).toBe(before.cwd);
+    expect(next.currentModel).toBe(before.currentModel);
+    expect(next.turns).toBe(before.turns);
+    expect(next.pendingApprovals).toBe(before.pendingApprovals);
+  });
+
+  it('fuzzyFileSearch/sessionUpdated updates the active session (matching sessionId)', () => {
+    const before = reducer(
+      { ...st(), fuzzySession: { sessionId: 'fs1', query: '', files: [] } },
+      { method: 'thread/started', params: { thread: FULL_THREAD } },
+    );
+    const next = reducer({ ...before, fuzzySession: { sessionId: 'fs1', query: 'co', files: [] } }, {
+      method: 'fuzzyFileSearch/sessionUpdated',
+      params: {
+        sessionId: 'fs1',
+        query: 'co',
+        // Note: FuzzyFileSearchResult wire fields are snake_case
+        // (match_type, file_name) — the app-server didn't apply rename_all
+        // to this type. See types/FuzzyFileSearchResult.ts.
+        files: [{ root: '/r', path: 'code.rs', match_type: 'file', file_name: 'code.rs', score: 100, indices: null }],
+      },
+    });
+    expect(next.fuzzySession?.files.length).toBe(1);
+    expect(next.fuzzySession?.files[0].path).toBe('code.rs');
+  });
+
+  it('fuzzyFileSearch/sessionUpdated drops late pushes for a different/closed session', () => {
+    const before: ConversationState = {
+      ...st(),
+      fuzzySession: { sessionId: 'fs1', query: '', files: [] },
+    };
+    const next = reducer(before, {
+      method: 'fuzzyFileSearch/sessionUpdated',
+      params: { sessionId: 'fs2', query: 'x', files: [] },
+    });
+    expect(next.fuzzySession?.sessionId).toBe('fs1'); // unchanged
+  });
+
+  it('fuzzyFileSearch/sessionCompleted clears the matching session', () => {
+    const before: ConversationState = {
+      ...st(),
+      fuzzySession: { sessionId: 'fs1', query: '', files: [] },
+    };
+    const next = reducer(before, {
+      method: 'fuzzyFileSearch/sessionCompleted',
+      params: { sessionId: 'fs1' },
+    });
+    expect(next.fuzzySession).toBeNull();
+  });
+
+  it('responseMeta action folds cwd + model into state', () => {
+    const next = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
+    expect(next.cwd).toBe('/proj');
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
+  it('responseMeta with null fields preserves existing cwd/model', () => {
+    const after = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
+    const next = reducer(after, { kind: 'responseMeta', cwd: null, model: null });
+    expect(next.cwd).toBe('/proj'); // not clobbered
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
+  it('responseMeta with undefined fields (malformed response) preserves existing', () => {
+    // Guards against a malformed JSON-RPC response that resolves with a
+    // result missing model/cwd — the dispatch would carry undefined, which
+    // must NOT sneak through the null check and write undefined into state.
+    const after = reducer(st(), { kind: 'responseMeta', cwd: '/proj', model: 'gpt-4o' });
+    const next = reducer(after, { kind: 'responseMeta', cwd: undefined as unknown as null, model: undefined as unknown as null });
+    expect(next.cwd).toBe('/proj');
+    expect(next.currentModel).toBe('gpt-4o');
+  });
+
+  // ---- Edge cases (added per Task 3.4 code review) ---------------------
+
+  it('item/*/delta for an unknown itemId silently no-ops (does not crash or invent a cell)', () => {
+    // lemurclaw's next_event contract guarantees item/started precedes any delta,
+    // but if the contract is ever violated the reducer must degrade gracefully.
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterDelta = reducer(afterTurn, {
+      method: 'item/agentMessage/delta',
+      params: { threadId: 't1', turnId: 'tu1', itemId: 'never-started', delta: 'orphan' },
+    });
+    // No cell added, state structure unchanged in items length.
+    expect(afterDelta.turns[0].items).toHaveLength(0);
+    // State reference changes (immutable update through turn rebuild) but no
+    // data loss beyond the dropped delta.
+    expect(afterDelta).not.toBe(afterTurn);
+  });
+
+  it('multiple pendingApprovals coexist; serverRequest/resolved removes only the matching one', () => {
+    const base = {
+      threadId: 't1', turnId: 'tu1', itemId: 'i1', startedAtMs: 1,
+      environmentId: null, command: 'ls', cwd: { path: '/x' }, commandActions: null,
+    };
+    const afterFirst = reducer(st(), {
+      method: 'item/commandExecution/requestApproval', id: 42, params: base,
+    });
+    const afterSecond = reducer(afterFirst, {
+      method: 'item/commandExecution/requestApproval', id: 'abc', params: { ...base, itemId: 'i2' },
+    });
+    expect(afterSecond.pendingApprovals.map((a) => a.requestId)).toEqual([42, 'abc']);
+    // Resolve the numeric one; the string one must remain.
+    const afterResolveNum = reducer(afterSecond, {
+      method: 'serverRequest/resolved',
+      params: { requestId: 42 },
+    });
+    expect(afterResolveNum.pendingApprovals.map((a) => a.requestId)).toEqual(['abc']);
+    // Resolve the string one by String-normalized match (RequestId = string|number).
+    const afterResolveStr = reducer(afterResolveNum, {
+      method: 'serverRequest/resolved',
+      params: { requestId: 'abc' },
+    });
+    expect(afterResolveStr.pendingApprovals).toHaveLength(0);
+  });
+
+  it('hook/started then hook/completed coalesce by run.id into a single cell', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const startedRun = {
+      id: 'h1', eventName: 'PreToolUse', handlerType: 'command', executionMode: 'blocking',
+      scope: 'session', sourcePath: { path: '/h/.lemurclaw/hook.sh' }, source: 'project',
+      displayOrder: 0n, status: 'inProgress', statusMessage: null,
+      startedAt: 1n, completedAt: null, durationMs: null, entries: [],
+    };
+    const afterStarted = reducer(afterTurn, {
+      method: 'hook/started',
+      params: { threadId: 't1', turnId: 'tu1', run: startedRun },
+    });
+    expect(afterStarted.turns[0].items).toHaveLength(1);
+    expect(afterStarted.turns[0].items[0].kind).toBe('hook');
+
+    const completedRun = { ...startedRun, status: 'completed', completedAt: 2n, durationMs: 1n };
+    const afterCompleted = reducer(afterStarted, {
+      method: 'hook/completed',
+      params: { threadId: 't1', turnId: 'tu1', run: completedRun },
+    });
+    // Same cell (upsert by run.id), not a new one.
+    expect(afterCompleted.turns[0].items).toHaveLength(1);
+    const cell = afterCompleted.turns[0].items[0];
+    if (cell.kind !== 'hook') throw new Error('expected hook cell');
+    expect(cell.run.status).toBe('completed');
+  });
+
+  it('hook events with null turnId are dropped (no Scrollback anchor pre-first-turn)', () => {
+    const before = st();
+    const next = reducer(before, {
+      method: 'hook/started',
+      params: { threadId: 't1', turnId: null, run: {
+        id: 'h1', eventName: 'PreToolUse', handlerType: 'command', executionMode: 'blocking',
+        scope: 'session', sourcePath: { path: '/h/.lemurclaw/hook.sh' }, source: 'project',
+        displayOrder: 0n, status: 'inProgress', statusMessage: null,
+        startedAt: 1n, completedAt: null, durationMs: null, entries: [],
+      } },
+    });
+    expect(next).toBe(before); // state unchanged (reference equality — reducer returns state as-is)
+  });
+
+  // ---- Sub-agent extraction (Task 5.3) — collabAgentToolCall.agentsStates ----
+
+  it('collabAgentToolCall items populate state.subAgents from agentsStates', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: {
+      threadId: 't1',
+      turn: {
+        ...EMPTY_TURN,
+        items: [{
+          type: 'collabAgentToolCall', id: 'col1',
+          tool: 'spawn' as never, status: 'running' as never,
+          senderThreadId: 't1', receiverThreadIds: ['sub1'],
+          prompt: null, model: null, reasoningEffort: null,
+          agentsStates: { sub1: { status: 'running' as never, message: 'working' } },
+        } as never],
+      },
+    } });
+    expect(afterTurn.subAgents).toHaveLength(1);
+    expect(afterTurn.subAgents[0].threadId).toBe('sub1');
+    expect(afterTurn.subAgents[0].status).toBe('running');
+    expect(afterTurn.subAgents[0].message).toBe('working');
+  });
+
+  it('item/started with a collabAgentToolCall updates subAgents', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: { threadId: 't1', turn: EMPTY_TURN } });
+    const afterItem = reducer(afterTurn, {
+      method: 'item/started',
+      params: {
+        threadId: 't1', turnId: 'tu1', startedAtMs: 5,
+        item: {
+          type: 'collabAgentToolCall', id: 'col1',
+          tool: 'spawn' as never, status: 'running' as never,
+          senderThreadId: 't1', receiverThreadIds: ['sub1'],
+          prompt: null, model: null, reasoningEffort: null,
+          agentsStates: { sub1: { status: 'idle' as never, message: null } },
+        } as never,
+      },
+    });
+    expect(afterItem.subAgents).toHaveLength(1);
+    expect(afterItem.subAgents[0].threadId).toBe('sub1');
+  });
+
+  it('multiple collabAgentToolCall items merge sub-agents by threadId (last wins)', () => {
+    const afterTurn = reducer(st(), { method: 'turn/started', params: {
+      threadId: 't1',
+      turn: {
+        ...EMPTY_TURN,
+        items: [
+          { type: 'collabAgentToolCall', id: 'c1', tool: 'spawn' as never, status: 'running' as never, senderThreadId: 't1', receiverThreadIds: ['a','b'], prompt: null, model: null, reasoningEffort: null, agentsStates: { a: { status: 'running' as never, message: null }, b: { status: 'idle' as never, message: null } } } as never,
+          { type: 'collabAgentToolCall', id: 'c2', tool: 'spawn' as never, status: 'running' as never, senderThreadId: 't1', receiverThreadIds: ['b','c'], prompt: null, model: null, reasoningEffort: null, agentsStates: { b: { status: 'completed' as never, message: 'done' }, c: { status: 'running' as never, message: null } } } as never,
+        ],
+      },
+    } });
+    expect(afterTurn.subAgents.map((s) => s.threadId).sort()).toEqual(['a','b','c']);
+    const b = afterTurn.subAgents.find((s) => s.threadId === 'b')!;
+    expect(b.status).toBe('completed');
+  });
+});

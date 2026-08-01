@@ -1,0 +1,40 @@
+[package]
+name = "lemurclaw-app-server-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lemurclaw_app_server_client"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-app-server = { workspace = true }
+lemurclaw-app-server-protocol = { workspace = true }
+lemurclaw-arg0 = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-feedback = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-uds = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-rustls-provider = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time", "rt"] }
+tokio-tungstenite = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

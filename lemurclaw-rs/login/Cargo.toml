@@ -1,0 +1,56 @@
+[package]
+name = "lemurclaw-login"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+lemurclaw-agent-identity = { workspace = true }
+lemurclaw-http-client = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-keyring-store = { workspace = true }
+lemurclaw-model-provider-info = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-secrets = { workspace = true }
+lemurclaw-terminal-detection = { workspace = true }
+lemurclaw-utils-template = { workspace = true }
+http = { workspace = true }
+once_cell = { workspace = true }
+os_info = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tiny_http = { workspace = true }
+tokio = { workspace = true, features = [
+    "io-std",
+    "macros",
+    "process",
+    "rt-multi-thread",
+    "signal",
+] }
+tracing = { workspace = true }
+url = { workspace = true }
+urlencoding = { workspace = true }
+webbrowser = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+jsonwebtoken = { workspace = true }
+keyring = { workspace = true }
+pretty_assertions = { workspace = true }
+regex-lite = { workspace = true }
+serial_test = { workspace = true }
+tempfile = { workspace = true }
+tracing-subscriber = { workspace = true }
+wiremock = { workspace = true }
+
+[lib]
+doctest = false

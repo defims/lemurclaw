@@ -1,0 +1,19 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-guardian"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_guardian"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-core = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-protocol = { workspace = true }

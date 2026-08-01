@@ -1,0 +1,39 @@
+[package]
+name = "lemurclaw-external-agent-migration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_external_agent_migration"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+lemurclaw-analytics = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-core-plugins = { workspace = true }
+lemurclaw-hooks = { workspace = true }
+lemurclaw-memories-write = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-plugin = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-rollout = { workspace = true }
+lemurclaw-utils-output-truncation = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+sha2 = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+lemurclaw-app-server-protocol = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

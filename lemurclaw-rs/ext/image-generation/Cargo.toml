@@ -1,0 +1,38 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-image-generation-extension"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_image_generation_extension"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+lemurclaw-api = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-extension-items = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-model-provider = { workspace = true }
+lemurclaw-model-provider-info = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-tools = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-image = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+http = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }

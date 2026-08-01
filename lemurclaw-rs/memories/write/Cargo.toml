@@ -1,0 +1,48 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-memories-write"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_memories_write"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+lemurclaw-backend-client = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-features = { workspace = true }
+lemurclaw-git-utils = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-model-provider = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-rollout = { workspace = true }
+lemurclaw-rollout-trace = { workspace = true }
+lemurclaw-secrets = { workspace = true }
+lemurclaw-state = { workspace = true }
+lemurclaw-terminal-detection = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-output-truncation = { workspace = true }
+lemurclaw-utils-template = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["fs", "rt", "sync", "time"] }
+tracing = { workspace = true, features = ["log"] }
+uuid = { workspace = true, features = ["v4", "v5"] }
+
+[dev-dependencies]
+lemurclaw-model-provider-info = { workspace = true }
+lemurclaw-models-manager = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["fs", "macros"] }
+wiremock = { workspace = true }

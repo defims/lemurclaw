@@ -1,0 +1,24 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-plugin"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_plugin"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-config = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+lemurclaw-utils-plugins = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

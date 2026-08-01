@@ -1,0 +1,29 @@
+[package]
+name = "lemurclaw-stdio-to-uds"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lemurclaw_stdio_to_uds"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+lemurclaw-uds = { workspace = true }
+tokio = { workspace = true, features = [
+    "io-std",
+    "io-util",
+    "macros",
+    "rt-multi-thread",
+] }
+
+[dev-dependencies]
+lemurclaw-utils-cargo-bin = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }

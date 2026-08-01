@@ -1,0 +1,19 @@
+[package]
+name = "lemurclaw-utils-sandbox-summary"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+
+[dev-dependencies]
+lemurclaw-utils-absolute-path = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[lib]
+doctest = false

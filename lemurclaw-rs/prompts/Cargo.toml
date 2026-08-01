@@ -1,0 +1,25 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-prompts"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_prompts"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+lemurclaw-context-fragments = { workspace = true }
+lemurclaw-git-utils = { workspace = true }
+lemurclaw-execpolicy = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-template = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

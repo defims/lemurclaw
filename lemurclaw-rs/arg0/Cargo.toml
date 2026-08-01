@@ -1,0 +1,33 @@
+[package]
+name = "lemurclaw-arg0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lemurclaw_arg0"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+lemurclaw-apply-patch = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-install-context = { workspace = true }
+lemurclaw-linux-sandbox = { workspace = true }
+lemurclaw-sandboxing = { workspace = true }
+lemurclaw-shell-escalation = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-home-dir = { workspace = true }
+dotenvy = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[target.'cfg(windows)'.dependencies]
+lemurclaw-windows-sandbox = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

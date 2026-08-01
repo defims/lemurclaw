@@ -1,0 +1,30 @@
+[package]
+name = "lemurclaw-chatgpt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+lemurclaw-connectors = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-git-utils = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-model-provider = { workspace = true }
+lemurclaw-plugin = { workspace = true }
+lemurclaw-utils-cli = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+lemurclaw-utils-cargo-bin = { workspace = true }
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+
+[lib]
+doctest = false

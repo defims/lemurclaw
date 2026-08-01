@@ -1,0 +1,166 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-core"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_core"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+arc-swap = { workspace = true }
+async-channel = { workspace = true }
+base64 = { workspace = true }
+bm25 = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+clap = { workspace = true, features = ["derive"] }
+lemurclaw-analytics = { workspace = true }
+lemurclaw-agent-graph-store = { workspace = true }
+lemurclaw-api = { workspace = true }
+lemurclaw-app-server-protocol = { workspace = true }
+lemurclaw-apply-patch = { workspace = true }
+lemurclaw-async-utils = { workspace = true }
+lemurclaw-code-mode = { workspace = true }
+lemurclaw-connectors = { workspace = true }
+lemurclaw-context-fragments = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-core-plugins = { workspace = true }
+lemurclaw-core-skills = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-extension-items = { workspace = true }
+lemurclaw-features = { workspace = true }
+lemurclaw-feedback = { workspace = true }
+lemurclaw-file-system = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-memories-read = { workspace = true }
+lemurclaw-mcp = { workspace = true }
+lemurclaw-model-provider-info = { workspace = true }
+lemurclaw-models-manager = { workspace = true }
+lemurclaw-shell-command = { workspace = true }
+lemurclaw-execpolicy = { workspace = true }
+lemurclaw-git-utils = { workspace = true }
+lemurclaw-hooks = { workspace = true }
+lemurclaw-http-client = { workspace = true }
+lemurclaw-install-context = { workspace = true }
+lemurclaw-network-proxy = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-plugin = { workspace = true }
+lemurclaw-model-provider = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-response-debug-context = { workspace = true }
+lemurclaw-prompts = { workspace = true }
+lemurclaw-rollout = { workspace = true }
+lemurclaw-rollout-trace = { workspace = true }
+lemurclaw-rmcp-client = { workspace = true }
+lemurclaw-sandboxing = { workspace = true }
+lemurclaw-skills = { workspace = true }
+lemurclaw-state = { workspace = true }
+lemurclaw-terminal-detection = { workspace = true }
+lemurclaw-thread-store = { workspace = true }
+lemurclaw-tools = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-cache = { workspace = true }
+lemurclaw-utils-image = { workspace = true }
+lemurclaw-utils-home-dir = { workspace = true }
+lemurclaw-utils-output-truncation = { workspace = true }
+lemurclaw-utils-path = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+lemurclaw-utils-plugins = { workspace = true }
+lemurclaw-utils-pty = { workspace = true }
+lemurclaw-utils-string = { workspace = true }
+lemurclaw-utils-stream-parser = { workspace = true }
+lemurclaw-windows-sandbox = { package = "lemurclaw-windows-sandbox", path = "../windows-sandbox-rs" }
+dirs = { workspace = true }
+dunce = { workspace = true }
+eventsource-stream = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+iana-time-zone = { workspace = true }
+image = { workspace = true, features = ["jpeg", "png", "webp"] }
+indexmap = { workspace = true }
+libc = { workspace = true }
+once_cell = { workspace = true }
+rand = { workspace = true }
+regex-lite = { workspace = true }
+reqwest = { workspace = true, features = ["json", "stream"] }
+rmcp = { workspace = true, default-features = false, features = [
+    "base64",
+    "macros",
+    "schemars",
+    "server",
+] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha1 = { workspace = true }
+shlex = { workspace = true }
+similar = { workspace = true }
+symphonia = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+    "io-std",
+    "macros",
+    "process",
+    "rt-multi-thread",
+    "signal",
+] }
+tokio-util = { workspace = true, features = ["rt"] }
+tokio-tungstenite = { workspace = true }
+toml = { workspace = true }
+toml_edit = { workspace = true }
+tracing = { workspace = true, features = ["log"] }
+url = { workspace = true }
+uuid = { workspace = true, features = ["serde", "v4", "v5", "v7"] }
+which = { workspace = true }
+whoami = { workspace = true }
+
+# Build OpenSSL from source for musl builds.
+[target.x86_64-unknown-linux-musl.dependencies]
+openssl-sys = { workspace = true, features = ["vendored"] }
+
+# Build OpenSSL from source for musl builds.
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl-sys = { workspace = true, features = ["vendored"] }
+
+[target.'cfg(unix)'.dependencies]
+lemurclaw-shell-escalation = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+assert_matches = { workspace = true }
+lemurclaw-image-generation-extension = { workspace = true }
+lemurclaw-home = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-skills-extension = { workspace = true }
+lemurclaw-utils-cargo-bin = { workspace = true }
+lemurclaw-web-search-extension = { workspace = true }
+ctor = { workspace = true }
+insta = { workspace = true }
+maplit = { workspace = true }
+opentelemetry = { workspace = true }
+predicates = { workspace = true }
+pretty_assertions = { workspace = true }
+test-case = "3.3.1"
+opentelemetry_sdk = { workspace = true, features = [
+    "experimental_metrics_custom_reader",
+    "metrics",
+] }
+serial_test = { workspace = true }
+tempfile = { workspace = true }
+test-log = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-test = { workspace = true, features = ["no-env-filter"] }
+walkdir = { workspace = true }
+wiremock = { workspace = true }
+zstd = { workspace = true }
+
+[package.metadata.cargo-shear]
+ignored = ["openssl-sys"]
+ignored-paths = ["tests/remote_env_windows/*.rs"]

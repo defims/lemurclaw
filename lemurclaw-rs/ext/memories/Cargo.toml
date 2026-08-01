@@ -1,0 +1,33 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-memories-extension"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_memories_extension"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-core = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-features = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-tools = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-output-truncation = { workspace = true }
+lemurclaw-utils-template = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["fs", "macros"] }

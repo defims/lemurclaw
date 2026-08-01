@@ -1,0 +1,26 @@
+[package]
+name = "lemurclaw-exec-server-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lemurclaw_exec_server_protocol"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+lemurclaw-file-system = { workspace = true }
+lemurclaw-network-proxy = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-shell-command = { workspace = true }
+lemurclaw-utils-path-uri = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["arbitrary_precision", "raw_value"] }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

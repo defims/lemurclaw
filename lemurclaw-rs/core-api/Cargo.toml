@@ -1,0 +1,32 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-core-api"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_core_api"
+path = "src/lib.rs"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-app-server-protocol = { workspace = true }
+lemurclaw-arg0 = { workspace = true }
+lemurclaw-analytics = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-core = { workspace = true }
+lemurclaw-extension-api = { workspace = true }
+lemurclaw-home = { workspace = true }
+lemurclaw-image-generation-extension = { workspace = true }
+lemurclaw-exec-server = { workspace = true }
+lemurclaw-features = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-model-provider-info = { workspace = true }
+lemurclaw-models-manager = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-state = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }

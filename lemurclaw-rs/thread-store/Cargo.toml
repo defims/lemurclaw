@@ -1,0 +1,41 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-thread-store"
+version.workspace = true
+
+[lib]
+name = "lemurclaw_thread_store"
+path = "src/lib.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { workspace = true, features = ["serde"] }
+lemurclaw-app-server-protocol = { workspace = true }
+lemurclaw-git-utils = { workspace = true }
+lemurclaw-install-context = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-rollout = { workspace = true }
+lemurclaw-state = { workspace = true }
+lemurclaw-utils-absolute-path = { workspace = true }
+lemurclaw-utils-path = { workspace = true }
+futures = { workspace = true }
+pulldown-cmark = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+lemurclaw-utils-absolute-path = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+uuid = { workspace = true }
+zstd = { workspace = true }

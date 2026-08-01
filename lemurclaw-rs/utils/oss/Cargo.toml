@@ -1,0 +1,17 @@
+[package]
+name = "lemurclaw-utils-oss"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-core = { workspace = true }
+lemurclaw-lmstudio = { workspace = true }
+lemurclaw-model-provider-info = { workspace = true }
+lemurclaw-ollama = { workspace = true }
+
+[lib]
+doctest = false

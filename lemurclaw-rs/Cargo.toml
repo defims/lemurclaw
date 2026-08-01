@@ -1,0 +1,512 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "lemurclaw-transport",
+    "lemurclaw-webui",
+    "lemurclaw",
+    "lemurclaw-gui",
+    "aws-auth",
+    "analytics",
+    "agent-graph-store",
+    "agent-identity",
+    "backend-client",
+    "ansi-escape",
+    "async-utils",
+    "app-server",
+    "app-server-transport",
+    "app-server-daemon",
+    "app-server-client",
+    "app-server-protocol",
+    "app-server-test-client",
+    "apply-patch",
+    "arg0",
+    "feedback",
+    "features",
+    "install-context",
+    "lemurclaw-backend-openapi-models",
+    "code-mode",
+    "code-mode-host",
+    "code-mode-protocol",
+    "lemurclaw-home",
+    "cloud-config",
+    "cloud-tasks",
+    "cloud-tasks-client",
+    "cloud-tasks-mock-client",
+    "cli",
+    "collaboration-mode-templates",
+    "connectors",
+    "config",
+    "context-fragments",
+    "shell-command",
+    "shell-escalation",
+    "skills",
+    "core",
+    "core-api",
+    "core-plugins",
+    "core-skills",
+    "hooks",
+    "http-client",
+    "secrets",
+    "exec",
+    "file-system",
+    "exec-server-protocol",
+    "exec-server",
+    "execpolicy",
+    "ext/agent",
+    "ext/connectors",
+    "ext/extension-api",
+    "ext/goal",
+    "ext/git-attribution",
+    "ext/guardian",
+    "ext/image-generation",
+    "ext/items",
+    "ext/memories",
+    "ext/mcp",
+    "ext/skills",
+    "ext/web-search",
+    "external-agent-migration",
+    "keyring-store",
+    "file-search",
+    "file-watcher",
+    "linux-sandbox",
+    "lmstudio",
+    "login",
+    "lemurclaw-mcp",
+    "mcp-server",
+    "memories/read",
+    "memories/write",
+    "model-provider-info",
+    "models-manager",
+    "network-proxy",
+    "ollama",
+    "process-hardening",
+    "protocol",
+    "prompts",
+    "rollout",
+    "rollout-trace",
+    "rmcp-client",
+    "responses-api-proxy",
+    "response-debug-context",
+    "sandboxing",
+    "stdio-to-uds",
+    "otel",
+    "tui",
+    "tools",
+    "v8-poc",
+    "websocket-client",
+    "utils/absolute-path",
+    "utils/path-uri",
+    "utils/cargo-bin",
+    "git-utils",
+    "utils/cache",
+    "utils/image",
+    "utils/json-to-toml",
+    "utils/home-dir",
+    "utils/pty",
+    "utils/readiness",
+    "utils/rustls-provider",
+    "utils/string",
+    "utils/cli",
+    "utils/elapsed",
+    "utils/sandbox-summary",
+    "utils/sleep-inhibitor",
+    "utils/approval-presets",
+    "utils/oss",
+    "utils/output-truncation",
+    "utils/path-utils",
+    "utils/plugins",
+    "utils/fuzzy-match",
+    "utils/stream-parser",
+    "utils/template",
+    "lemurclaw-client",
+    "lemurclaw-api",
+    "state",
+    "terminal-detection",
+    "thread-store",
+    "uds",
+    "lemurclaw-experimental-api-macros",
+    "plugin",
+    "model-provider",
+]
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+version = "0.0.0"
+
+[workspace.lints]
+rust = {  }
+
+[workspace.lints.clippy]
+await_holding_invalid_type = "deny"
+await_holding_lock = "deny"
+disallowed_methods = "deny"
+expect_used = "deny"
+identity_op = "deny"
+manual_clamp = "deny"
+manual_filter = "deny"
+manual_find = "deny"
+manual_flatten = "deny"
+manual_map = "deny"
+manual_memcpy = "deny"
+manual_non_exhaustive = "deny"
+manual_ok_or = "deny"
+manual_range_contains = "deny"
+manual_retain = "deny"
+manual_strip = "deny"
+manual_try_fold = "deny"
+manual_unwrap_or = "deny"
+needless_borrow = "deny"
+needless_borrowed_reference = "deny"
+needless_collect = "deny"
+needless_late_init = "deny"
+needless_option_as_deref = "deny"
+needless_question_mark = "deny"
+needless_update = "deny"
+redundant_clone = "deny"
+redundant_closure = "deny"
+redundant_closure_for_method_calls = "deny"
+redundant_static_lifetimes = "deny"
+trivially_copy_pass_by_ref = "deny"
+uninlined_format_args = "deny"
+unnecessary_filter_map = "deny"
+unnecessary_lazy_evaluations = "deny"
+unnecessary_sort_by = "deny"
+unnecessary_to_owned = "deny"
+unwrap_used = "deny"
+
+[workspace.dependencies]
+age = "0.11.1"
+ansi-to-tui = "8.0.1"
+anyhow = "1"
+arboard = { features = ["wayland-data-control"], version = "3" }
+arc-swap = "1.9.0"
+assert_cmd = "2"
+assert_matches = "1.5.0"
+async-channel = "2.3.1"
+async-io = "2.6.0"
+async-stream = "0.3.6"
+aws-config = "1"
+aws-credential-types = "1"
+aws-sigv4 = "1"
+aws-types = "1"
+axum = { default-features = false, version = "0.8" }
+base64 = "0.22.1"
+bm25 = "2.3.2"
+bytes = "1.10.1"
+chardetng = "0.1.17"
+chrono = "0.4.43"
+clap = "4"
+clap_complete = "4"
+clatter = { default-features = false, features = ["alloc", "getrandom", "use-25519", "use-aes-gcm", "use-rust-crypto-ml-kem", "use-sha"], version = "2.2.0" }
+lemurclaw-agent-extension = { path = "ext/agent", version = "0.0.0" }
+lemurclaw-agent-graph-store = { path = "agent-graph-store", version = "0.0.0" }
+lemurclaw-agent-identity = { path = "agent-identity", version = "0.0.0" }
+lemurclaw-analytics = { path = "analytics", version = "0.0.0" }
+lemurclaw-ansi-escape = { path = "ansi-escape", version = "0.0.0" }
+lemurclaw-api = { path = "lemurclaw-api", version = "0.0.0" }
+lemurclaw-app-server = { path = "app-server", version = "0.0.0" }
+lemurclaw-app-server-client = { path = "app-server-client", version = "0.0.0" }
+lemurclaw-app-server-daemon = { path = "app-server-daemon", version = "0.0.0" }
+lemurclaw-app-server-protocol = { path = "app-server-protocol", version = "0.0.0" }
+lemurclaw-app-server-test-client = { path = "app-server-test-client", version = "0.0.0" }
+lemurclaw-app-server-transport = { path = "app-server-transport", version = "0.0.0" }
+lemurclaw-apply-patch = { path = "apply-patch", version = "0.0.0" }
+lemurclaw-arg0 = { path = "arg0", version = "0.0.0" }
+lemurclaw-async-utils = { path = "async-utils", version = "0.0.0" }
+lemurclaw-aws-auth = { path = "aws-auth", version = "0.0.0" }
+lemurclaw-backend-client = { path = "backend-client", version = "0.0.0" }
+lemurclaw-chatgpt = { path = "chatgpt", version = "0.0.0" }
+lemurclaw-cli = { path = "cli", version = "0.0.0" }
+lemurclaw-client = { path = "lemurclaw-client", version = "0.0.0" }
+lemurclaw-cloud-config = { path = "cloud-config", version = "0.0.0" }
+lemurclaw-cloud-tasks-client = { path = "cloud-tasks-client", version = "0.0.0" }
+lemurclaw-cloud-tasks-mock-client = { path = "cloud-tasks-mock-client", version = "0.0.0" }
+lemurclaw-code-mode = { path = "code-mode", version = "0.0.0" }
+lemurclaw-code-mode-protocol = { path = "code-mode-protocol", version = "0.0.0" }
+lemurclaw-collaboration-mode-templates = { path = "collaboration-mode-templates", version = "0.0.0" }
+lemurclaw-config = { path = "config", version = "0.0.0" }
+lemurclaw-connectors = { path = "connectors", version = "0.0.0" }
+lemurclaw-connectors-extension = { path = "ext/connectors", version = "0.0.0" }
+lemurclaw-context-fragments = { path = "context-fragments", version = "0.0.0" }
+lemurclaw-core = { path = "core", version = "0.0.0" }
+lemurclaw-core-api = { path = "core-api", version = "0.0.0" }
+lemurclaw-core-plugins = { path = "core-plugins", version = "0.0.0" }
+lemurclaw-core-skills = { path = "core-skills", version = "0.0.0" }
+lemurclaw-exec = { path = "exec", version = "0.0.0" }
+lemurclaw-exec-server = { path = "exec-server", version = "0.0.0" }
+lemurclaw-exec-server-protocol = { path = "exec-server-protocol", version = "0.0.0" }
+lemurclaw-execpolicy = { path = "execpolicy", version = "0.0.0" }
+lemurclaw-experimental-api-macros = { path = "lemurclaw-experimental-api-macros", version = "0.0.0" }
+lemurclaw-extension-api = { path = "ext/extension-api", version = "0.0.0" }
+lemurclaw-extension-items = { path = "ext/items", version = "0.0.0" }
+lemurclaw-external-agent-migration = { path = "external-agent-migration", version = "0.0.0" }
+lemurclaw-features = { path = "features", version = "0.0.0" }
+lemurclaw-feedback = { path = "feedback", version = "0.0.0" }
+lemurclaw-file-search = { path = "file-search", version = "0.0.0" }
+lemurclaw-file-system = { path = "file-system", version = "0.0.0" }
+lemurclaw-file-watcher = { path = "file-watcher", version = "0.0.0" }
+lemurclaw-git-attribution = { path = "ext/git-attribution", version = "0.0.0" }
+lemurclaw-git-utils = { path = "git-utils", version = "0.0.0" }
+lemurclaw-goal-extension = { path = "ext/goal", version = "0.0.0" }
+lemurclaw-guardian = { path = "ext/guardian", version = "0.0.0" }
+lemurclaw-home = { path = "lemurclaw-home", version = "0.0.0" }
+lemurclaw-hooks = { path = "hooks", version = "0.0.0" }
+lemurclaw-http-client = { path = "http-client", version = "0.0.0" }
+lemurclaw-image-generation-extension = { path = "ext/image-generation", version = "0.0.0" }
+lemurclaw-install-context = { path = "install-context", version = "0.0.0" }
+lemurclaw-keyring-store = { path = "keyring-store", version = "0.0.0" }
+lemurclaw-linux-sandbox = { path = "linux-sandbox", version = "0.0.0" }
+lemurclaw-lmstudio = { path = "lmstudio", version = "0.0.0" }
+lemurclaw-login = { path = "login", version = "0.0.0" }
+lemurclaw-mcp = { path = "lemurclaw-mcp", version = "0.0.0" }
+lemurclaw-mcp-extension = { path = "ext/mcp", version = "0.0.0" }
+lemurclaw-mcp-server = { path = "mcp-server", version = "0.0.0" }
+lemurclaw-memories-extension = { path = "ext/memories", version = "0.0.0" }
+lemurclaw-memories-read = { path = "memories/read", version = "0.0.0" }
+lemurclaw-memories-write = { path = "memories/write", version = "0.0.0" }
+lemurclaw-message-history = { path = "message-history", version = "0.0.0" }
+lemurclaw-model-provider = { path = "model-provider", version = "0.0.0" }
+lemurclaw-model-provider-info = { path = "model-provider-info", version = "0.0.0" }
+lemurclaw-models-manager = { path = "models-manager", version = "0.0.0" }
+lemurclaw-network-proxy = { path = "network-proxy", version = "0.0.0" }
+lemurclaw-ollama = { path = "ollama", version = "0.0.0" }
+lemurclaw-otel = { path = "otel", version = "0.0.0" }
+lemurclaw-plugin = { path = "plugin", version = "0.0.0" }
+lemurclaw-process-hardening = { path = "process-hardening", version = "0.0.0" }
+lemurclaw-prompts = { path = "prompts", version = "0.0.0" }
+lemurclaw-protocol = { path = "protocol", version = "0.0.0" }
+lemurclaw-response-debug-context = { path = "response-debug-context", version = "0.0.0" }
+lemurclaw-responses-api-proxy = { path = "responses-api-proxy", version = "0.0.0" }
+lemurclaw-rmcp-client = { path = "rmcp-client", version = "0.0.0" }
+lemurclaw-rollout = { path = "rollout", version = "0.0.0" }
+lemurclaw-rollout-trace = { path = "rollout-trace", version = "0.0.0" }
+lemurclaw-sandboxing = { path = "sandboxing", version = "0.0.0" }
+lemurclaw-secrets = { path = "secrets", version = "0.0.0" }
+lemurclaw-shell-command = { path = "shell-command", version = "0.0.0" }
+lemurclaw-shell-escalation = { path = "shell-escalation", version = "0.0.0" }
+lemurclaw-skills = { path = "skills", version = "0.0.0" }
+lemurclaw-skills-extension = { path = "ext/skills", version = "0.0.0" }
+lemurclaw-state = { path = "state", version = "0.0.0" }
+lemurclaw-stdio-to-uds = { path = "stdio-to-uds", version = "0.0.0" }
+lemurclaw-terminal-detection = { path = "terminal-detection", version = "0.0.0" }
+lemurclaw-thread-store = { path = "thread-store", version = "0.0.0" }
+lemurclaw-tools = { path = "tools", version = "0.0.0" }
+lemurclaw-tui = { path = "tui", version = "0.0.0" }
+lemurclaw-uds = { path = "uds", version = "0.0.0" }
+lemurclaw-utils-absolute-path = { path = "utils/absolute-path", version = "0.0.0" }
+lemurclaw-utils-approval-presets = { path = "utils/approval-presets", version = "0.0.0" }
+lemurclaw-utils-cache = { path = "utils/cache", version = "0.0.0" }
+lemurclaw-utils-cargo-bin = { path = "utils/cargo-bin", version = "0.0.0" }
+lemurclaw-utils-cli = { path = "utils/cli", version = "0.0.0" }
+lemurclaw-utils-elapsed = { path = "utils/elapsed", version = "0.0.0" }
+lemurclaw-utils-fuzzy-match = { path = "utils/fuzzy-match", version = "0.0.0" }
+lemurclaw-utils-home-dir = { path = "utils/home-dir", version = "0.0.0" }
+lemurclaw-utils-image = { path = "utils/image", version = "0.0.0" }
+lemurclaw-utils-json-to-toml = { path = "utils/json-to-toml", version = "0.0.0" }
+lemurclaw-utils-oss = { path = "utils/oss", version = "0.0.0" }
+lemurclaw-utils-output-truncation = { path = "utils/output-truncation", version = "0.0.0" }
+lemurclaw-utils-path = { path = "utils/path-utils", version = "0.0.0" }
+lemurclaw-utils-path-uri = { path = "utils/path-uri", version = "0.0.0" }
+lemurclaw-utils-plugins = { path = "utils/plugins", version = "0.0.0" }
+lemurclaw-utils-pty = { path = "utils/pty", version = "0.0.0" }
+lemurclaw-utils-rustls-provider = { path = "utils/rustls-provider", version = "0.0.0" }
+lemurclaw-utils-sandbox-summary = { path = "utils/sandbox-summary", version = "0.0.0" }
+lemurclaw-utils-sleep-inhibitor = { path = "utils/sleep-inhibitor", version = "0.0.0" }
+lemurclaw-utils-stream-parser = { path = "utils/stream-parser", version = "0.0.0" }
+lemurclaw-utils-string = { path = "utils/string", version = "0.0.0" }
+lemurclaw-utils-template = { path = "utils/template", version = "0.0.0" }
+lemurclaw-v8-poc = { path = "v8-poc", version = "0.0.0" }
+lemurclaw-web-search-extension = { path = "ext/web-search", version = "0.0.0" }
+lemurclaw-websocket-client = { path = "websocket-client", version = "0.0.0" }
+lemurclaw-windows-sandbox = { path = "windows-sandbox-rs", version = "0.0.0" }
+color-eyre = "0.6.3"
+constant_time_eq = "0.3.1"
+crossbeam-channel = "0.5.15"
+crossterm = "0.29.0"
+crypto_box = { features = ["seal"], version = "0.9.1" }
+ctor = "0.6.3"
+deno_core_icudata = "0.77.0"
+derive_more = "2"
+diffy = "0.4.2"
+dirs = "6"
+divan = "0.1.21"
+dns-lookup = "3.0.1"
+dotenvy = "0.15.7"
+dunce = "1.0.4"
+ed25519-dalek = { features = ["pkcs8"], version = "2.2.0" }
+encoding_rs = "0.8.35"
+eventsource-stream = "0.2.3"
+flate2 = "1.1.8"
+futures = { default-features = false, version = "0.3" }
+gethostname = "1.1.0"
+gix = { default-features = false, features = ["sha1"], version = "0.81.0" }
+glob = "0.3"
+globset = "0.4"
+hmac = "0.12.1"
+http = "1.3.1"
+httpdate = "1.0.3"
+iana-time-zone = "0.1.64"
+icu_decimal = "2.1"
+icu_locale_core = "2.1"
+icu_provider = { features = ["sync"], version = "2.1" }
+ignore = "0.4.23"
+image = { default-features = false, version = "^0.25.9" }
+include_dir = "0.7.4"
+indexmap = "2.12.0"
+insta = "1.46.3"
+inventory = "0.3.19"
+itertools = "0.14.0"
+jsonptr = { default-features = false, version = "0.7.1" }
+jsonwebtoken = "9.3.1"
+keyring = { default-features = false, version = "3.6" }
+landlock = "0.4.4"
+lazy_static = "1"
+lemurclaw-gui = { path = "lemurclaw-gui", version = "0.0.0" }
+lemurclaw-transport = { path = "lemurclaw-transport", version = "0.0.0" }
+lemurclaw-webui = { path = "lemurclaw-webui", version = "0.0.0" }
+libc = "0.2.182"
+libsqlite3-sys = { default-features = false, version = "0.37" }
+log = "0.4"
+lru = "0.16.3"
+maplit = "1.0.2"
+memchr = "2.7.6"
+mime_guess = "2.0.5"
+multimap = "0.10.0"
+notify = "8.2.0"
+nucleo = { git = "https://github.com/helix-editor/nucleo.git", rev = "4253de9faabb4e5c6d81d946a5e35a90f87347ee" }
+once_cell = "1.20.2"
+openssl-sys = "*"
+opentelemetry = "0.31.0"
+opentelemetry-appender-tracing = "0.31.0"
+opentelemetry-otlp = "0.31.0"
+opentelemetry-semantic-conventions = "0.31.0"
+opentelemetry_sdk = "0.31.0"
+os_info = "3.12.0"
+owo-colors = "4.3.0"
+pathdiff = "0.2"
+portable-pty = "0.9.0"
+predicates = "3"
+pretty_assertions = "1.4.1"
+pulldown-cmark = { default-features = false, version = "0.10" }
+quick-xml = "0.41.0"
+rand = "0.9"
+ratatui = { default-features = false, features = ["crossterm", "layout-cache", "underline-color"], version = "0.30.2" }
+ratatui-macros = "0.7.2"
+rcgen = { default-features = false, features = ["aws_lc_rs", "pem"], version = "0.14.7" }
+regex = "1.12.3"
+regex-lite = "0.1.8"
+reqwest = { features = ["cookies"], version = "0.12" }
+rmcp = { default-features = false, version = "=3.0.0" }
+runfiles = { git = "https://github.com/dzbarsky/rules_rust", rev = "b56cbaa8465e74127f1ea216f813cd377295ad81" }
+rustls = { default-features = false, features = ["aws_lc_rs", "std"], version = "0.23" }
+rustls-native-certs = "0.8.3"
+rustls-pki-types = "1.14.0"
+schemars = "0.8.22"
+scopeguard = "1.2.0"
+seccompiler = "0.5.0"
+semver = "1.0"
+sentry = "0.46.0"
+serde = { features = ["rc"], version = "1" }
+serde_ignored = "0.1.14"
+serde_json = "1"
+serde_path_to_error = "0.1.20"
+serde_with = "3.17"
+serde_yaml = "0.9"
+serial_test = "3.2.0"
+sha1 = "0.10.6"
+sha2 = "0.10"
+shlex = "1.3.0"
+similar = "2.7.0"
+socket2 = "0.6.1"
+sqlx = { default-features = false, features = ["chrono", "json", "macros", "migrate", "runtime-tokio", "tls-rustls", "sqlite-bundled", "time", "uuid"], version = "0.9.0" }
+starlark = { default-features = false, version = "0.14.2" }
+strum = "0.27.2"
+strum_macros = "0.28.0"
+supports-color = "3.0.2"
+symphonia = { default-features = false, features = ["isomp4", "mkv", "mp3", "ogg", "wav"], version = "0.6.0" }
+syntect = "5"
+sys-locale = "0.3.2"
+system-configuration = "0.7"
+tao = "0.34"
+tar = { default-features = false, version = "=0.4.45" }
+tempfile = "3.23.0"
+test-log = "0.2.19"
+textwrap = "0.16.2"
+thiserror = "2.0.17"
+time = "0.3.47"
+tiny_http = "0.12"
+tokio = "1"
+tokio-rustls = "0.26.4"
+tokio-stream = "0.1.18"
+tokio-test = "0.4"
+tokio-tungstenite = { features = ["proxy", "rustls-tls-native-roots"], version = "0.28.0" }
+tokio-util = "0.7.18"
+toml = "0.9.5"
+toml_edit = "0.24.0"
+tonic = { default-features = false, features = ["channel", "codegen"], version = "0.14.3" }
+tonic-prost = "0.14.3"
+tracing = "0.1.44"
+tracing-appender = "0.2.3"
+tracing-opentelemetry = "0.32.0"
+tracing-subscriber = "0.3.22"
+tracing-test = "0.2.5"
+tree-sitter = "0.25.10"
+tree-sitter-bash = "0.25"
+ts-rs = "11"
+tungstenite = { features = ["deflate", "proxy"], version = "0.27.0" }
+uds_windows = "1.1.0"
+unicode-segmentation = "1.12.0"
+unicode-width = "0.2"
+url = "2"
+urlencoding = "2.1"
+uuid = "1"
+v8 = "=150.4.0"
+vt100 = "0.16.2"
+walkdir = "2.5.0"
+webbrowser = "1.0"
+which = "8"
+whoami = "1.6.1"
+wildmatch = "2.6.1"
+winapi-util = "0.1.11"
+wiremock = "0.6"
+wry = "0.54"
+zeroize = "1.8.2"
+zip = "2.4.2"
+zstd = "0.13"
+
+[profile.ci-test]
+debug = "limited"
+inherits = "test"
+opt-level = 0
+
+[profile.dev]
+debug = "limited"
+
+[profile.dev-small]
+debug = "none"
+inherits = "dev"
+opt-level = 0
+strip = "symbols"
+
+[profile.profiling]
+debug = "full"
+inherits = "release"
+lto = false
+strip = false
+
+[profile.release]
+codegen-units = 4
+debug = "line-tables-only"
+lto = "thin"
+split-debuginfo = "off"
+strip = false
+
+[patch.crates-io]
+crossterm = { git = "https://github.com/openai-oss-forks/crossterm", rev = "f69a4a0499f2fdc7d5d222df32373ffffe9ba3f5" }
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "0e5b2d73aa18dd9f0a50ee9ff199d5aef7594186" }
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "4fffad30fe373adbdcffab9545e9e9bf4f2fc19f" }
+
+[patch."ssh://git@github.com/openai-oss-forks/tungstenite-rs.git"]
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "4fffad30fe373adbdcffab9545e9e9bf4f2fc19f" }

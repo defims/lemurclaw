@@ -1,0 +1,35 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "lemurclaw-model-provider"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "lemurclaw_model_provider"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-api = { workspace = true }
+lemurclaw-agent-identity = { workspace = true }
+lemurclaw-aws-auth = { workspace = true }
+lemurclaw-http-client = { workspace = true }
+lemurclaw-feedback = { workspace = true }
+lemurclaw-login = { workspace = true }
+lemurclaw-model-provider-info = { workspace = true }
+lemurclaw-models-manager = { workspace = true }
+lemurclaw-otel = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-response-debug-context = { workspace = true }
+http = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time"] }
+tracing = { workspace = true, features = ["log"] }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
+wiremock = { workspace = true }

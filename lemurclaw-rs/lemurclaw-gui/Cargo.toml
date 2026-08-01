@@ -1,0 +1,28 @@
+[package]
+name = "lemurclaw-gui"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[lib]
+name = "lemurclaw_gui"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+lemurclaw-transport = { workspace = true }
+lemurclaw-webui = { workspace = true }
+lemurclaw-app-server-client = { workspace = true }
+lemurclaw-app-server-protocol = { workspace = true }
+lemurclaw-arg0 = { workspace = true }
+lemurclaw-config = { workspace = true }
+lemurclaw-protocol = { workspace = true }
+lemurclaw-rollout = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tao = { workspace = true }
+tokio = { workspace = true }
+wry = { workspace = true }
