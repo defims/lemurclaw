@@ -15,6 +15,7 @@ use crate::facts::ExternalAgentConfigImportCompletedInput;
 use crate::facts::ExternalAgentConfigImportFailureInput;
 use crate::facts::HookRunFact;
 use crate::facts::HookRunInput;
+use crate::facts::ImagePreparationFact;
 use crate::facts::PluginInstallFailedInput;
 use crate::facts::PluginInstallRequested;
 use crate::facts::PluginInstallRequestedInput;
@@ -29,6 +30,7 @@ use crate::facts::TurnCodexErrorFact;
 use crate::facts::TurnProfileFact;
 use crate::facts::TurnResolvedConfigFact;
 use crate::facts::TurnTokenUsageFact;
+use crate::now_unix_millis;
 use crate::reducer::AnalyticsReducer;
 use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::ClientResponsePayload;
@@ -312,6 +314,18 @@ impl AnalyticsEventsClient {
         request_id: RequestId,
         request: &ClientRequest,
     ) {
+        if let ClientRequest::TurnInterrupt { params, .. } = request {
+            if params.turn_id.is_empty() {
+                return;
+            }
+            self.record_fact(AnalyticsFact::ExplicitClientInterruptRequest {
+                connection_id,
+                request_id,
+                turn_id: params.turn_id.clone(),
+                requested_at_ms: now_unix_millis(),
+            });
+            return;
+        }
         if !matches!(
             request,
             ClientRequest::TurnStart { .. } | ClientRequest::TurnSteer { .. }
@@ -378,6 +392,12 @@ impl AnalyticsEventsClient {
         self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::Goal(Box::new(
             event,
         ))));
+    }
+
+    pub fn track_image_preparation(&self, fact: ImagePreparationFact) {
+        self.record_fact(AnalyticsFact::Custom(
+            CustomAnalyticsFact::ImagePreparation(Box::new(fact)),
+        ));
     }
 
     pub fn track_turn_resolved_config(&self, fact: TurnResolvedConfigFact) {
@@ -519,6 +539,7 @@ impl AnalyticsEventsClient {
                 | ClientResponsePayload::ThreadFork(_)
                 | ClientResponsePayload::TurnStart(_)
                 | ClientResponsePayload::TurnSteer(_)
+                | ClientResponsePayload::TurnInterrupt(_)
         ) {
             return;
         }
