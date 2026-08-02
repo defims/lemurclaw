@@ -1,14 +1,3 @@
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
-<p align="center">
-  <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
-</p>
-</br>
-If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE.</a>
-</br>If you want the desktop app experience, run <code>codex app</code> or visit <a href="https://chatgpt.com/codex?app-landing-page=true">the Codex App page</a>.
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
-
----
-
 # Lemurclaw
 
 > Lemurclaw is a fork of openai/codex that adds a **native GUI stack** and a
@@ -66,19 +55,18 @@ The `lemurclaw-webui` build script automatically runs `npm install && npm run
 build` to produce the embedded React `dist/`. If Node is missing it falls back
 to a committed `dist/` with a warning.
 
-> **Why `lemurclaw-rs/` and not `codex-rs/`?** The GUI crates live as members of the
-> `codex-rs/` workspace for development convenience, but building the launcher
-> there pulls in the full V8 runtime (a ~120 MB download). `lemurclaw-rs/` is the
-> self-contained lemurclaw workspace — rename + strip-v8 gives you a binary that
-> runs the TUI/GUI/WebUI frontends without V8.
+> **Why `lemurclaw-rs/` and not `codex-rs/`?** The GUI crates live exclusively in
+> the `lemurclaw-rs/` workspace (Phase 4 relocated them out of `codex-rs/`).
+> `lemurclaw-rs/` is the self-contained lemurclaw workspace — rename + strip-v8
+> gives you a binary that runs the TUI/GUI/WebUI frontends without V8.
 
 ### Frontend development
 
 For React/Vite HMR while developing the shared UI, edit under
-`codex-rs/lemurclaw-webui/assets/` (the source the lemurclaw-rs build embeds):
+`lemurclaw-rs/lemurclaw-webui/assets/`:
 
 ```shell
-cd codex-rs/lemurclaw-webui/assets
+cd lemurclaw-rs/lemurclaw-webui/assets
 npm install
 npm run dev    # Vite dev server with HMR
 npm run test   # vitest
@@ -94,6 +82,15 @@ and the runbook at
 ---
 
 # Codex CLI (upstream)
+
+<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
+<p align="center">
+  <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
+</p>
+</br>
+If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE.</a>
+</br>If you want the desktop app experience, run <code>codex app</code> or visit <a href="https://chatgpt.com/codex?app-landing-page=true">the Codex App page</a>.
+</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
 
 ## Quickstart
 
