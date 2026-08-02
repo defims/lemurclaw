@@ -1,6 +1,6 @@
 use super::*;
 use lemurclaw_app_server_protocol::AccountRateLimitsUpdatedNotification;
-use lemurclaw_app_server_protocol::CodexErrorInfo;
+use lemurclaw_app_server_protocol::LemurclawErrorInfo;
 use lemurclaw_app_server_protocol::CreditsSnapshot;
 use lemurclaw_app_server_protocol::ErrorNotification;
 use lemurclaw_app_server_protocol::GetAccountRateLimitsResponse;
@@ -89,7 +89,7 @@ fn deliver_usage_limit_error(app: &mut App) {
         ServerNotification::Error(ErrorNotification {
             error: AppServerTurnError {
                 message: "Usage limit reached.".to_string(),
-                codex_error_info: Some(CodexErrorInfo::UsageLimitExceeded),
+                codex_error_info: Some(LemurclawErrorInfo::UsageLimitExceeded),
                 additional_details: None,
             },
             will_retry: false,

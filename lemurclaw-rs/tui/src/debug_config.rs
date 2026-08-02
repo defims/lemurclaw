@@ -761,12 +761,12 @@ interrupt_message = false
         let system_file = if cfg!(windows) {
             absolute_path("C:\\etc\\codex\\config.toml")
         } else {
-            absolute_path("/etc/codex/config.toml")
+            absolute_path("/etc/lemurclaw/config.toml")
         };
         let project_folder = if cfg!(windows) {
-            absolute_path("C:\\repo\\.codex")
+            absolute_path("C:\\repo\\.lemurclaw")
         } else {
-            absolute_path("/repo/.codex")
+            absolute_path("/repo/.lemurclaw")
         };
 
         let layers = vec![
@@ -802,7 +802,7 @@ interrupt_message = false
         let requirements_file = if cfg!(windows) {
             absolute_path("C:\\ProgramData\\OpenAI\\Codex\\requirements.toml")
         } else {
-            absolute_path("/etc/codex/requirements.toml")
+            absolute_path("/etc/lemurclaw/requirements.toml")
         };
         let denied_path = if cfg!(windows) {
             absolute_path("C:\\Users\\alice\\.gitconfig")
@@ -1060,7 +1060,7 @@ interrupt_message = false
         let requirements_file = if cfg!(windows) {
             absolute_path("C:\\ProgramData\\OpenAI\\Codex\\requirements.toml")
         } else {
-            absolute_path("/etc/codex/requirements.toml")
+            absolute_path("/etc/lemurclaw/requirements.toml")
         };
         let denied_path = if cfg!(windows) {
             absolute_path("C:\\Users\\alice\\.gitconfig")

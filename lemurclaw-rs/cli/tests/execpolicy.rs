@@ -25,7 +25,7 @@ prefix_rule(
     )?;
 
     let output = Command::new(lemurclaw_utils_cargo_bin::cargo_bin("codex")?)
-        .env("CODEX_HOME", codex_home.path())
+        .env("LEMURCLAW_HOME", codex_home.path())
         .args([
             "execpolicy",
             "check",
@@ -82,7 +82,7 @@ prefix_rule(
     )?;
 
     let output = Command::new(lemurclaw_utils_cargo_bin::cargo_bin("codex")?)
-        .env("CODEX_HOME", codex_home.path())
+        .env("LEMURCLAW_HOME", codex_home.path())
         .args([
             "execpolicy",
             "check",

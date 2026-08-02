@@ -1,4 +1,4 @@
-# codex-execpolicy
+# lemurclaw-execpolicy
 
 ## Overview
 
@@ -45,16 +45,16 @@ host_executable(
 
 ## CLI
 
-- From the Codex CLI, run `codex execpolicy check` subcommand with one or more policy files (for example `src/default.rules`) to check a command:
+- From the lemurclaw CLI, run `lemurclaw execpolicy check` subcommand with one or more policy files (for example `src/default.rules`) to check a command:
 
 ```bash
-codex execpolicy check --rules path/to/policy.rules git status
+lemurclaw execpolicy check --rules path/to/policy.rules git status
 ```
 
 - To opt into basename fallback for absolute program paths, pass `--resolve-host-executables`:
 
 ```bash
-codex execpolicy check \
+lemurclaw execpolicy check \
   --rules path/to/policy.rules \
   --resolve-host-executables \
   /usr/bin/git status
@@ -64,7 +64,7 @@ codex execpolicy check \
 - You can also run the standalone dev binary directly during development:
 
 ```bash
-cargo run -p codex-execpolicy -- check --rules path/to/policy.rules git status
+cargo run -p lemurclaw-execpolicy -- check --rules path/to/policy.rules git status
 ```
 
 - Example outcomes:

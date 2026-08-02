@@ -42,7 +42,7 @@ use crate::plugin_cmd::load_cli_auth_mode;
 /// Subcommands:
 /// - `list`   — list configured servers (with `--json`)
 /// - `get`    — show a single server (with `--json`)
-/// - `add`    — add a server launcher entry to `~/.codex/config.toml`
+/// - `add`    — add a server launcher entry to `~/.lemurclaw/config.toml`
 /// - `remove` — delete a server entry
 /// - `login`  — authenticate with MCP server using OAuth
 /// - `logout` — remove OAuth credentials for MCP server

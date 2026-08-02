@@ -167,7 +167,7 @@ fn server_overloaded_maps_to_protocol() {
     let err = CodexErr::ServerOverloaded;
     assert_eq!(
         err.to_codex_protocol_error(),
-        CodexErrorInfo::ServerOverloaded
+        LemurclawErrorInfo::ServerOverloaded
     );
 }
 
@@ -243,7 +243,7 @@ fn to_error_event_handles_response_stream_failed() {
     );
     assert_eq!(
         event.codex_error_info,
-        Some(CodexErrorInfo::ResponseStreamConnectionFailed {
+        Some(LemurclawErrorInfo::ResponseStreamConnectionFailed {
             http_status_code: Some(429)
         })
     );

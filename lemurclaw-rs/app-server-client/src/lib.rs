@@ -812,11 +812,8 @@ impl InProcessAppServerRequestHandle {
         })
     }
 
-    /// Resolves a pending server request by ID.
-    ///
-    /// Mirror of [`InProcessAppServerClient::resolve_server_request`]; lets
-    /// call sites that only hold a request handle (e.g. an ipc handler that
-    /// cannot own the full client) still respond to `ServerRequest`s.
+    /// Resolves a pending server request by ID. Mirror of
+    /// [`InProcessAppServerClient::resolve_server_request`].
     pub async fn resolve_server_request(
         &self,
         request_id: RequestId,
@@ -844,9 +841,8 @@ impl InProcessAppServerRequestHandle {
         })?
     }
 
-    /// Rejects a pending server request by ID with a JSON-RPC error.
-    ///
-    /// Mirror of [`InProcessAppServerClient::reject_server_request`].
+    /// Rejects a pending server request by ID. Mirror of
+    /// [`InProcessAppServerClient::reject_server_request`].
     pub async fn reject_server_request(
         &self,
         request_id: RequestId,
@@ -1156,7 +1152,7 @@ mod tests {
                 id: request.id,
                 result: serde_json::json!({
                     "userAgent": "codex_cli_rs/9.8.7-test (Test OS; x86_64) rust",
-                    "codexHome": "/server/.codex",
+                    "codexHome": "/server/.lemurclaw",
                 }),
             }),
         )
@@ -1521,7 +1517,7 @@ mod tests {
             .expect("remote client should connect");
 
         assert_eq!(client.server_version(), Some("9.8.7-test"));
-        assert_eq!(client.codex_home(), Some("/server/.codex"));
+        assert_eq!(client.codex_home(), Some("/server/.lemurclaw"));
         let response: GetAccountResponse = client
             .request_typed(ClientRequest::GetAccount {
                 request_id: RequestId::Integer(1),

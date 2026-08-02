@@ -393,7 +393,7 @@ async fn codex_tool_passes_base_instructions() -> anyhow::Result<()> {
         .await;
     let mut mcp_process = McpProcess::new_with_env(
         codex_home.path(),
-        &[("OPENAI_API_KEY", None), ("CODEX_ACCESS_TOKEN", None)],
+        &[("OPENAI_API_KEY", None), ("LEMURCLAW_ACCESS_TOKEN", None)],
     )
     .await?;
     timeout(DEFAULT_READ_TIMEOUT, mcp_process.initialize()).await??;

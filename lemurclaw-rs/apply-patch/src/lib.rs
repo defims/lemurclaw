@@ -38,7 +38,7 @@ use crate::invocation::ExtractHeredocError;
 /// `codex-arg0` to depend on `codex-core`), it remains part of the "codex core"
 /// process-invocation contract for the standalone `apply_patch` command
 /// surface.
-pub const CODEX_CORE_APPLY_PATCH_ARG1: &str = "--codex-run-as-apply-patch";
+pub const CODEX_CORE_APPLY_PATCH_ARG1: &str = "--lemurclaw-run-as-apply-patch";
 
 #[derive(Debug, Error, PartialEq)]
 pub enum ApplyPatchError {

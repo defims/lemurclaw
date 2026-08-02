@@ -471,7 +471,7 @@ fn print_recovery_command(codex_bin: &Path, config_overrides: &[String], remote_
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| "codex-app-server-test-client".to_string());
     let mut command = format!(
-        "{} --codex-bin {}",
+        "{} --lemurclaw-bin {}",
         shell_quote(&test_client),
         shell_quote(&codex_bin.display().to_string())
     );

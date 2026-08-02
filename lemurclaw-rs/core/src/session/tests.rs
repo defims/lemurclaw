@@ -123,7 +123,7 @@ use lemurclaw_protocol::models::ContentItem;
 use lemurclaw_protocol::models::InternalChatMessageMetadataPassthrough;
 use lemurclaw_protocol::models::ResponseItem;
 use lemurclaw_protocol::protocol::AskForApproval;
-use lemurclaw_protocol::protocol::CodexErrorInfo;
+use lemurclaw_protocol::protocol::LemurclawErrorInfo;
 use lemurclaw_protocol::protocol::CompactedItem;
 use lemurclaw_protocol::protocol::ConversationAudioParams;
 use lemurclaw_protocol::protocol::CreditsSnapshot;
@@ -2960,7 +2960,7 @@ async fn turn_error_lifecycle_exposes_error_and_stores() {
         thread_level_id: String,
         turn_level_id: String,
         turn_id: String,
-        error: CodexErrorInfo,
+        error: LemurclawErrorInfo,
         saw_session_store: bool,
         saw_thread_store: bool,
     }
@@ -3018,13 +3018,13 @@ async fn turn_error_lifecycle_exposes_error_and_stores() {
         thread_level_id: session.thread_id.to_string(),
         turn_level_id: turn_context.sub_id.clone(),
         turn_id: turn_context.sub_id.clone(),
-        error: CodexErrorInfo::UsageLimitExceeded,
+        error: LemurclawErrorInfo::UsageLimitExceeded,
         saw_session_store: true,
         saw_thread_store: true,
     };
 
     session
-        .emit_turn_error_lifecycle(&turn_context, CodexErrorInfo::UsageLimitExceeded)
+        .emit_turn_error_lifecycle(&turn_context, LemurclawErrorInfo::UsageLimitExceeded)
         .await;
 
     let actual = records
@@ -3632,7 +3632,7 @@ async fn thread_rollback_fails_without_persisted_thread_history() {
     );
     assert_eq!(
         error_event.codex_error_info,
-        Some(CodexErrorInfo::ThreadRollbackFailed)
+        Some(LemurclawErrorInfo::ThreadRollbackFailed)
     );
     assert_eq!(
         sess.clone_history().await.raw_items(),
@@ -4059,7 +4059,7 @@ async fn thread_rollback_fails_when_turn_in_progress() {
     let error_event = wait_for_thread_rollback_failed(&rx).await;
     assert_eq!(
         error_event.codex_error_info,
-        Some(CodexErrorInfo::ThreadRollbackFailed)
+        Some(LemurclawErrorInfo::ThreadRollbackFailed)
     );
 
     let history = sess.clone_history().await;
@@ -4081,7 +4081,7 @@ async fn thread_rollback_fails_when_num_turns_is_zero() {
     assert_eq!(error_event.message, "num_turns must be >= 1");
     assert_eq!(
         error_event.codex_error_info,
-        Some(CodexErrorInfo::ThreadRollbackFailed)
+        Some(LemurclawErrorInfo::ThreadRollbackFailed)
     );
 
     let history = sess.clone_history().await;
@@ -4474,7 +4474,7 @@ async fn wait_for_thread_rollback_failed(rx: &async_channel::Receiver<Event>) ->
             .expect("event");
         match evt.msg {
             EventMsg::Error(payload)
-                if payload.codex_error_info == Some(CodexErrorInfo::ThreadRollbackFailed) =>
+                if payload.codex_error_info == Some(LemurclawErrorInfo::ThreadRollbackFailed) =>
             {
                 return payload;
             }
@@ -11539,8 +11539,8 @@ async fn session_start_hooks_only_load_from_trusted_project_layers() -> std::io:
     let codex_home = temp.path().join("home");
     let project_root = temp.path().join("project");
     let nested = project_root.join("nested");
-    let root_dot_codex = project_root.join(".codex");
-    let nested_dot_codex = nested.join(".codex");
+    let root_dot_codex = project_root.join(".lemurclaw");
+    let nested_dot_codex = nested.join(".lemurclaw");
 
     std::fs::create_dir_all(&codex_home)?;
     std::fs::create_dir_all(&nested_dot_codex)?;
@@ -11585,7 +11585,7 @@ async fn session_start_hooks_require_project_trust_without_config_toml() -> std:
     let temp = tempfile::tempdir()?;
     let project_root = temp.path().join("project");
     let nested = project_root.join("nested");
-    let dot_codex = project_root.join(".codex");
+    let dot_codex = project_root.join(".lemurclaw");
     std::fs::create_dir_all(&nested)?;
     std::fs::write(project_root.join(".git"), "gitdir: here")?;
     write_project_hooks(&dot_codex)?;

@@ -1921,8 +1921,8 @@ async fn plugin_read_hides_apps_for_api_key_auth() -> Result<()> {
         .with_codex_home(codex_home.path())
         .without_auto_env()
         .with_env_overrides(&[
-            ("CODEX_ACCESS_TOKEN", None),
-            ("CODEX_API_KEY", None),
+            ("LEMURCLAW_ACCESS_TOKEN", None),
+            ("LEMURCLAW_API_KEY", None),
             ("OPENAI_API_KEY", None),
         ])
         .build_initialized_with_timeout(DEFAULT_TIMEOUT)

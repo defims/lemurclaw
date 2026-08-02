@@ -30,7 +30,7 @@ async fn import_repo_agents_md_from_nested_cwd_rewrites_terms_and_skips_non_empt
 
     let outcome = service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".codex"),
+        root.path().join(".lemurclaw"),
     )
     .import(vec![
         ExternalAgentConfigMigrationItem {
@@ -104,7 +104,7 @@ async fn import_repo_agents_md_overwrites_empty_targets() {
 
     let outcome = service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".codex"),
+        root.path().join(".lemurclaw"),
     )
     .import(vec![ExternalAgentConfigMigrationItem {
         item_type: ExternalAgentConfigMigrationItemType::AgentsMd,
@@ -157,7 +157,7 @@ async fn detect_repo_prefers_non_empty_external_agent_agents_source() {
 
     let items = service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".codex"),
+        root.path().join(".lemurclaw"),
     )
     .detect(ExternalAgentConfigDetectOptions {
         include_home: false,
@@ -191,21 +191,21 @@ async fn import_repo_hooks_preserves_disabled_codex_hooks_feature() {
     let repo_root = root.path().join("repo");
     fs::create_dir_all(repo_root.join(".git")).expect("create git dir");
     fs::create_dir_all(repo_root.join(EXTERNAL_AGENT_DIR)).expect("create external agent dir");
-    fs::create_dir_all(repo_root.join(".codex")).expect("create codex dir");
+    fs::create_dir_all(repo_root.join(".lemurclaw")).expect("create codex dir");
     fs::write(
         repo_root.join(EXTERNAL_AGENT_DIR).join("settings.json"),
         r#"{"hooks":{"Stop":[{"hooks":[{"command":"echo done"}]}]}}"#,
     )
     .expect("write hooks");
     fs::write(
-        repo_root.join(".codex").join("config.toml"),
+        repo_root.join(".lemurclaw").join("config.toml"),
         "[features]\ncodex_hooks = false\n",
     )
     .expect("write config");
 
     let outcome = service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".codex"),
+        root.path().join(".lemurclaw"),
     )
     .import(vec![ExternalAgentConfigMigrationItem {
         item_type: ExternalAgentConfigMigrationItemType::Hooks,
@@ -233,11 +233,11 @@ async fn import_repo_hooks_preserves_disabled_codex_hooks_feature() {
         }]
     );
     assert_eq!(
-        fs::read_to_string(repo_root.join(".codex").join("config.toml")).expect("read config"),
+        fs::read_to_string(repo_root.join(".lemurclaw").join("config.toml")).expect("read config"),
         "[features]\ncodex_hooks = false\n"
     );
     let hooks: JsonValue = serde_json::from_str(
-        &fs::read_to_string(repo_root.join(".codex").join("hooks.json")).expect("read hooks"),
+        &fs::read_to_string(repo_root.join(".lemurclaw").join("hooks.json")).expect("read hooks"),
     )
     .expect("parse hooks");
     assert_eq!(
@@ -283,7 +283,7 @@ async fn import_repo_mcp_uses_home_settings_toggles_when_repo_settings_missing()
     )
     .expect("write external agent project config");
 
-    let outcome = service_for_paths(external_agent_home, root.path().join(".codex"))
+    let outcome = service_for_paths(external_agent_home, root.path().join(".lemurclaw"))
         .import(vec![ExternalAgentConfigMigrationItem {
             item_type: ExternalAgentConfigMigrationItemType::McpServerConfig,
             description: String::new(),
@@ -310,7 +310,7 @@ async fn import_repo_mcp_uses_home_settings_toggles_when_repo_settings_missing()
         }]
     );
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".codex").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".lemurclaw").join("config.toml")).expect("read config"),
     )
     .expect("parse config");
     let expected: TomlValue = toml::from_str(
@@ -360,7 +360,7 @@ async fn import_repo_mcp_uses_local_settings_toggles_over_project_settings() {
     )
     .expect("write local settings");
 
-    service_for_paths(external_agent_home, root.path().join(".codex"))
+    service_for_paths(external_agent_home, root.path().join(".lemurclaw"))
         .import(vec![ExternalAgentConfigMigrationItem {
             item_type: ExternalAgentConfigMigrationItemType::McpServerConfig,
             description: String::new(),
@@ -370,7 +370,7 @@ async fn import_repo_mcp_uses_local_settings_toggles_over_project_settings() {
         .await;
 
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".codex").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".lemurclaw").join("config.toml")).expect("read config"),
     )
     .expect("parse config");
     let expected: TomlValue = toml::from_str(
@@ -407,7 +407,7 @@ async fn import_repo_mcp_ignores_invalid_home_settings_when_repo_settings_missin
     )
     .expect("write external agent project config");
 
-    service_for_paths(external_agent_home, root.path().join(".codex"))
+    service_for_paths(external_agent_home, root.path().join(".lemurclaw"))
         .import(vec![ExternalAgentConfigMigrationItem {
             item_type: ExternalAgentConfigMigrationItemType::McpServerConfig,
             description: String::new(),
@@ -417,7 +417,7 @@ async fn import_repo_mcp_ignores_invalid_home_settings_when_repo_settings_missin
         .await;
 
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".codex").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".lemurclaw").join("config.toml")).expect("read config"),
     )
     .expect("parse config");
     let expected: TomlValue = toml::from_str(
@@ -447,7 +447,7 @@ async fn import_repo_uses_non_empty_external_agent_agents_source() {
 
     service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".codex"),
+        root.path().join(".lemurclaw"),
     )
     .import(vec![ExternalAgentConfigMigrationItem {
         item_type: ExternalAgentConfigMigrationItemType::AgentsMd,
@@ -472,7 +472,7 @@ async fn import_continues_after_failed_migration_item() {
 
     service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".codex"),
+        root.path().join(".lemurclaw"),
     )
     .import(vec![
         ExternalAgentConfigMigrationItem {

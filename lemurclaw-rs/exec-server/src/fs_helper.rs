@@ -42,7 +42,7 @@ use crate::rpc::internal_error;
 use crate::rpc::invalid_request;
 use crate::rpc::not_found;
 
-pub const CODEX_FS_HELPER_ARG1: &str = "--codex-run-as-fs-helper";
+pub const CODEX_FS_HELPER_ARG1: &str = "--lemurclaw-run-as-fs-helper";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "operation", content = "params")]

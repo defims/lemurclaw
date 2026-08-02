@@ -78,7 +78,7 @@ impl App {
     }
 
     pub(super) fn open_desktop_thread(&mut self, thread_id: ThreadId) {
-        let url = format!("codex://threads/{thread_id}");
+        let url = format!("lemurclaw://threads/{thread_id}");
         if let Err(err) = open_desktop_thread_url(&url) {
             self.chat_widget
                 .add_error_message(desktop_thread_open_error_message(&err));

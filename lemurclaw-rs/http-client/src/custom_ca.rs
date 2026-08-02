@@ -58,7 +58,7 @@ use thiserror::Error;
 use tracing::info;
 use tracing::warn;
 
-pub const CODEX_CA_CERT_ENV: &str = "CODEX_CA_CERTIFICATE";
+pub const CODEX_CA_CERT_ENV: &str = "LEMURCLAW_CA_CERTIFICATE";
 pub const SSL_CERT_FILE_ENV: &str = "SSL_CERT_FILE";
 const CA_CERT_HINT: &str = "If you set CODEX_CA_CERTIFICATE or SSL_CERT_FILE, ensure it points to a PEM file containing one or more CERTIFICATE blocks, or unset it to use system roots.";
 type PemSection = (SectionKind, Vec<u8>);

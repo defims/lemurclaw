@@ -296,7 +296,7 @@
       "additionalProperties": {
         "$ref": "#/definitions/RateLimitSnapshot"
       },
-      "description": "Multi-bucket view keyed by metered `limit_id` (for example, `codex`).",
+      "description": "Multi-bucket view keyed by metered `limit_id` (for example, `lemurclaw`).",
       "type": [
         "object",
         "null"

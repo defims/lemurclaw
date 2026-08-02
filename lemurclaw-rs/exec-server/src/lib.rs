@@ -41,7 +41,7 @@ use lemurclaw_exec_server_protocol as protocol;
 
 /// Process-local opt-in for tying a remote executor to its parent's stdin pipe.
 pub const CODEX_EXEC_SERVER_EXIT_ON_STDIN_CLOSE_ENV_VAR: &str =
-    "CODEX_EXEC_SERVER_EXIT_ON_STDIN_CLOSE";
+    "LEMURCLAW_EXEC_SERVER_EXIT_ON_STDIN_CLOSE";
 
 pub use arg0_exec_helper::CODEX_ARG0_EXEC_HELPER_ARG1;
 pub use arg0_exec_helper::main as run_arg0_exec_helper_main;

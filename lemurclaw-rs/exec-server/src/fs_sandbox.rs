@@ -662,7 +662,7 @@ mod tests {
     fn helper_permissions_include_linux_sandbox_alias_parent() {
         let root = tempfile::tempdir().expect("temp dir");
         let codex_self_exe = root.path().join("bin").join("codex");
-        let codex_linux_sandbox_exe = root.path().join("aliases").join("codex-linux-sandbox");
+        let codex_linux_sandbox_exe = root.path().join("aliases").join("lemurclaw-linux-sandbox");
         let runtime_paths =
             ExecServerRuntimePaths::new(codex_self_exe, Some(codex_linux_sandbox_exe))
                 .expect("runtime paths");

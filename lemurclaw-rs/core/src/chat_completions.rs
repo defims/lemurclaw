@@ -439,6 +439,71 @@ pub(crate) fn sanitize_message_roles_for_strict_chat_providers(payload: &mut Val
     }
 }
 
+// ---------------------------------------------------------------------------
+// Stream bridge (forward codex_api stream into core ResponseStream)
+// ---------------------------------------------------------------------------
+
+use crate::client_common::{ResponseEvent, ResponseStream};
+use crate::feedback_tags;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+
+/// The channel capacity for the Chat Completions response bridge. Mirrors the
+/// Responses-API constant in `client.rs`.
+const RESPONSE_STREAM_CHANNEL_CAPACITY: usize = 1600;
+
+/// Bridge a `lemurclaw_api::ResponseStream` (produced by the Chat Completions
+/// client) into a core [`ResponseStream`].
+///
+/// Unlike the Responses-API path, the Chat Completions path is not yet wired
+/// into the inference-trace / last-response tracking machinery
+/// (`map_response_stream` + `InferenceTraceAttempt`), so this is a lightweight
+/// forwarder: it drains the upstream `codex_api` stream, maps errors into
+/// `CodexErr`s, and forwards every [`ResponseEvent`] onto a core
+/// `ResponseStream` channel. The `consumer_dropped` cancellation token is
+/// honoured so that dropping the consumer cancels the bridging task.
+pub(crate) fn bridge_chat_completions_stream(api_stream: lemurclaw_api::ResponseStream) -> ResponseStream {
+    let lemurclaw_api::ResponseStream {
+        mut rx_event,
+        upstream_request_id,
+    } = api_stream;
+    if let Some(upstream_request_id) = upstream_request_id.as_deref() {
+        feedback_tags!(last_model_request_id = upstream_request_id);
+    }
+    let (tx_event, rx_event_out) =
+        mpsc::channel::<Result<ResponseEvent, lemurclaw_protocol::error::CodexErr>>(RESPONSE_STREAM_CHANNEL_CAPACITY);
+    let consumer_dropped = CancellationToken::new();
+    let consumer_dropped_for_stream = consumer_dropped.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = consumer_dropped_for_stream.cancelled() => {
+                    return;
+                }
+                event = rx_event.recv() => {
+                    let Some(event) = event else { break };
+                    match event {
+                        Ok(ev) => {
+                            if tx_event.send(Ok(ev)).await.is_err() {
+                                return;
+                            }
+                        }
+                        Err(err) => {
+                            let err = lemurclaw_api::map_api_error(err);
+                            let _ = tx_event.send(Err(err)).await;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    ResponseStream {
+        rx_event: rx_event_out,
+        consumer_dropped,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::create_chat_completions_payload;

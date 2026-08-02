@@ -82,7 +82,7 @@ impl ExternalAgentConfigService {
         let settings = self.effective_source_settings(scope)?;
         let target_config = repo_root.map_or_else(
             || self.codex_home.join("config.toml"),
-            |repo_root| repo_root.join(".codex").join("config.toml"),
+            |repo_root| repo_root.join(".lemurclaw").join("config.toml"),
         );
         if let Some(settings) = settings.as_ref() {
             let migrated = self.source.build_config(settings)?;
@@ -163,7 +163,7 @@ impl ExternalAgentConfigService {
         let source_external_agent_dir = self.source_config_dir(scope);
         let target_hooks = repo_root.map_or_else(
             || self.codex_home.join("hooks.json"),
-            |repo_root| repo_root.join(".codex").join("hooks.json"),
+            |repo_root| repo_root.join(".lemurclaw").join("hooks.json"),
         );
         let hook_event_names = self
             .source
@@ -255,7 +255,7 @@ impl ExternalAgentConfigService {
         let source_subagents = source_external_agent_dir.join("agents");
         let target_subagents = repo_root.map_or_else(
             || self.codex_home.join("agents"),
-            |repo_root| repo_root.join(".codex").join("agents"),
+            |repo_root| repo_root.join(".lemurclaw").join("agents"),
         );
         let subagents_count = count_missing_subagents(&source_subagents, &target_subagents)?;
         if subagents_count > 0 {

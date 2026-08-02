@@ -100,7 +100,7 @@ use crate::serialize_enum_as_string;
 use crate::usize_to_u64;
 use lemurclaw_app_server_protocol::ClientRequest;
 use lemurclaw_app_server_protocol::ClientResponse;
-use lemurclaw_app_server_protocol::CodexErrorInfo;
+use lemurclaw_app_server_protocol::LemurclawErrorInfo;
 use lemurclaw_app_server_protocol::CollabAgentStatus;
 use lemurclaw_app_server_protocol::CollabAgentTool;
 use lemurclaw_app_server_protocol::CollabAgentToolCallStatus;
@@ -353,7 +353,7 @@ struct PendingTurnSteerState {
 #[derive(Clone)]
 struct CompletedTurnState {
     status: Option<TurnStatus>,
-    turn_error: Option<CodexErrorInfo>,
+    turn_error: Option<LemurclawErrorInfo>,
     completed_at: u64,
     duration_ms: Option<u64>,
 }

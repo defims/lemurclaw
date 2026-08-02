@@ -86,7 +86,7 @@ pub const OPENAI_FORM_CAPABILITY: &str = "openai/form";
 pub(crate) const MCP_TOOLS_LIST_DURATION_METRIC: &str = "codex.mcp.tools.list.duration_ms";
 pub(crate) const MCP_TOOLS_FETCH_UNCACHED_DURATION_METRIC: &str =
     "codex.mcp.tools.fetch_uncached.duration_ms";
-pub(crate) const CODEX_APPS_REFRESH_DURATION_METRIC: &str = "codex.apps.refresh.duration_ms";
+pub(crate) const CODEX_APPS_REFRESH_DURATION_METRIC: &str = "lemurclaw.apps.refresh.duration_ms";
 pub(crate) const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 pub(crate) const DEFAULT_TOOL_TIMEOUT: Duration = Duration::from_secs(300);
 

@@ -155,7 +155,7 @@ fn resolve_sandbox_setup_identity(
     let codex_home = cmd
         .codex_home
         .clone()
-        .ok_or_else(|| anyhow::anyhow!("--codex-home is required with --user"))?;
+        .ok_or_else(|| anyhow::anyhow!("--lemurclaw-home is required with --user"))?;
     Ok(SandboxSetupIdentity {
         real_user,
         codex_home,
@@ -173,8 +173,8 @@ mod tests {
             "--elevated",
             "--user",
             "DOMAIN\\alice",
-            "--codex-home",
-            r"C:\Users\alice\.codex",
+            "--lemurclaw-home",
+            r"C:\Users\alice\.lemurclaw",
         ])
         .expect("parse");
 
@@ -183,7 +183,7 @@ mod tests {
         assert!(!command.current_user);
         assert_eq!(
             command.codex_home.as_deref(),
-            Some(std::path::Path::new(r"C:\Users\alice\.codex"))
+            Some(std::path::Path::new(r"C:\Users\alice\.lemurclaw"))
         );
     }
 
@@ -211,8 +211,8 @@ mod tests {
             "--elevated".to_string(),
             "--user".to_string(),
             r"DOMAIN\alice".to_string(),
-            "--codex-home".to_string(),
-            r"C:\Users\alice\.codex".to_string(),
+            "--lemurclaw-home".to_string(),
+            r"C:\Users\alice\.lemurclaw".to_string(),
         ])
         .expect("parse")
         .expect("setup command");

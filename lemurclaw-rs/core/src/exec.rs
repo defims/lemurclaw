@@ -589,7 +589,7 @@ fn record_windows_sandbox_spawn_failure(
     };
     if let Some(metrics) = lemurclaw_otel::global() {
         let _ = metrics.counter(
-            "codex.windows_sandbox.createprocessasuserw_failed",
+            "lemurclaw.windows_sandbox.createprocessasuserw_failed",
             /*inc*/ 1,
             &[
                 ("error_code", error_code.as_str()),

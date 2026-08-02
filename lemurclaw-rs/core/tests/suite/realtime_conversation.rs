@@ -8,7 +8,7 @@ use lemurclaw_login::OPENAI_API_KEY_ENV_VAR;
 use lemurclaw_protocol::ThreadId;
 use lemurclaw_protocol::models::ContentItem;
 use lemurclaw_protocol::models::ResponseItem;
-use lemurclaw_protocol::protocol::CodexErrorInfo;
+use lemurclaw_protocol::protocol::LemurclawErrorInfo;
 use lemurclaw_protocol::protocol::ConversationAudioParams;
 use lemurclaw_protocol::protocol::ConversationStartParams;
 use lemurclaw_protocol::protocol::ConversationStartTransport;
@@ -66,7 +66,7 @@ const USER_FIRST_NAME_PLACEHOLDER: &str = "{{ user_first_name }}";
 const MEMORY_PROMPT_PHRASE: &str =
     "You have access to a memory folder with guidance from prior runs.";
 const REALTIME_CONVERSATION_TEST_SUBPROCESS_ENV_VAR: &str =
-    "CODEX_REALTIME_CONVERSATION_TEST_SUBPROCESS";
+    "LEMURCLAW_REALTIME_CONVERSATION_TEST_SUBPROCESS";
 
 #[derive(Debug, Clone)]
 struct RealtimeCallRequestCapture {
@@ -733,18 +733,18 @@ async fn conversation_webrtc_start_posts_generated_session() -> Result<()> {
     assert_eq!(
         body,
         format!(
-            "--codex-realtime-call-boundary\r\n\
+            "--lemurclaw-realtime-call-boundary\r\n\
              Content-Disposition: form-data; name=\"sdp\"\r\n\
              Content-Type: application/sdp\r\n\
              \r\n\
              v=offer\r\n\
              \r\n\
-             --codex-realtime-call-boundary\r\n\
+             --lemurclaw-realtime-call-boundary\r\n\
              Content-Disposition: form-data; name=\"session\"\r\n\
              Content-Type: application/json\r\n\
              \r\n\
              {session}\r\n\
-             --codex-realtime-call-boundary--\r\n"
+             --lemurclaw-realtime-call-boundary--\r\n"
         )
     );
 
@@ -1561,7 +1561,7 @@ async fn conversation_audio_before_start_emits_error() -> Result<()> {
         _ => None,
     })
     .await;
-    assert_eq!(err.codex_error_info, Some(CodexErrorInfo::BadRequest));
+    assert_eq!(err.codex_error_info, Some(LemurclawErrorInfo::BadRequest));
     assert_eq!(err.message, "conversation is not running");
 
     server.shutdown().await;
@@ -1702,7 +1702,7 @@ async fn conversation_text_before_start_emits_error() -> Result<()> {
         _ => None,
     })
     .await;
-    assert_eq!(err.codex_error_info, Some(CodexErrorInfo::BadRequest));
+    assert_eq!(err.codex_error_info, Some(LemurclawErrorInfo::BadRequest));
     assert_eq!(err.message, "conversation is not running");
 
     server.shutdown().await;

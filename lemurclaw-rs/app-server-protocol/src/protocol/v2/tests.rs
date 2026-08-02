@@ -4236,7 +4236,7 @@ fn marketplace_upgrade_response_serializes_camel_case_fields() {
 
 #[test]
 fn codex_error_info_serializes_http_status_code_in_camel_case() {
-    let value = CodexErrorInfo::ResponseTooManyFailedAttempts {
+    let value = LemurclawErrorInfo::ResponseTooManyFailedAttempts {
         http_status_code: Some(401),
     };
 
@@ -4253,14 +4253,14 @@ fn codex_error_info_serializes_http_status_code_in_camel_case() {
 #[test]
 fn codex_error_info_serializes_cyber_policy_in_camel_case() {
     assert_eq!(
-        serde_json::to_value(CodexErrorInfo::CyberPolicy).unwrap(),
+        serde_json::to_value(LemurclawErrorInfo::CyberPolicy).unwrap(),
         json!("cyberPolicy")
     );
 }
 
 #[test]
 fn codex_error_info_serializes_active_turn_not_steerable_turn_kind_in_camel_case() {
-    let value = CodexErrorInfo::ActiveTurnNotSteerable {
+    let value = LemurclawErrorInfo::ActiveTurnNotSteerable {
         turn_kind: NonSteerableTurnKind::Review,
     };
 

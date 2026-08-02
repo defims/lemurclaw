@@ -1,4 +1,4 @@
-use super::CodexErrorInfo;
+use super::LemurclawErrorInfo;
 use super::ThreadItem;
 use super::ThreadStatus;
 use super::TurnStatus;
@@ -287,7 +287,7 @@ pub enum TurnItemsView {
 #[error("{message}")]
 pub struct TurnError {
     pub message: String,
-    pub codex_error_info: Option<CodexErrorInfo>,
+    pub codex_error_info: Option<LemurclawErrorInfo>,
     #[serde(default)]
     pub additional_details: Option<String>,
 }

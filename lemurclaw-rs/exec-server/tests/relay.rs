@@ -4,7 +4,7 @@ mod common;
 #[path = "relay/version_skew.rs"]
 mod version_skew;
 
-#[path = "../src/proto/codex.exec_server.relay.v1.rs"]
+#[path = "../src/proto/lemurclaw.exec_server.relay.v1.rs"]
 mod relay_proto;
 
 use std::collections::HashMap;

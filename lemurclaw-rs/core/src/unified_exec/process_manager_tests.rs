@@ -18,7 +18,7 @@ fn unified_exec_env_injects_defaults() {
         ("PAGER".to_string(), "cat".to_string()),
         ("GIT_PAGER".to_string(), "cat".to_string()),
         ("GH_PAGER".to_string(), "cat".to_string()),
-        ("CODEX_CI".to_string(), "1".to_string()),
+        ("LEMURCLAW_CI".to_string(), "1".to_string()),
     ]);
 
     assert_eq!(env, expected);
@@ -51,13 +51,13 @@ fn env_overlay_for_exec_server_keeps_runtime_changes_only() {
         ("HOME".to_string(), "/client-home".to_string()),
         ("PATH".to_string(), "/sandbox-path".to_string()),
         ("SHELL_SET".to_string(), "policy".to_string()),
-        ("CODEX_THREAD_ID".to_string(), "thread-1".to_string()),
+        ("LEMURCLAW_THREAD_ID".to_string(), "thread-1".to_string()),
         (
             CODEX_PERMISSION_PROFILE_ENV_VAR.to_string(),
             "current-profile".to_string(),
         ),
         (
-            "CODEX_SANDBOX_NETWORK_DISABLED".to_string(),
+            "LEMURCLAW_SANDBOX_NETWORK_DISABLED".to_string(),
             "1".to_string(),
         ),
     ]);
@@ -66,13 +66,13 @@ fn env_overlay_for_exec_server_keeps_runtime_changes_only() {
         env_overlay_for_exec_server(&request_env, &local_policy_env),
         HashMap::from([
             ("PATH".to_string(), "/sandbox-path".to_string()),
-            ("CODEX_THREAD_ID".to_string(), "thread-1".to_string()),
+            ("LEMURCLAW_THREAD_ID".to_string(), "thread-1".to_string()),
             (
                 CODEX_PERMISSION_PROFILE_ENV_VAR.to_string(),
                 "current-profile".to_string(),
             ),
             (
-                "CODEX_SANDBOX_NETWORK_DISABLED".to_string(),
+                "LEMURCLAW_SANDBOX_NETWORK_DISABLED".to_string(),
                 "1".to_string()
             ),
         ])
@@ -124,12 +124,12 @@ fn exec_server_params_use_path_uri_and_env_policy_overlay_contract() {
         env: HashMap::from([
             ("HOME".to_string(), "/client-home".to_string()),
             ("PATH".to_string(), "/sandbox-path".to_string()),
-            ("CODEX_THREAD_ID".to_string(), "thread-1".to_string()),
+            ("LEMURCLAW_THREAD_ID".to_string(), "thread-1".to_string()),
             (
                 "HTTP_PROXY".to_string(),
                 "http://127.0.0.1:43123".to_string(),
             ),
-            ("CODEX_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string()),
+            ("LEMURCLAW_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string()),
             (
                 "SSL_CERT_FILE".to_string(),
                 "/client/custom-ca.pem".to_string(),
@@ -150,7 +150,7 @@ fn exec_server_params_use_path_uri_and_env_policy_overlay_contract() {
                     "HTTP_PROXY".to_string(),
                     "http://127.0.0.1:43123".to_string(),
                 ),
-                ("CODEX_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string()),
+                ("LEMURCLAW_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string()),
                 (
                     "SSL_CERT_FILE".to_string(),
                     "/client/custom-ca.pem".to_string(),
@@ -197,12 +197,12 @@ fn exec_server_params_use_path_uri_and_env_policy_overlay_contract() {
         params.env,
         HashMap::from([
             ("PATH".to_string(), "/sandbox-path".to_string()),
-            ("CODEX_THREAD_ID".to_string(), "thread-1".to_string()),
+            ("LEMURCLAW_THREAD_ID".to_string(), "thread-1".to_string()),
             (
                 "HTTP_PROXY".to_string(),
                 "http://127.0.0.1:43123".to_string(),
             ),
-            ("CODEX_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string(),),
+            ("LEMURCLAW_NETWORK_PROXY_ACTIVE".to_string(), "1".to_string(),),
         ])
     );
     request.exec_server_sandbox = Some(

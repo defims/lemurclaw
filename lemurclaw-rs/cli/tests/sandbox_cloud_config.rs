@@ -102,10 +102,10 @@ async fn sandbox_fetches_and_enforces_cloud_managed_permission_profile() -> Resu
     let chatgpt_base_url_override = format!("chatgpt_base_url=\"{chatgpt_base_url}\"");
     let output = Command::new(&codex)
         .current_dir(codex_home.path())
-        .env("CODEX_HOME", codex_home.path())
+        .env("LEMURCLAW_HOME", codex_home.path())
         .env("NO_PROXY", "127.0.0.1,localhost")
         .env("no_proxy", "127.0.0.1,localhost")
-        .env_remove("CODEX_ACCESS_TOKEN")
+        .env_remove("LEMURCLAW_ACCESS_TOKEN")
         .env_remove("OPENAI_API_KEY")
         .args(["-c", "cli_auth_credentials_store=\"file\""])
         .args(["-c", chatgpt_base_url_override.as_str()])

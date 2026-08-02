@@ -10,6 +10,6 @@ export type GetAccountRateLimitsResponse = {
  */
 rateLimits: RateLimitSnapshot,
 /**
- * Multi-bucket view keyed by metered `limit_id` (for example, `codex`).
+ * Multi-bucket view keyed by metered `limit_id` (for example, `lemurclaw`).
  */
 rateLimitsByLimitId: { [key in string]?: RateLimitSnapshot } | null, rateLimitResetCredits: RateLimitResetCreditsSummary | null, };

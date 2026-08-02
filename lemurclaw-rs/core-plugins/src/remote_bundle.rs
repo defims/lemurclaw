@@ -31,7 +31,7 @@ const REMOTE_PLUGIN_BUNDLE_MAX_EXTRACTED_BYTES: u64 = 250 * 1024 * 1024;
 const REMOTE_PLUGIN_INSTALL_STAGING_DIR: &str = "plugins/.remote-plugin-install-staging";
 #[cfg(debug_assertions)]
 const TEST_ALLOW_LOOPBACK_HTTP_REMOTE_PLUGIN_BUNDLES_ENV: &str =
-    "CODEX_TEST_ALLOW_HTTP_REMOTE_PLUGIN_BUNDLE_DOWNLOADS";
+    "LEMURCLAW_TEST_ALLOW_HTTP_REMOTE_PLUGIN_BUNDLE_DOWNLOADS";
 
 #[derive(Debug, Clone)]
 pub struct ValidatedRemotePluginBundle {

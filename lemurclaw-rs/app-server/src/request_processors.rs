@@ -46,7 +46,7 @@ use lemurclaw_app_server_protocol::CancelLoginAccountStatus;
 use lemurclaw_app_server_protocol::ClientInfo;
 use lemurclaw_app_server_protocol::ClientRequest;
 use lemurclaw_app_server_protocol::ClientResponsePayload;
-use lemurclaw_app_server_protocol::CodexErrorInfo;
+use lemurclaw_app_server_protocol::LemurclawErrorInfo;
 use lemurclaw_app_server_protocol::CollaborationModeListParams;
 use lemurclaw_app_server_protocol::CollaborationModeListResponse;
 use lemurclaw_app_server_protocol::CommandExecParams;

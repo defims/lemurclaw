@@ -18,7 +18,7 @@ use lemurclaw_protocol::models::ResponseItem;
 use lemurclaw_protocol::openai_models::ModelMessages;
 use lemurclaw_protocol::openai_models::ReasoningEffort as ReasoningEffortConfig;
 use lemurclaw_protocol::protocol::AskForApproval;
-use lemurclaw_protocol::protocol::CodexErrorInfo;
+use lemurclaw_protocol::protocol::LemurclawErrorInfo;
 use lemurclaw_protocol::protocol::ErrorEvent;
 use lemurclaw_protocol::protocol::Event;
 use lemurclaw_protocol::protocol::EventMsg;
@@ -69,7 +69,7 @@ pub(crate) enum GuardianReviewSessionOutcome {
     PromptBuildFailed(anyhow::Error),
     SessionFailed {
         error: anyhow::Error,
-        error_info: Option<CodexErrorInfo>,
+        error_info: Option<LemurclawErrorInfo>,
     },
     TimedOut,
     Aborted,
@@ -1856,7 +1856,7 @@ mod tests {
                 id: "current-turn".to_string(),
                 msg: EventMsg::Error(ErrorEvent {
                     message: "temporary failure".to_string(),
-                    codex_error_info: Some(CodexErrorInfo::ServerOverloaded),
+                    codex_error_info: Some(LemurclawErrorInfo::ServerOverloaded),
                 }),
             })
             .await
@@ -1884,7 +1884,7 @@ mod tests {
             panic!("expected structured session failure");
         };
         assert_eq!(error.to_string(), "temporary failure");
-        assert_eq!(error_info, Some(CodexErrorInfo::ServerOverloaded));
+        assert_eq!(error_info, Some(LemurclawErrorInfo::ServerOverloaded));
         assert!(keep_review_session);
         assert!(capture_token_usage);
     }

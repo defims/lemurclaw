@@ -3,7 +3,7 @@ name = "lemurclaw-execpolicy"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Codex exec policy: prefix-based Starlark rules for command decisions."
+description = "lemurclaw exec policy: prefix-based Starlark rules for command decisions."
 
 [lib]
 name = "lemurclaw_execpolicy"

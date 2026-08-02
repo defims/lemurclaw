@@ -224,9 +224,9 @@ impl AuthStorageBackend for FileAuthStorage {
 }
 
 static CODEX_AUTH_SECRET_NAME: Lazy<SecretName> =
-    Lazy::new(|| match SecretName::new("CODEX_AUTH") {
+    Lazy::new(|| match SecretName::new("LEMURCLAW_AUTH") {
         Ok(name) => name,
-        Err(err) => unreachable!("CODEX_AUTH should be a valid secret name: {err}"),
+        Err(err) => unreachable!("LEMURCLAW_AUTH should be a valid secret name: {err}"),
     });
 const KEYRING_SERVICE: &str = "Codex Auth";
 

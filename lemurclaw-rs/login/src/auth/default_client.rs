@@ -38,7 +38,7 @@ use crate::outbound_proxy::AuthRouteConfig;
 /// Parenthesis will be added by Codex. This should only specify what goes inside of the parenthesis.
 pub static USER_AGENT_SUFFIX: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
 pub const DEFAULT_ORIGINATOR: &str = "codex_cli_rs";
-pub const CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR: &str = "CODEX_INTERNAL_ORIGINATOR_OVERRIDE";
+pub const CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR: &str = "LEMURCLAW_INTERNAL_ORIGINATOR_OVERRIDE";
 pub const RESIDENCY_HEADER_NAME: &str = "x-openai-internal-codex-residency";
 
 pub use lemurclaw_config::ResidencyRequirement;
@@ -337,7 +337,7 @@ pub fn default_headers() -> HeaderMap {
 }
 
 fn is_sandboxed() -> bool {
-    std::env::var("CODEX_SANDBOX").as_deref() == Ok("seatbelt")
+    std::env::var("LEMURCLAW_SANDBOX").as_deref() == Ok("seatbelt")
 }
 
 #[cfg(test)]

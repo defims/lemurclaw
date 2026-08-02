@@ -10,7 +10,7 @@ pub use lemurclaw_protocol::shell_environment::CODEX_THREAD_ID_ENV_VAR;
 
 /// Informational name of the active permission profile. Child processes can
 /// overwrite this value, so it must not be treated as proof of enforcement.
-pub const CODEX_PERMISSION_PROFILE_ENV_VAR: &str = "CODEX_PERMISSION_PROFILE";
+pub const CODEX_PERMISSION_PROFILE_ENV_VAR: &str = "LEMURCLAW_PERMISSION_PROFILE";
 
 /// Construct an environment map based on the rules in the specified policy. The
 /// resulting map can be passed directly to `Command::envs()` after calling

@@ -417,7 +417,7 @@ fn wsl1_allows_non_bubblewrap_linux_paths() {
 #[cfg(target_os = "linux")]
 #[test]
 fn transform_linux_seccomp_preserves_helper_path_in_arg0_when_available() {
-    let codex_linux_sandbox_exe = std::path::PathBuf::from("/tmp/codex-linux-sandbox");
+    let codex_linux_sandbox_exe = std::path::PathBuf::from("/tmp/lemurclaw-linux-sandbox");
     let exec_request = transform_linux_seccomp_request(&codex_linux_sandbox_exe);
 
     assert_eq!(
@@ -432,7 +432,7 @@ fn transform_linux_seccomp_uses_helper_alias_when_launcher_is_not_helper_path() 
     let codex_linux_sandbox_exe = std::path::PathBuf::from("/tmp/codex");
     let exec_request = transform_linux_seccomp_request(&codex_linux_sandbox_exe);
 
-    assert_eq!(exec_request.arg0, Some("codex-linux-sandbox".to_string()));
+    assert_eq!(exec_request.arg0, Some("lemurclaw-linux-sandbox".to_string()));
 }
 
 #[cfg(target_os = "windows")]
@@ -518,7 +518,7 @@ fn transform_for_direct_spawn_windows_materializes_inner_helper() {
                 transform: SandboxTransformRequest {
                     command: SandboxCommand {
                         program: configured_helper.as_os_str().to_owned(),
-                        args: vec!["--codex-run-as-fs-helper".to_string()],
+                        args: vec!["--lemurclaw-run-as-fs-helper".to_string()],
                         cwd: cwd_uri.clone(),
                         env: HashMap::from([(
                             "Path".to_string(),
@@ -574,7 +574,7 @@ fn transform_for_direct_spawn_windows_materializes_inner_helper() {
     );
     assert_eq!(
         exec_request.command[separator_index + 2],
-        "--codex-run-as-fs-helper"
+        "--lemurclaw-run-as-fs-helper"
     );
     assert_eq!(
         exec_request

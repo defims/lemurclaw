@@ -20,9 +20,9 @@ mod tests;
 
 const CONNECTOR_RUNTIME_REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
 const APPS_INSTALLED_SUBMIT_ID: &str = "app-installed";
-const APPS_INSTALLED_RESPONSE_BYTES_METRIC: &str = "codex.apps.installed.response_bytes";
-const APPS_INSTALLED_CONNECTOR_COUNT_METRIC: &str = "codex.apps.installed.connector_count";
-const APPS_INSTALLED_TOOL_COUNT_METRIC: &str = "codex.apps.installed.tool_count";
+const APPS_INSTALLED_RESPONSE_BYTES_METRIC: &str = "lemurclaw.apps.installed.response_bytes";
+const APPS_INSTALLED_CONNECTOR_COUNT_METRIC: &str = "lemurclaw.apps.installed.connector_count";
+const APPS_INSTALLED_TOOL_COUNT_METRIC: &str = "lemurclaw.apps.installed.tool_count";
 const APPS_SNAPSHOT_AGE_METRIC: &str = "codex.apps.snapshot.age_ms";
 
 struct AppsInstalledSnapshotMetrics {

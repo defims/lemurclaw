@@ -96,7 +96,7 @@ async fn replayed_failed_turns_preserve_overload_warnings_between_retries() {
             /*error*/
             Some(AppServerTurnError {
                 message: error_message.to_string(),
-                codex_error_info: Some(CodexErrorInfo::ServerOverloaded),
+                codex_error_info: Some(LemurclawErrorInfo::ServerOverloaded),
                 additional_details: None,
             }),
         )

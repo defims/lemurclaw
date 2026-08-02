@@ -36,7 +36,7 @@ use tokio::sync::Notify;
 use tokio::sync::Semaphore;
 use toml::Value as TomlValue;
 
-const REPO_ROOT_CONFIG_DIR_NAME: &str = ".codex";
+const REPO_ROOT_CONFIG_DIR_NAME: &str = ".lemurclaw";
 
 struct TestConfig {
     cwd: AbsolutePathBuf,
@@ -385,7 +385,7 @@ async fn skill_roots_from_layer_stack_includes_disabled_project_layers() -> anyh
     fs::create_dir_all(&user_folder)?;
 
     let project_root = tmp.path().join("repo");
-    let dot_codex = project_root.join(".codex");
+    let dot_codex = project_root.join(".lemurclaw");
     fs::create_dir_all(&dot_codex)?;
 
     let user_file = user_folder.join("config.toml").abs();

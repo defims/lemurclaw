@@ -83,7 +83,7 @@ const UNIFIED_EXEC_ENV: [(&str, &str); 10] = [
     ("PAGER", "cat"),
     ("GIT_PAGER", "cat"),
     ("GH_PAGER", "cat"),
-    ("CODEX_CI", "1"),
+    ("LEMURCLAW_CI", "1"),
 ];
 const NETWORK_ACCESS_DENIED_MESSAGE: &str =
     "Network access was denied by the Codex sandbox network proxy.";

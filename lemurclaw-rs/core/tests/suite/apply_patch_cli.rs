@@ -268,7 +268,7 @@ async fn apply_patch_cli_uses_codex_self_exe_with_linux_sandbox_helper_alias() -
         .config
         .codex_linux_sandbox_exe
         .as_ref()
-        .expect("linux test config should include codex-linux-sandbox helper");
+        .expect("linux test config should include lemurclaw-linux-sandbox helper");
     assert_eq!(
         codex_linux_sandbox_exe
             .file_name()

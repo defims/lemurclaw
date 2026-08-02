@@ -1643,7 +1643,7 @@ mod tests {
     use lemurclaw_protocol::protocol::AgentReasoningEvent;
     use lemurclaw_protocol::protocol::AgentReasoningRawContentEvent;
     use lemurclaw_protocol::protocol::ApplyPatchApprovalRequestEvent;
-    use lemurclaw_protocol::protocol::CodexErrorInfo;
+    use lemurclaw_protocol::protocol::LemurclawErrorInfo;
     use lemurclaw_protocol::protocol::CompactedItem;
     use lemurclaw_protocol::protocol::DynamicToolCallResponseEvent;
     use lemurclaw_protocol::protocol::EnteredReviewModeEvent;
@@ -3727,7 +3727,7 @@ mod tests {
                 last_agent_message: None,
                 error: Some(ErrorEvent {
                     message: "Selected model is at capacity. Please try a different model.".into(),
-                    codex_error_info: Some(CodexErrorInfo::ServerOverloaded),
+                    codex_error_info: Some(LemurclawErrorInfo::ServerOverloaded),
                 }),
                 completed_at: Some(20),
                 duration_ms: Some(10_000),
@@ -3759,7 +3759,7 @@ mod tests {
                         message: "Selected model is at capacity. Please try a different model."
                             .into(),
                         codex_error_info: Some(
-                            crate::protocol::v2::CodexErrorInfo::ServerOverloaded,
+                            crate::protocol::v2::LemurclawErrorInfo::ServerOverloaded,
                         ),
                         additional_details: None,
                     }),
@@ -4106,7 +4106,7 @@ mod tests {
             }),
             EventMsg::Error(ErrorEvent {
                 message: "rollback failed".into(),
-                codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
+                codex_error_info: Some(LemurclawErrorInfo::ThreadRollbackFailed),
             }),
         ];
 
@@ -4149,7 +4149,7 @@ mod tests {
             }),
             EventMsg::Error(ErrorEvent {
                 message: "request-level failure".into(),
-                codex_error_info: Some(CodexErrorInfo::BadRequest),
+                codex_error_info: Some(LemurclawErrorInfo::BadRequest),
             }),
         ];
 
@@ -4201,7 +4201,7 @@ mod tests {
             }),
             EventMsg::Error(ErrorEvent {
                 message: "stream failure".into(),
-                codex_error_info: Some(CodexErrorInfo::ResponseStreamDisconnected {
+                codex_error_info: Some(LemurclawErrorInfo::ResponseStreamDisconnected {
                     http_status_code: Some(502),
                 }),
             }),
@@ -4229,7 +4229,7 @@ mod tests {
             Some(TurnError {
                 message: "stream failure".into(),
                 codex_error_info: Some(
-                    crate::protocol::v2::CodexErrorInfo::ResponseStreamDisconnected {
+                    crate::protocol::v2::LemurclawErrorInfo::ResponseStreamDisconnected {
                         http_status_code: Some(502),
                     }
                 ),
@@ -4262,7 +4262,7 @@ mod tests {
                 last_agent_message: None,
                 error: Some(ErrorEvent {
                     message: "Selected model is at capacity. Please try a different model.".into(),
-                    codex_error_info: Some(CodexErrorInfo::ServerOverloaded),
+                    codex_error_info: Some(LemurclawErrorInfo::ServerOverloaded),
                 }),
                 completed_at: Some(20),
                 duration_ms: Some(10_000),
@@ -4291,7 +4291,7 @@ mod tests {
                 status: TurnStatus::Failed,
                 error: Some(TurnError {
                     message: "Selected model is at capacity. Please try a different model.".into(),
-                    codex_error_info: Some(crate::protocol::v2::CodexErrorInfo::ServerOverloaded),
+                    codex_error_info: Some(crate::protocol::v2::LemurclawErrorInfo::ServerOverloaded),
                     additional_details: None,
                 }),
                 started_at: Some(10),

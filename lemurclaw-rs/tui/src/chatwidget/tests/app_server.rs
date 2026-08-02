@@ -1246,7 +1246,7 @@ async fn live_app_server_stream_recovery_restores_previous_status_header() {
         ServerNotification::Error(ErrorNotification {
             error: AppServerTurnError {
                 message: "Reconnecting... 1/5".to_string(),
-                codex_error_info: Some(CodexErrorInfo::Other),
+                codex_error_info: Some(LemurclawErrorInfo::Other),
                 additional_details: None,
             },
             will_retry: true,
@@ -1304,7 +1304,7 @@ async fn live_app_server_server_overloaded_error_renders_warning() {
         ServerNotification::Error(ErrorNotification {
             error: AppServerTurnError {
                 message: "server overloaded".to_string(),
-                codex_error_info: Some(CodexErrorInfo::ServerOverloaded),
+                codex_error_info: Some(LemurclawErrorInfo::ServerOverloaded),
                 additional_details: None,
             },
             will_retry: false,
@@ -1346,7 +1346,7 @@ async fn live_app_server_cyber_policy_error_renders_dedicated_notice() {
         ServerNotification::Error(ErrorNotification {
             error: AppServerTurnError {
                 message: "server fallback message".to_string(),
-                codex_error_info: Some(CodexErrorInfo::CyberPolicy),
+                codex_error_info: Some(LemurclawErrorInfo::CyberPolicy),
                 additional_details: None,
             },
             will_retry: false,

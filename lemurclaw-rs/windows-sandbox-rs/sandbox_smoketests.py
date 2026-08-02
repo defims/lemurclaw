@@ -1,5 +1,5 @@
 # sandbox_smoketests.py
-# Run a suite of smoke tests against the Windows sandbox via the Codex CLI
+# Run a suite of smoke tests against the Windows sandbox via the lemurclaw CLI
 # Requires: Python 3.8+ on Windows. No pip requirements.
 
 import os
@@ -15,35 +15,35 @@ from typing import List, Optional, Tuple
 from urllib.parse import urlsplit
 
 def _resolve_codex_cmd() -> List[str]:
-    """Resolve the Codex CLI to invoke `codex sandbox windows`.
+    """Resolve the lemurclaw CLI to invoke `lemurclaw sandbox windows`.
 
     Prefer local builds (debug first), then fall back to PATH.
-    Returns the argv prefix to run Codex.
+    Returns the argv prefix to run lemurclaw.
     """
     root = Path(__file__).parent
     ws_root = root.parent
     cargo_target = os.environ.get("CARGO_TARGET_DIR")
 
     candidates = [
-        ws_root / "target" / "debug" / "codex.exe",
-        ws_root / "target" / "release" / "codex.exe",
+        ws_root / "target" / "debug" / "lemurclaw.exe",
+        ws_root / "target" / "release" / "lemurclaw.exe",
     ]
     if cargo_target:
         cargo_base = Path(cargo_target)
         candidates.extend([
-            cargo_base / "debug" / "codex.exe",
-            cargo_base / "release" / "codex.exe",
+            cargo_base / "debug" / "lemurclaw.exe",
+            cargo_base / "release" / "lemurclaw.exe",
         ])
 
     for candidate in candidates:
         if candidate.exists():
             return [str(candidate)]
 
-    if shutil.which("codex"):
-        return ["codex"]
+    if shutil.which("lemurclaw"):
+        return ["lemurclaw"]
 
     raise FileNotFoundError(
-        "Codex CLI not found. Build it first, e.g.\n"
+        "lemurclaw CLI not found. Build it first, e.g.\n"
         "  cargo build -p codex-cli --release\n"
         "or for debug:\n"
         "  cargo build -p codex-cli\n"
@@ -74,7 +74,7 @@ def run_sbx(
     env.update(ENV_BASE)
     if env_extra:
         env.update(env_extra)
-    # Map policy to codex CLI overrides.
+    # Map policy to lemurclaw CLI overrides.
     # read-only => default; workspace-write => legacy sandbox_mode override
     if policy not in ("read-only", "workspace-write"):
         raise ValueError(f"unknown policy: {policy}")
@@ -355,7 +355,7 @@ def main() -> int:
             proxy_home.mkdir(parents=True, exist_ok=True)
             proxy_url = f"http://127.0.0.1:{proxy_port}"
             proxy_env = {
-                "CODEX_HOME": str(proxy_home),
+                "LEMURCLAW_HOME": str(proxy_home),
                 "HTTP_PROXY": proxy_url,
                 "http_proxy": proxy_url,
                 "ALL_PROXY": proxy_url,
@@ -399,7 +399,7 @@ def main() -> int:
                 "workspace-write",
                 direct_cmd,
                 WS_ROOT,
-                env_extra={"CODEX_HOME": str(proxy_home)},
+                env_extra={"LEMURCLAW_HOME": str(proxy_home)},
             )
             add("WS: direct loopback blocked", rc_direct != 0, f"rc={rc_direct}, err={err_direct}")
     else:
@@ -508,17 +508,17 @@ def main() -> int:
     rc, out, err = run_sbx("workspace-write", ["cmd", "/c", "echo hack > .GiT\\config"], WS_ROOT)
     add("WS: protected path case-variation denied", rc != 0 and assert_not_exists(git_variation), f"rc={rc}")
 
-    # 34. WS: policy tamper (.codex artifacts) denied
-    codex_home = Path(os.environ["USERPROFILE"]) / ".codex"
+    # 34. WS: policy tamper (.lemurclaw artifacts) denied
+    codex_home = Path(os.environ["USERPROFILE"]) / ".lemurclaw"
     cap_sid_target = codex_home / "cap_sid"
     rc, out, err = run_sbx(
         "workspace-write",
         ["cmd", "/c", f"echo tamper > \"{cap_sid_target}\""],
         WS_ROOT,
     )
-    rc2, out2, err2 = run_sbx("workspace-write", ["cmd", "/c", "echo tamper > .codex\\policy.json"], WS_ROOT)
-    add("WS: .codex cap_sid tamper denied", rc != 0, f"rc={rc}, err={err}")
-    add("WS: .codex policy tamper denied", rc2 != 0, f"rc={rc2}, err={err2}")
+    rc2, out2, err2 = run_sbx("workspace-write", ["cmd", "/c", "echo tamper > .lemurclaw\\policy.json"], WS_ROOT)
+    add("WS: .lemurclaw cap_sid tamper denied", rc != 0, f"rc={rc}, err={err}")
+    add("WS: .lemurclaw policy tamper denied", rc2 != 0, f"rc={rc2}, err={err2}")
 
     # 35. WS: PATH stub bypass denied (ssh before stubs)
     tools_dir = WS_ROOT / "tools"
@@ -612,7 +612,7 @@ def main() -> int:
             "-NoLogo",
             "-NoProfile",
             "-Command",
-            "Start-Process 'https://codex-invalid.local/smoke'",
+            "Start-Process 'https://lemurclaw-invalid.local/smoke'",
         ],
         WS_ROOT,
     )

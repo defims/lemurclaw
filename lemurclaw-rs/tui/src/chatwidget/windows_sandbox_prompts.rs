@@ -225,7 +225,7 @@ impl ChatWidget {
         use ratatui_macros::line;
 
         self.session_telemetry.counter(
-            "codex.windows_sandbox.elevated_prompt_shown",
+            "lemurclaw.windows_sandbox.elevated_prompt_shown",
             /*inc*/ 1,
             &[],
         );
@@ -261,7 +261,7 @@ impl ChatWidget {
             description: None,
             actions: vec![Box::new(move |tx| {
                 accept_otel.counter(
-                    "codex.windows_sandbox.elevated_prompt_accept",
+                    "lemurclaw.windows_sandbox.elevated_prompt_accept",
                     /*inc*/ 1,
                     &[],
                 );
@@ -279,7 +279,7 @@ impl ChatWidget {
                 description: None,
                 actions: vec![Box::new(move |tx| {
                     legacy_otel.counter(
-                        "codex.windows_sandbox.elevated_prompt_use_legacy",
+                        "lemurclaw.windows_sandbox.elevated_prompt_use_legacy",
                         /*inc*/ 1,
                         &[],
                     );
@@ -297,7 +297,7 @@ impl ChatWidget {
             description: None,
             actions: vec![Box::new(move |tx| {
                 quit_otel.counter(
-                    "codex.windows_sandbox.elevated_prompt_quit",
+                    "lemurclaw.windows_sandbox.elevated_prompt_quit",
                     /*inc*/ 1,
                     &[],
                 );
@@ -380,7 +380,7 @@ impl ChatWidget {
                 let preset = elevated_preset;
                 move |tx| {
                     otel.counter(
-                        "codex.windows_sandbox.fallback_retry_elevated",
+                        "lemurclaw.windows_sandbox.fallback_retry_elevated",
                         /*inc*/ 1,
                         &[],
                     );
@@ -402,7 +402,7 @@ impl ChatWidget {
                     let preset = legacy_preset;
                     move |tx| {
                         otel.counter(
-                            "codex.windows_sandbox.fallback_use_legacy",
+                            "lemurclaw.windows_sandbox.fallback_use_legacy",
                             /*inc*/ 1,
                             &[],
                         );
@@ -421,7 +421,7 @@ impl ChatWidget {
             description: None,
             actions: vec![Box::new(move |tx| {
                 quit_otel.counter(
-                    "codex.windows_sandbox.fallback_prompt_quit",
+                    "lemurclaw.windows_sandbox.fallback_prompt_quit",
                     /*inc*/ 1,
                     &[],
                 );

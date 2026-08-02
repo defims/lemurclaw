@@ -353,7 +353,7 @@ mod tests {
                         "codex exec-server --listen stdio".to_string(),
                     ]),
                     env: Some(HashMap::from([(
-                        "CODEX_LOG".to_string(),
+                        "LEMURCLAW_LOG".to_string(),
                         "debug".to_string(),
                     )])),
                     ..Default::default()
@@ -781,7 +781,7 @@ CODEX_LOG = "debug"
                     "codex exec-server --listen stdio".to_string(),
                 ]),
                 env: Some(HashMap::from([(
-                    "CODEX_LOG".to_string(),
+                    "LEMURCLAW_LOG".to_string(),
                     "debug".to_string(),
                 )])),
                 cwd: Some(PathBuf::from("/tmp")),

@@ -15,9 +15,9 @@ const ACCOUNT_WORKSPACE_MESSAGES_FETCH_TIMEOUT: Duration =
     Duration::from_millis(/*millis*/ 1000);
 // Login overrides are intentionally available only in debug builds.
 #[cfg(debug_assertions)]
-const LOGIN_ISSUER_OVERRIDE_ENV_VAR: &str = "CODEX_APP_SERVER_LOGIN_ISSUER";
+const LOGIN_ISSUER_OVERRIDE_ENV_VAR: &str = "LEMURCLAW_APP_SERVER_LOGIN_ISSUER";
 #[cfg(debug_assertions)]
-const LOGIN_OPEN_APP_URL_OVERRIDE_ENV_VAR: &str = "CODEX_APP_SERVER_DEV_OPEN_APP_URL";
+const LOGIN_OPEN_APP_URL_OVERRIDE_ENV_VAR: &str = "LEMURCLAW_APP_SERVER_DEV_OPEN_APP_URL";
 
 enum ActiveLogin {
     Browser {

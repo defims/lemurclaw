@@ -331,7 +331,7 @@ fn emit_windows_sandbox_setup_success_metrics(
     };
     let mode_tag = windows_sandbox_setup_mode_tag(mode);
     let _ = metrics.record_duration(
-        "codex.windows_sandbox.setup_duration_ms",
+        "lemurclaw.windows_sandbox.setup_duration_ms",
         duration,
         &[
             ("result", "success"),
@@ -340,7 +340,7 @@ fn emit_windows_sandbox_setup_success_metrics(
         ],
     );
     let _ = metrics.counter(
-        "codex.windows_sandbox.setup_success",
+        "lemurclaw.windows_sandbox.setup_success",
         /*inc*/ 1,
         &[("originator", originator_tag), ("mode", mode_tag)],
     );
@@ -357,7 +357,7 @@ fn emit_windows_sandbox_setup_failure_metrics(
     };
     let mode_tag = windows_sandbox_setup_mode_tag(mode);
     let _ = metrics.record_duration(
-        "codex.windows_sandbox.setup_duration_ms",
+        "lemurclaw.windows_sandbox.setup_duration_ms",
         duration,
         &[
             ("result", "failure"),
@@ -366,7 +366,7 @@ fn emit_windows_sandbox_setup_failure_metrics(
         ],
     );
     let _ = metrics.counter(
-        "codex.windows_sandbox.setup_failure",
+        "lemurclaw.windows_sandbox.setup_failure",
         /*inc*/ 1,
         &[("originator", originator_tag), ("mode", mode_tag)],
     );
@@ -396,15 +396,15 @@ fn emit_windows_sandbox_setup_failure_metrics(
                         lemurclaw_windows_sandbox::SetupErrorCode::OrchestratorHelperLaunchCanceled
                     )
                 }) {
-                    "codex.windows_sandbox.elevated_setup_canceled"
+                    "lemurclaw.windows_sandbox.elevated_setup_canceled"
                 } else {
-                    "codex.windows_sandbox.elevated_setup_failure"
+                    "lemurclaw.windows_sandbox.elevated_setup_failure"
                 };
             let _ = metrics.counter(metric_name, /*inc*/ 1, &failure_tags);
         }
     } else {
         let _ = metrics.counter(
-            "codex.windows_sandbox.legacy_setup_preflight_failed",
+            "lemurclaw.windows_sandbox.legacy_setup_preflight_failed",
             /*inc*/ 1,
             &[("originator", originator_tag)],
         );

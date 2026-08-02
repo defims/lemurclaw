@@ -412,7 +412,7 @@ async fn run_command_under_sandbox(
             #[expect(clippy::expect_used)]
             let codex_linux_sandbox_exe = config
                 .codex_linux_sandbox_exe
-                .expect("codex-linux-sandbox executable not found");
+                .expect("lemurclaw-linux-sandbox executable not found");
             let network_sandbox_policy = runtime_permission_profile.network_sandbox_policy();
             let args = create_linux_sandbox_command_args_for_permission_profile(
                 command,
@@ -425,7 +425,7 @@ async fn run_command_under_sandbox(
             spawn_debug_sandbox_child(
                 codex_linux_sandbox_exe,
                 args,
-                Some("codex-linux-sandbox"),
+                Some("lemurclaw-linux-sandbox"),
                 cwd.to_path_buf(),
                 network_sandbox_policy,
                 env,

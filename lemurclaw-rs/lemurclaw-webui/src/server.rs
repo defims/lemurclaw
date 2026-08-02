@@ -206,13 +206,7 @@ async fn run_ws_connection(socket: axum::extract::ws::WebSocket, state: Arc<Serv
             Ok(_) => continue,
         };
         let resp_tx = outbound_tx.clone();
-        // Lock the client for the duration of this IPC frame so
-        // resolve/reject can use client-level methods. The downstream event
-        // reader task holds its own lock guard only during next_event(), so
-        // this lock is uncontended between frames.
-        let client_guard = state.client.lock().await;
-        handle_ipc_async(&state.request_handle, &client_guard, &text, resp_tx).await;
-        drop(client_guard);
+        handle_ipc_async(&state.request_handle, &text, resp_tx).await;
     }
 
     // Tear down: dropping the last outbound_tx clone lets the writer task exit
@@ -237,7 +231,6 @@ async fn run_ws_connection(socket: axum::extract::ws::WebSocket, state: Arc<Serv
 /// EventLoopProxy).
 async fn handle_ipc_async(
     handle: &InProcessAppServerRequestHandle,
-    client: &InProcessAppServerClient,
     body: &str,
     resp_tx: tokio::sync::mpsc::Sender<axum::extract::ws::Message>,
 ) {
@@ -251,7 +244,7 @@ async fn handle_ipc_async(
 
     if let Some(req_id) = value.get("__resolve") {
         if let Some(result) = value.get("result") {
-            respond_to_server_request(client, req_id.clone(), result.clone(), ResolveKind::Resolve)
+            respond_to_server_request(handle, req_id.clone(), result.clone(), ResolveKind::Resolve)
                 .await;
         } else {
             eprintln!("[lemurclaw] __resolve envelope missing 'result' field, dropping");
@@ -261,7 +254,7 @@ async fn handle_ipc_async(
 
     if let Some(req_id) = value.get("__reject") {
         if let Some(error) = value.get("error") {
-            respond_to_server_request(client, req_id.clone(), error.clone(), ResolveKind::Reject)
+            respond_to_server_request(handle, req_id.clone(), error.clone(), ResolveKind::Reject)
                 .await;
         } else {
             eprintln!("[lemurclaw] __reject envelope missing 'error' field, dropping");

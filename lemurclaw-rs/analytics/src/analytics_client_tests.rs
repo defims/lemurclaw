@@ -91,7 +91,7 @@ use lemurclaw_app_server_protocol::AskForApproval as AppServerAskForApproval;
 use lemurclaw_app_server_protocol::ClientInfo;
 use lemurclaw_app_server_protocol::ClientRequest;
 use lemurclaw_app_server_protocol::ClientResponsePayload;
-use lemurclaw_app_server_protocol::CodexErrorInfo;
+use lemurclaw_app_server_protocol::LemurclawErrorInfo;
 use lemurclaw_app_server_protocol::CollabAgentTool;
 use lemurclaw_app_server_protocol::CollabAgentToolCallStatus;
 use lemurclaw_app_server_protocol::CommandAction;
@@ -392,7 +392,7 @@ fn sample_turn_completed_notification(
     thread_id: &str,
     turn_id: &str,
     status: AppServerTurnStatus,
-    codex_error_info: Option<lemurclaw_app_server_protocol::CodexErrorInfo>,
+    codex_error_info: Option<lemurclaw_app_server_protocol::LemurclawErrorInfo>,
 ) -> ServerNotification {
     ServerNotification::TurnCompleted(TurnCompletedNotification {
         thread_id: thread_id.to_string(),
@@ -503,7 +503,7 @@ fn non_steerable_review_error() -> JSONRPCErrorError {
         data: Some(
             serde_json::to_value(AppServerTurnError {
                 message: "cannot steer a review turn".to_string(),
-                codex_error_info: Some(CodexErrorInfo::ActiveTurnNotSteerable {
+                codex_error_info: Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
                     turn_kind: NonSteerableTurnKind::Review,
                 }),
                 additional_details: None,
@@ -1035,7 +1035,7 @@ fn normalize_path_for_skill_id_user_scoped_uses_absolute_path() {
 
 #[test]
 fn normalize_path_for_skill_id_admin_scoped_uses_absolute_path() {
-    let skill_path = PathBuf::from("/etc/codex/skills/doc/SKILL.md");
+    let skill_path = PathBuf::from("/etc/lemurclaw/skills/doc/SKILL.md");
 
     let path = normalize_path_for_skill_id(
         /*repo_url*/ None,
@@ -4919,7 +4919,7 @@ async fn turn_lifecycle_emits_failed_turn_event() {
                 "thread-2",
                 "turn-2",
                 AppServerTurnStatus::Failed,
-                Some(lemurclaw_app_server_protocol::CodexErrorInfo::BadRequest),
+                Some(lemurclaw_app_server_protocol::LemurclawErrorInfo::BadRequest),
             ))),
             &mut out,
         )

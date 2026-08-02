@@ -77,7 +77,7 @@ async fn exec_server_replays_only_chatgpt_cloudflare_cookies() -> anyhow::Result
     let empty = OsString::new();
     let env = vec![
         (
-            OsString::from("CODEX_CA_CERTIFICATE"),
+            OsString::from("LEMURCLAW_CA_CERTIFICATE"),
             ca_path.as_os_str().to_owned(),
         ),
         (OsString::from("HTTPS_PROXY"), proxy_url.clone()),

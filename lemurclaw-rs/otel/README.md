@@ -1,6 +1,6 @@
-# codex-otel
+# lemurclaw-otel
 
-`codex-otel` is the OpenTelemetry integration crate for Codex. It provides:
+`lemurclaw-otel` is the OpenTelemetry integration crate for lemurclaw. It provides:
 
 - Provider wiring for log/trace/metric exporters (`codex_otel::OtelProvider`
   and `codex_otel::provider`).
@@ -65,7 +65,7 @@ beta = "two"
 
 Configured tracestate members and encoded values must be valid W3C tracestate.
 Each nested table is encoded as semicolon-separated `key:value` fields inside
-that member. If propagated trace context already has the named member, Codex
+that member. If propagated trace context already has the named member, lemurclaw
 upserts configured fields and preserves other fields in that member. This
 config shape does not support setting opaque tracestate member values. Invalid
 trace metadata entries are ignored during config load and reported as startup
@@ -74,7 +74,7 @@ warnings.
 ## SessionTelemetry (events)
 
 `SessionTelemetry` adds consistent metadata to tracing events and helps record
-Codex-specific session events. Rich session/business events should go through
+lemurclaw-specific session events. Rich session/business events should go through
 `SessionTelemetry`; subsystem-owned audit events can stay with the owning subsystem.
 
 ```rust
@@ -103,8 +103,8 @@ Modes:
 - OTLP: exports metrics via the OpenTelemetry OTLP exporter (HTTP or gRPC).
 - In-memory: records via `opentelemetry_sdk::metrics::InMemoryMetricExporter` for tests/assertions; call `shutdown()` to flush.
 
-`codex-otel` also provides `OtelExporter::Statsig`, a shorthand for exporting OTLP/HTTP JSON metrics
-to Statsig using Codex-internal defaults.
+`lemurclaw-otel` also provides `OtelExporter::Statsig`, a shorthand for exporting OTLP/HTTP JSON metrics
+to Statsig using lemurclaw-internal defaults.
 
 Statsig ingestion (OTLP/HTTP JSON) example:
 
@@ -126,8 +126,8 @@ let metrics = MetricsClient::new(MetricsConfig::otlp(
     },
 ))?;
 
-metrics.counter("codex.session_started", 1, &[("source", "tui")])?;
-metrics.histogram("codex.request_latency", 83, &[("route", "chat")])?;
+metrics.counter("lemurclaw.session_started", 1, &[("source", "tui")])?;
+metrics.histogram("lemurclaw.request_latency", 83, &[("route", "chat")])?;
 ```
 
 In-memory (tests):
@@ -140,7 +140,7 @@ let metrics = MetricsClient::new(MetricsConfig::in_memory(
     env!("CARGO_PKG_VERSION"),
     exporter.clone(),
 ))?;
-metrics.counter("codex.turns", 1, &[("model", "gpt-5.1")])?;
+metrics.counter("lemurclaw.turns", 1, &[("model", "gpt-5.1")])?;
 metrics.shutdown()?; // flushes in-memory exporter
 ```
 

@@ -13,7 +13,7 @@ use crate::thread_status::ThreadWatchActiveGuard;
 use crate::thread_status::ThreadWatchManager;
 use lemurclaw_app_server_protocol::AccountRateLimitsUpdatedNotification;
 use lemurclaw_app_server_protocol::AdditionalPermissionProfile as V2AdditionalPermissionProfile;
-use lemurclaw_app_server_protocol::CodexErrorInfo as V2CodexErrorInfo;
+use lemurclaw_app_server_protocol::LemurclawErrorInfo as V2LemurclawErrorInfo;
 use lemurclaw_app_server_protocol::CommandAction as V2ParsedCommand;
 use lemurclaw_app_server_protocol::CommandExecutionApprovalDecision;
 use lemurclaw_app_server_protocol::CommandExecutionRequestApprovalParams;
@@ -93,7 +93,7 @@ use lemurclaw_protocol::items::CollabAgentTool as CoreCollabAgentTool;
 use lemurclaw_protocol::items::TurnItem as CoreTurnItem;
 use lemurclaw_protocol::models::AdditionalPermissionProfile as CoreAdditionalPermissionProfile;
 use lemurclaw_protocol::plan_tool::UpdatePlanArgs;
-use lemurclaw_protocol::protocol::CodexErrorInfo as CoreCodexErrorInfo;
+use lemurclaw_protocol::protocol::LemurclawErrorInfo as CoreLemurclawErrorInfo;
 use lemurclaw_protocol::protocol::Event;
 use lemurclaw_protocol::protocol::EventMsg;
 use lemurclaw_protocol::protocol::ExecApprovalRequestEvent;
@@ -923,7 +923,7 @@ pub(crate) async fn apply_bespoke_event_handling(
             // Don't send a notification for this error.
             if matches!(
                 codex_error_info,
-                Some(CoreCodexErrorInfo::ThreadRollbackFailed)
+                Some(CoreLemurclawErrorInfo::ThreadRollbackFailed)
             ) {
                 return handle_thread_rollback_failed(
                     conversation_id,
@@ -940,7 +940,7 @@ pub(crate) async fn apply_bespoke_event_handling(
 
             let turn_error = TurnError {
                 message: ev.message,
-                codex_error_info: ev.codex_error_info.map(V2CodexErrorInfo::from),
+                codex_error_info: ev.codex_error_info.map(V2LemurclawErrorInfo::from),
                 additional_details: None,
             };
             handle_error_notification(
@@ -957,7 +957,7 @@ pub(crate) async fn apply_bespoke_event_handling(
             // but we notify the client.
             let turn_error = TurnError {
                 message: ev.message,
-                codex_error_info: ev.codex_error_info.map(V2CodexErrorInfo::from),
+                codex_error_info: ev.codex_error_info.map(V2LemurclawErrorInfo::from),
                 additional_details: ev.additional_details,
             };
             outgoing
@@ -3273,7 +3273,7 @@ mod tests {
             conversation_id,
             TurnError {
                 message: "boom".to_string(),
-                codex_error_info: Some(V2CodexErrorInfo::InternalServerError),
+                codex_error_info: Some(V2LemurclawErrorInfo::InternalServerError),
                 additional_details: None,
             },
             &thread_state,
@@ -3285,7 +3285,7 @@ mod tests {
             turn_summary.last_error,
             Some(TurnError {
                 message: "boom".to_string(),
-                codex_error_info: Some(V2CodexErrorInfo::InternalServerError),
+                codex_error_info: Some(V2LemurclawErrorInfo::InternalServerError),
                 additional_details: None,
             })
         );
@@ -3721,7 +3721,7 @@ mod tests {
             conversation_id,
             TurnError {
                 message: "bad".to_string(),
-                codex_error_info: Some(V2CodexErrorInfo::Other),
+                codex_error_info: Some(V2LemurclawErrorInfo::Other),
                 additional_details: None,
             },
             &thread_state,
@@ -3756,7 +3756,7 @@ mod tests {
                     n.turn.error,
                     Some(TurnError {
                         message: "bad".to_string(),
-                        codex_error_info: Some(V2CodexErrorInfo::Other),
+                        codex_error_info: Some(V2LemurclawErrorInfo::Other),
                         additional_details: None,
                     })
                 );
@@ -3966,7 +3966,7 @@ mod tests {
             conversation_a,
             TurnError {
                 message: "a1".to_string(),
-                codex_error_info: Some(V2CodexErrorInfo::BadRequest),
+                codex_error_info: Some(V2LemurclawErrorInfo::BadRequest),
                 additional_details: None,
             },
             &thread_state,
@@ -4023,7 +4023,7 @@ mod tests {
                     n.turn.error,
                     Some(TurnError {
                         message: "a1".to_string(),
-                        codex_error_info: Some(V2CodexErrorInfo::BadRequest),
+                        codex_error_info: Some(V2LemurclawErrorInfo::BadRequest),
                         additional_details: None,
                     })
                 );

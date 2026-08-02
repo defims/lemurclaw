@@ -507,6 +507,7 @@ pub fn rewrite_workspace_manifest(
     keep_members: &[String],
     own_members: &[String],
     own_deps: &[(String, String, String)],
+    external_deps: &[(String, String)],
 ) -> Result<String> {
     let doc = &src.doc;
     let mut out = String::new();
@@ -606,6 +607,10 @@ pub fn rewrite_workspace_manifest(
                 "{} = {{ path = \"{}\", version = \"{}\" }}\n",
                 key, path, version
             ));
+        }
+        // Inject external deps that own crates need but upstream doesn't declare.
+        for (key, version) in external_deps {
+            out.push_str(&format!("{} = \"{}\"\n", key, version));
         }
     }
 

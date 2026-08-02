@@ -31,7 +31,7 @@ use wiremock::ResponseTemplate;
 use wiremock::matchers::method;
 use wiremock::matchers::path;
 
-const PROXY_TEST_SUBPROCESS_ENV_VAR: &str = "CODEX_MCP_HTTP_PROXY_TEST_SUBPROCESS";
+const PROXY_TEST_SUBPROCESS_ENV_VAR: &str = "LEMURCLAW_MCP_HTTP_PROXY_TEST_SUBPROCESS";
 const TEST_NAME: &str = "suite::mcp_startup_refresh_http_proxy::local_mcp_startup_and_refresh_use_configured_http_client";
 const SKILL_TEST_NAME: &str =
     "suite::mcp_startup_refresh_http_proxy::skill_mcp_dependency_oauth_uses_configured_http_client";

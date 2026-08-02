@@ -86,7 +86,7 @@ fn retry_uses_original_unified_exec_request_and_stops_after_second_failure() {
         read_roots_include_platform_defaults: true,
         write_roots_override: Some(vec![PathBuf::from(r"C:\workspace\write")]),
         deny_read_paths_override: vec![PathBuf::from(r"C:\secrets")],
-        deny_write_paths_override: vec![PathBuf::from(r"C:\workspace\.codex")],
+        deny_write_paths_override: vec![PathBuf::from(r"C:\workspace\.lemurclaw")],
         proxy_enforced: true,
         proxy_settings_mode: WindowsSandboxProxySettingsMode::Preserve,
     };

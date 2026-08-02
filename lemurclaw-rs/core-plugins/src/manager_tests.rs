@@ -6303,7 +6303,7 @@ async fn load_plugins_ignores_project_config_files() {
     let stack = ConfigLayerStack::new(
         vec![ConfigLayerEntry::new(
             ConfigLayerSource::Project {
-                dot_codex_folder: AbsolutePathBuf::try_from(project_root.join(".codex")).unwrap(),
+                dot_codex_folder: AbsolutePathBuf::try_from(project_root.join(".lemurclaw")).unwrap(),
             },
             toml::from_str(&plugin_config_toml(
                 /*enabled*/ true, /*plugins_feature_enabled*/ true,

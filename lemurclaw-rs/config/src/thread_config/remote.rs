@@ -18,7 +18,7 @@ use super::ThreadConfigSource;
 use super::UserThreadConfig;
 use proto::thread_config_loader_client::ThreadConfigLoaderClient;
 
-#[path = "proto/codex.thread_config.v1.rs"]
+#[path = "proto/lemurclaw.thread_config.v1.rs"]
 mod proto;
 
 const REMOTE_THREAD_CONFIG_LOAD_TIMEOUT: Duration = Duration::from_secs(5);

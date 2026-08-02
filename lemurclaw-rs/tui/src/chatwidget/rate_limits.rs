@@ -1,7 +1,7 @@
 //! Rate-limit warning, prompt, and notice surfaces for `ChatWidget`.
 
 use super::*;
-use lemurclaw_app_server_protocol::CodexErrorInfo as AppServerCodexErrorInfo;
+use lemurclaw_app_server_protocol::LemurclawErrorInfo as AppServerLemurclawErrorInfo;
 
 pub(super) const NUDGE_MODEL_SLUG: &str = "gpt-5.6-luna";
 pub(super) const RATE_LIMIT_SWITCH_PROMPT_THRESHOLD: f64 = 90.0;
@@ -135,20 +135,20 @@ pub(super) enum RateLimitErrorKind {
 }
 
 pub(super) fn app_server_rate_limit_error_kind(
-    info: &AppServerCodexErrorInfo,
+    info: &AppServerLemurclawErrorInfo,
 ) -> Option<RateLimitErrorKind> {
     match info {
-        AppServerCodexErrorInfo::ServerOverloaded => Some(RateLimitErrorKind::ServerOverloaded),
-        AppServerCodexErrorInfo::UsageLimitExceeded => Some(RateLimitErrorKind::UsageLimit),
-        AppServerCodexErrorInfo::ResponseTooManyFailedAttempts {
+        AppServerLemurclawErrorInfo::ServerOverloaded => Some(RateLimitErrorKind::ServerOverloaded),
+        AppServerLemurclawErrorInfo::UsageLimitExceeded => Some(RateLimitErrorKind::UsageLimit),
+        AppServerLemurclawErrorInfo::ResponseTooManyFailedAttempts {
             http_status_code: Some(429),
         } => Some(RateLimitErrorKind::Generic),
         _ => None,
     }
 }
 
-pub(super) fn is_app_server_cyber_policy_error(info: &AppServerCodexErrorInfo) -> bool {
-    matches!(info, AppServerCodexErrorInfo::CyberPolicy)
+pub(super) fn is_app_server_cyber_policy_error(info: &AppServerLemurclawErrorInfo) -> bool {
+    matches!(info, AppServerLemurclawErrorInfo::CyberPolicy)
 }
 
 #[derive(Clone, Copy)]

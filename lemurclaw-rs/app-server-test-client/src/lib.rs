@@ -116,14 +116,14 @@ const TRACE_DISABLED_MESSAGE: &str =
 struct Cli {
     /// Path to the `codex` CLI binary. When set, requests use stdio by
     /// spawning `codex app-server` as a child process.
-    #[arg(long, env = "CODEX_BIN", global = true)]
+    #[arg(long, env = "LEMURCLAW_BIN", global = true)]
     codex_bin: Option<PathBuf>,
 
     /// Existing websocket server URL to connect to.
     ///
-    /// If neither `--codex-bin` nor `--url` is provided, defaults to
+    /// If neither `--lemurclaw-bin` nor `--url` is provided, defaults to
     /// `ws://127.0.0.1:4222`.
-    #[arg(long, env = "CODEX_APP_SERVER_URL", global = true)]
+    #[arg(long, env = "LEMURCLAW_APP_SERVER_URL", global = true)]
     url: Option<String>,
 
     /// Forwarded to the `codex` CLI as `--config key=value`. Repeatable.
@@ -277,7 +277,7 @@ enum CliCommand {
     #[command(name = "live-elicitation-timeout-pause")]
     LiveElicitationTimeoutPause {
         /// Model passed to `thread/start`.
-        #[arg(long, env = "CODEX_E2E_MODEL", default_value = "gpt-5")]
+        #[arg(long, env = "LEMURCLAW_E2E_MODEL", default_value = "gpt-5")]
         model: String,
         /// Existing workspace path used as the turn cwd.
         #[arg(long, value_name = "path", default_value = ".")]
@@ -505,9 +505,9 @@ pub async fn run() -> Result<()> {
         } => {
             ensure_dynamic_tools_unused(&dynamic_tools, "plugin-analytics-smoke")?;
             if url.is_some() {
-                bail!("plugin-analytics-smoke requires --codex-bin and does not support --url");
+                bail!("plugin-analytics-smoke requires --lemurclaw-bin and does not support --url");
             }
-            let codex_bin = codex_bin.context("plugin-analytics-smoke requires --codex-bin")?;
+            let codex_bin = codex_bin.context("plugin-analytics-smoke requires --lemurclaw-bin")?;
             plugin_analytics_smoke::run(&codex_bin, &config_overrides, &plugin_id, capture_file)
         }
         CliCommand::PluginAnalyticsMutationSmoke {
@@ -518,11 +518,11 @@ pub async fn run() -> Result<()> {
             ensure_dynamic_tools_unused(&dynamic_tools, "plugin-analytics-mutation-smoke")?;
             if url.is_some() {
                 bail!(
-                    "plugin-analytics-mutation-smoke requires --codex-bin and does not support --url"
+                    "plugin-analytics-mutation-smoke requires --lemurclaw-bin and does not support --url"
                 );
             }
             let codex_bin =
-                codex_bin.context("plugin-analytics-mutation-smoke requires --codex-bin")?;
+                codex_bin.context("plugin-analytics-mutation-smoke requires --lemurclaw-bin")?;
             plugin_analytics_mutation_smoke::run(
                 &codex_bin,
                 &config_overrides,
@@ -539,9 +539,9 @@ pub async fn run() -> Result<()> {
         } => {
             ensure_dynamic_tools_unused(&dynamic_tools, "plugin-remote-uninstall")?;
             if url.is_some() {
-                bail!("plugin-remote-uninstall requires --codex-bin and does not support --url");
+                bail!("plugin-remote-uninstall requires --lemurclaw-bin and does not support --url");
             }
-            let codex_bin = codex_bin.context("plugin-remote-uninstall requires --codex-bin")?;
+            let codex_bin = codex_bin.context("plugin-remote-uninstall requires --lemurclaw-bin")?;
             plugin_analytics_mutation_smoke::run_cleanup(
                 &codex_bin,
                 &config_overrides,
@@ -566,7 +566,7 @@ struct BackgroundAppServer {
 
 fn resolve_endpoint(codex_bin: Option<PathBuf>, url: Option<String>) -> Result<Endpoint> {
     if codex_bin.is_some() && url.is_some() {
-        bail!("--codex-bin and --url are mutually exclusive");
+        bail!("--lemurclaw-bin and --url are mutually exclusive");
     }
     if let Some(codex_bin) = codex_bin {
         return Ok(Endpoint::SpawnCodex(codex_bin));
@@ -584,7 +584,7 @@ fn resolve_shared_websocket_url(
 ) -> Result<String> {
     if codex_bin.is_some() {
         bail!(
-            "{command} requires --url or an already-running websocket app-server; --codex-bin would spawn a private stdio app-server instead"
+            "{command} requires --url or an already-running websocket app-server; --lemurclaw-bin would spawn a private stdio app-server instead"
         );
     }
 
@@ -1390,7 +1390,7 @@ fn live_elicitation_timeout_pause(
 
     let mut _background_server = None;
     let websocket_url = match (codex_bin, url) {
-        (Some(_), Some(_)) => bail!("--codex-bin and --url are mutually exclusive"),
+        (Some(_), Some(_)) => bail!("--lemurclaw-bin and --url are mutually exclusive"),
         (Some(codex_bin), None) => {
             let server = BackgroundAppServer::spawn(&codex_bin, config_overrides)?;
             let websocket_url = server.url.clone();

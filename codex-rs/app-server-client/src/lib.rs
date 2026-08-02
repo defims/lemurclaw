@@ -811,6 +811,68 @@ impl InProcessAppServerRequestHandle {
             source,
         })
     }
+
+    /// Resolves a pending server request by ID.
+    ///
+    /// Mirror of [`InProcessAppServerClient::resolve_server_request`]; lets
+    /// call sites that only hold a request handle (e.g. an ipc handler that
+    /// cannot own the full client) still respond to `ServerRequest`s.
+    pub async fn resolve_server_request(
+        &self,
+        request_id: RequestId,
+        result: JsonRpcResult,
+    ) -> IoResult<()> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.command_tx
+            .send(ClientCommand::ResolveServerRequest {
+                request_id,
+                result,
+                response_tx,
+            })
+            .await
+            .map_err(|_| {
+                IoError::new(
+                    ErrorKind::BrokenPipe,
+                    "in-process app-server worker channel is closed",
+                )
+            })?;
+        response_rx.await.map_err(|_| {
+            IoError::new(
+                ErrorKind::BrokenPipe,
+                "in-process app-server resolve channel is closed",
+            )
+        })?
+    }
+
+    /// Rejects a pending server request by ID with a JSON-RPC error.
+    ///
+    /// Mirror of [`InProcessAppServerClient::reject_server_request`].
+    pub async fn reject_server_request(
+        &self,
+        request_id: RequestId,
+        error: JSONRPCErrorError,
+    ) -> IoResult<()> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.command_tx
+            .send(ClientCommand::RejectServerRequest {
+                request_id,
+                error,
+                response_tx,
+            })
+            .await
+            .map_err(|_| {
+                IoError::new(
+                    ErrorKind::BrokenPipe,
+                    "in-process app-server worker channel is closed",
+                )
+            })?;
+        response_rx.await.map_err(|_| {
+            IoError::new(
+                ErrorKind::BrokenPipe,
+                "in-process app-server reject channel is closed",
+            )
+        })?
+    }
 }
 
 impl AppServerRequestHandle {

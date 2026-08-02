@@ -1,9 +1,9 @@
-# codex-utils-stream-parser
+# lemurclaw-utils-stream-parser
 
 Small, dependency-free utilities for parsing streamed text incrementally.
 
-**Disclaimer**: This code is pretty complex and Codex did not manage to write it so before updating the code, make
-sure to deeply understand it and don't blindly trust Codex on it. Feel free to update the documentation as you
+**Disclaimer**: This code is pretty complex and lemurclaw did not manage to write it so before updating the code, make
+sure to deeply understand it and don't blindly trust lemurclaw on it. Feel free to update the documentation as you
 modify the code
 
 ## What it provides

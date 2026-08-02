@@ -795,16 +795,16 @@ fn installation_check(show_details: bool) -> DoctorCheck {
     ));
     details.push(format!(
         "managed by bun: {}",
-        env::var_os("CODEX_MANAGED_BY_BUN").is_some()
+        env::var_os("LEMURCLAW_MANAGED_BY_BUN").is_some()
     ));
     details.push(format!(
         "managed by pnpm: {}",
-        env::var_os("CODEX_MANAGED_BY_PNPM").is_some()
+        env::var_os("LEMURCLAW_MANAGED_BY_PNPM").is_some()
     ));
     push_env_path_detail(
         &mut details,
         "managed package root",
-        "CODEX_MANAGED_PACKAGE_ROOT",
+        "LEMURCLAW_MANAGED_PACKAGE_ROOT",
     );
 
     let path_entries = codex_path_entries();
@@ -851,7 +851,7 @@ fn installation_check(show_details: bool) -> DoctorCheck {
                 status = status.max(CheckStatus::Warning);
                 summary = "npm-managed launch is missing package-root provenance".to_string();
                 remediation = Some(
-                    "Reinstall or update Codex so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
+                    "Reinstall or update Codex so the JS shim provides LEMURCLAW_MANAGED_PACKAGE_ROOT."
                         .to_string(),
                 );
             }
@@ -882,14 +882,14 @@ fn doctor_install_context(current_exe: Option<&Path>) -> InstallContext {
 }
 
 fn doctor_managed_by_npm(current_exe: Option<&Path>) -> bool {
-    env::var_os("CODEX_MANAGED_BY_NPM").is_some()
+    env::var_os("LEMURCLAW_MANAGED_BY_NPM").is_some()
         && !inherited_managed_env_for_cargo_binary(current_exe)
 }
 
 fn inherited_managed_env_for_cargo_binary(current_exe: Option<&Path>) -> bool {
-    if env::var_os("CODEX_MANAGED_BY_NPM").is_none()
-        && env::var_os("CODEX_MANAGED_BY_BUN").is_none()
-        && env::var_os("CODEX_MANAGED_BY_PNPM").is_none()
+    if env::var_os("LEMURCLAW_MANAGED_BY_NPM").is_none()
+        && env::var_os("LEMURCLAW_MANAGED_BY_BUN").is_none()
+        && env::var_os("LEMURCLAW_MANAGED_BY_PNPM").is_none()
     {
         return false;
     }
@@ -991,7 +991,7 @@ enum NpmRootCheck {
 }
 
 fn npm_global_root_check() -> NpmRootCheck {
-    let Some(running_package_root) = env::var_os("CODEX_MANAGED_PACKAGE_ROOT").map(PathBuf::from)
+    let Some(running_package_root) = env::var_os("LEMURCLAW_MANAGED_PACKAGE_ROOT").map(PathBuf::from)
     else {
         return NpmRootCheck::MissingPackageRoot;
     };
@@ -1081,7 +1081,7 @@ where
 
 fn config_check(config: &Config) -> DoctorCheck {
     let mut details = Vec::new();
-    details.push(format!("CODEX_HOME: {}", config.codex_home.display()));
+    details.push(format!("LEMURCLAW_HOME: {}", config.codex_home.display()));
     details.push(format!("cwd: {}", config.cwd.display()));
     details.push(format!(
         "model: {}",
@@ -1445,7 +1445,7 @@ fn network_check() -> DoctorCheck {
 
     let mut status = CheckStatus::Ok;
     let mut summary = "network-related environment looks readable".to_string();
-    for name in ["CODEX_CA_CERTIFICATE", "SSL_CERT_FILE"] {
+    for name in ["LEMURCLAW_CA_CERTIFICATE", "SSL_CERT_FILE"] {
         if let Some(raw) = env::var_os(name) {
             let path = PathBuf::from(raw);
             match std::fs::metadata(&path) {
@@ -1676,7 +1676,7 @@ fn sandbox_check(config: &Config, arg0_paths: &Arg0DispatchPaths) -> DoctorCheck
     ));
     push_path_detail(
         &mut details,
-        "codex-linux-sandbox helper",
+        "lemurclaw-linux-sandbox helper",
         arg0_paths.codex_linux_sandbox_exe.as_deref(),
     );
     push_path_detail(
@@ -2164,7 +2164,7 @@ fn non_empty_trimmed(value: String) -> Option<String> {
 
 async fn state_check(config: &Config) -> DoctorCheck {
     let mut details = Vec::new();
-    path_readiness(&mut details, "CODEX_HOME", &config.codex_home);
+    path_readiness(&mut details, "LEMURCLAW_HOME", &config.codex_home);
     path_readiness(&mut details, "log dir", &config.log_dir);
     path_readiness(&mut details, "sqlite home", config.sqlite_config().home());
     let mut integrity_failures = Vec::new();
@@ -2532,14 +2532,14 @@ fn fallback_state_check() -> DoctorCheck {
             "state.paths",
             "state",
             CheckStatus::Ok,
-            "CODEX_HOME was resolved without config",
+            "LEMURCLAW_HOME was resolved without config",
         )
-        .detail(format!("CODEX_HOME: {}", path.display())),
+        .detail(format!("LEMURCLAW_HOME: {}", path.display())),
         Err(err) => DoctorCheck::new(
             "state.paths",
             "state",
             CheckStatus::Warning,
-            "CODEX_HOME could not be resolved",
+            "LEMURCLAW_HOME could not be resolved",
         )
         .detail(err.to_string()),
     }
@@ -3269,8 +3269,8 @@ mod tests {
         ]);
         let arg0_paths = Arg0DispatchPaths {
             codex_self_exe: Some(PathBuf::from("/bin/codex")),
-            codex_linux_sandbox_exe: Some(PathBuf::from("/bin/codex-linux-sandbox")),
-            main_execve_wrapper_exe: Some(PathBuf::from("/bin/codex-execve-wrapper")),
+            codex_linux_sandbox_exe: Some(PathBuf::from("/bin/lemurclaw-linux-sandbox")),
+            main_execve_wrapper_exe: Some(PathBuf::from("/bin/lemurclaw-execve-wrapper")),
         };
 
         let overrides = config_overrides_from_interactive(&interactive, &arg0_paths);
@@ -3409,7 +3409,7 @@ mod tests {
                 url = "http://127.0.0.1:9/mcp"
                 enabled = false
                 required = true
-                bearer_token_env_var = "CODEX_DOCTOR_DISABLED_MCP_TOKEN"
+                bearer_token_env_var = "LEMURCLAW_DOCTOR_DISABLED_MCP_TOKEN"
             "#,
         )
         .expect("should deserialize disabled MCP config");
@@ -3424,7 +3424,7 @@ mod tests {
             check
                 .details
                 .iter()
-                .all(|detail| !detail.contains("CODEX_DOCTOR_DISABLED_MCP_TOKEN"))
+                .all(|detail| !detail.contains("LEMURCLAW_DOCTOR_DISABLED_MCP_TOKEN"))
         );
         assert!(
             check

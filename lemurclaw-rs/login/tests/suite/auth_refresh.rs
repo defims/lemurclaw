@@ -38,8 +38,8 @@ use wiremock::matchers::path;
 const INITIAL_ACCESS_TOKEN: &str = "initial-access-token";
 const INITIAL_REFRESH_TOKEN: &str = "initial-refresh-token";
 const SYSTEM_PROXY_TEST_ENDPOINT: &str = "http://auth-proxy.invalid/oauth/token";
-const SYSTEM_PROXY_TEST_SUBPROCESS_ENV_VAR: &str = "CODEX_AUTH_SYSTEM_PROXY_TEST_SUBPROCESS";
-const SYSTEM_PROXY_TEST_PROXY_URL_ENV_VAR: &str = "CODEX_AUTH_SYSTEM_PROXY_TEST_PROXY_URL";
+const SYSTEM_PROXY_TEST_SUBPROCESS_ENV_VAR: &str = "LEMURCLAW_AUTH_SYSTEM_PROXY_TEST_SUBPROCESS";
+const SYSTEM_PROXY_TEST_PROXY_URL_ENV_VAR: &str = "LEMURCLAW_AUTH_SYSTEM_PROXY_TEST_PROXY_URL";
 const SYSTEM_PROXY_TEST_NAME: &str =
     "suite::auth_refresh::refresh_token_honors_respect_system_proxy";
 const PROXY_ENV_KEYS: [&str; 8] = [

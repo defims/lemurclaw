@@ -18,7 +18,7 @@ chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true, features = ["derive"] }
 lemurclaw-http-client = { workspace = true }
 lemurclaw-cloud-tasks-client = { workspace = true }
-# TODO: codex-cloud-tasks-mock-client should be in dev-dependencies.
+# TODO: lemurclaw-cloud-tasks-mock-client should be in dev-dependencies.
 lemurclaw-cloud-tasks-mock-client = { workspace = true }
 lemurclaw-core = { workspace = true }
 lemurclaw-git-utils = { workspace = true }

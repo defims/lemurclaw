@@ -1,17 +1,17 @@
 # App Server Test Client
-Quickstart for running and hitting `codex app-server`.
+Quickstart for running and hitting `lemurclaw app-server`.
 
 ## Quickstart
 
-Run from `<reporoot>/codex-rs`.
+Run from `<reporoot>/lemurclaw-rs`.
 
 ```bash
-# 1) Build debug codex binary
-cargo build -p codex-cli --bin codex
+# 1) Build debug lemurclaw binary
+cargo build -p codex-cli --bin lemurclaw
 
 # 2) Start websocket app-server in background
 cargo run -p codex-app-server-test-client -- \
-  --codex-bin ./target/debug/codex \
+  --lemurclaw-bin ./target/debug/lemurclaw \
   serve --listen ws://127.0.0.1:4222 --kill
 
 # 3) Call app-server (defaults to ws://127.0.0.1:4222)
@@ -19,10 +19,10 @@ cargo run -p codex-app-server-test-client -- model-list
 ```
 
 `send-message` and `send-message-v2` handle `request_user_input` server requests interactively.
-When Codex asks a question, choose a numbered option (or `o` for a free-form answer when offered)
+When lemurclaw asks a question, choose a numbered option (or `o` for a free-form answer when offered)
 and the client will send the response and continue streaming the same turn.
 
-## Testing Codex-managed Amazon Bedrock login
+## Testing lemurclaw-managed Amazon Bedrock login
 
 `test-login --amazon-bedrock` initializes the experimental app-server API, sends an
 `account/login/start` request with an Amazon Bedrock API key, and waits for the
@@ -34,16 +34,16 @@ testing.
 export CODEX_HOME="$(mktemp -d)"
 printf 'cli_auth_credentials_store = "file"\n' > "$CODEX_HOME/config.toml"
 
-cargo build -p codex-cli --bin codex
+cargo build -p codex-cli --bin lemurclaw
 cargo run -p codex-app-server-test-client -- \
-  --codex-bin ./target/debug/codex \
+  --lemurclaw-bin ./target/debug/lemurclaw \
   test-login \
   --amazon-bedrock \
   --api-key "<BEDROCK_API_KEY>" \
   --region us-west-2
 ```
 
-The test client redacts `apiKey` from its outbound request log. After login, start a fresh Codex
+The test client redacts `apiKey` from its outbound request log. After login, start a fresh lemurclaw
 process with the same `CODEX_HOME` to verify that it uses the persisted managed credential.
 
 ## Testing logout
@@ -54,7 +54,7 @@ isolated directory when testing credential cleanup.
 
 ```bash
 cargo run -p codex-app-server-test-client -- \
-  --codex-bin ./target/debug/codex \
+  --lemurclaw-bin ./target/debug/lemurclaw \
   test-logout
 ```
 
@@ -67,15 +67,15 @@ not sent to the analytics backend. The model turn uses a loopback Responses
 API server.
 
 The selected plugin must already be installed and enabled remotely, and the
-active Codex profile must be authenticated. On a fresh local cache, the command
+active lemurclaw profile must be authenticated. On a fresh local cache, the command
 retries ephemeral turns while the installed remote bundle finishes syncing.
 
 ```bash
-# Build a debug Codex binary; analytics capture is unavailable in release builds.
-cargo build -p codex-cli --bin codex
+# Build a debug lemurclaw binary; analytics capture is unavailable in release builds.
+cargo build -p codex-cli --bin lemurclaw
 
 cargo run -p codex-app-server-test-client -- \
-  --codex-bin ./target/debug/codex \
+  --lemurclaw-bin ./target/debug/lemurclaw \
   plugin-analytics-smoke \
   --plugin-id linear@openai-curated-remote
 ```
@@ -103,7 +103,7 @@ installed, installs it, validates `codex_plugin_installed`, uninstalls it, and
 validates `codex_plugin_uninstalled`, and verifies that the original
 uninstalled state was restored.
 
-The mutation events include the local Codex ID in `plugin_id` and the backend ID
+The mutation events include the local lemurclaw ID in `plugin_id` and the backend ID
 in `remote_plugin_id`.
 
 `--remote-plugin-id` takes the backend ID, such as `plugins~Plugin_...`, not the
@@ -111,7 +111,7 @@ local `<plugin>@<marketplace>` ID.
 
 ```bash
 cargo run -p codex-app-server-test-client -- \
-  --codex-bin ./target/debug/codex \
+  --lemurclaw-bin ./target/debug/lemurclaw \
   plugin-analytics-mutation-smoke \
   --remote-plugin-id <REMOTE_PLUGIN_ID> \
   --confirm-account-mutation \
@@ -134,13 +134,13 @@ For a dirty or uncertain result, retry cleanup with:
 
 ```bash
 cargo run -p codex-app-server-test-client -- \
-  --codex-bin ./target/debug/codex \
+  --lemurclaw-bin ./target/debug/lemurclaw \
   plugin-remote-uninstall \
   --remote-plugin-id <REMOTE_PLUGIN_ID> \
   --confirm-account-mutation
 ```
 
-Cleanup does not require analytics capture or a debug Codex binary. When the
+Cleanup does not require analytics capture or a debug lemurclaw binary. When the
 smoke uses global `--config` overrides, its printed recovery command preserves
 them so cleanup targets the same backend and account.
 

@@ -12,7 +12,7 @@ use tokio::process::Command;
 
 const START_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(target_os = "linux")]
-const CODEX_LINUX_SANDBOX_EXE_ENV_VAR: &str = "CODEX_TEST_LINUX_SANDBOX_EXE";
+const CODEX_LINUX_SANDBOX_EXE_ENV_VAR: &str = "LEMURCLAW_TEST_LINUX_SANDBOX_EXE";
 
 /// Host-local exec-server fixture that exposes a WebSocket URL.
 ///
@@ -30,7 +30,7 @@ impl LocalWebsocketExecServer {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::inherit());
         command.current_dir(codex_home);
-        command.env("CODEX_HOME", codex_home);
+        command.env("LEMURCLAW_HOME", codex_home);
         #[cfg(target_os = "linux")]
         command.env(
             CODEX_LINUX_SANDBOX_EXE_ENV_VAR,

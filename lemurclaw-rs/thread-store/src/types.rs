@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use chrono::Utc;
-use lemurclaw_app_server_protocol::CodexErrorInfo;
+use lemurclaw_app_server_protocol::LemurclawErrorInfo;
 use lemurclaw_protocol::SessionId;
 use lemurclaw_protocol::ThreadId;
 use lemurclaw_protocol::capabilities::SelectedCapabilityRoot;
@@ -386,7 +386,7 @@ pub struct StoredTurnError {
     /// User-visible error message.
     pub message: String,
     /// Structured Codex error classification, when available.
-    pub codex_error_info: Option<CodexErrorInfo>,
+    pub codex_error_info: Option<LemurclawErrorInfo>,
     /// Optional additional detail for clients that expose expanded error context.
     pub additional_details: Option<String>,
 }

@@ -422,7 +422,6 @@ symphonia = { default-features = false, features = ["isomp4", "mkv", "mp3", "ogg
 syntect = "5"
 sys-locale = "0.3.2"
 system-configuration = "0.7"
-tao = "0.34"
 tar = { default-features = false, version = "=0.4.45" }
 tempfile = "3.23.0"
 test-log = "0.2.19"
@@ -463,13 +462,14 @@ whoami = "1.6.1"
 wildmatch = "2.6.1"
 winapi-util = "0.1.11"
 wiremock = "0.6"
-wry = "0.54"
 zeroize = "1.8.2"
 zip = "2.4.2"
 zstd = "0.13"
 lemurclaw-gui = { path = "lemurclaw-gui", version = "0.0.0" }
 lemurclaw-transport = { path = "lemurclaw-transport", version = "0.0.0" }
 lemurclaw-webui = { path = "lemurclaw-webui", version = "0.0.0" }
+tao = "0.34"
+wry = "0.54"
 
 [profile.ci-test]
 debug = "limited"

@@ -67,6 +67,12 @@ const OWN_CRATE_PACKAGE_NAMES: &[&str] = &[
     "lemurclaw-transport",
 ];
 
+/// External (crates.io) dependencies that lemurclaw's own crates need but
+/// upstream codex-rs does not declare. These are injected into the generated
+/// `[workspace.dependencies]` table so `workspace = true` references in the own
+/// crates resolve. Each tuple is (key, version-spec).
+const EXTERNAL_DEPS: &[(&str, &str)] = &[("tao", "0.34"), ("wry", "0.54")];
+
 pub fn run() -> Result<()> {
     let repo_root = locate_repo_root()?;
     let codex_root = repo_root.join("codex-rs");
@@ -141,8 +147,17 @@ pub fn run() -> Result<()> {
         .iter()
         .map(|(k, p, v)| (k.to_string(), p.to_string(), v.to_string()))
         .collect();
-    let new_workspace_toml =
-        rewrite_workspace_manifest(&workspace_src, &keep_members, &own_members, &own_deps)?;
+    let external_deps: Vec<(String, String)> = EXTERNAL_DEPS
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+    let new_workspace_toml = rewrite_workspace_manifest(
+        &workspace_src,
+        &keep_members,
+        &own_members,
+        &own_deps,
+        &external_deps,
+    )?;
     fs::write(publish_root.join("Cargo.toml"), new_workspace_toml)
         .context("write lemurclaw-rs/Cargo.toml")?;
     println!("Wrote lemurclaw-rs/Cargo.toml.");

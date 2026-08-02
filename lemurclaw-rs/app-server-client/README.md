@@ -2,7 +2,7 @@
 
 Shared in-process app-server client used by conversational CLI surfaces:
 
-- `codex-exec`
+- `lemurclaw-exec`
 - `codex-tui`
 
 ## Purpose

@@ -1,11 +1,11 @@
-# codex-api
+# lemurclaw-api
 
-Typed clients for Codex/OpenAI APIs built on top of the generic transport in `codex-client`.
+Typed clients for lemurclaw/OpenAI APIs built on top of the generic transport in `codex-client`.
 
 - Hosts the request/response models and request builders for Responses and Compact APIs.
 - Owns provider configuration (base URLs, headers, query params), auth header injection, retry tuning, and stream idle settings.
 - Parses SSE streams into `ResponseEvent`/`ResponseStream`, including rate-limit snapshots and API-specific error mapping.
-- Serves as the wire-level layer consumed by `codex-core`; higher layers handle auth refresh and business logic.
+- Serves as the wire-level layer consumed by `lemurclaw-core`; higher layers handle auth refresh and business logic.
 
 ## Core interface
 
@@ -34,4 +34,4 @@ The public interface of this crate is intentionally small and uniform:
   - Output: `Vec<MemorySummarizeOutput>`.
   - `MemoriesClient::summarize_input(&MemorySummarizeInput, extra_headers)` wraps JSON encoding and retry/telemetry wiring.
 
-All HTTP details (URLs, headers, retry/backoff policies, SSE framing) are encapsulated in `codex-api` and `codex-client`. Callers construct prompts/inputs using protocol types and work with typed streams of `ResponseEvent` or compacted `ResponseItem` values.
+All HTTP details (URLs, headers, retry/backoff policies, SSE framing) are encapsulated in `lemurclaw-api` and `codex-client`. Callers construct prompts/inputs using protocol types and work with typed streams of `ResponseEvent` or compacted `ResponseItem` values.

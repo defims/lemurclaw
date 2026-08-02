@@ -1757,7 +1757,7 @@ pub enum NonSteerableTurnKind {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
-pub enum CodexErrorInfo {
+pub enum LemurclawErrorInfo {
     ContextWindowExceeded,
     SessionBudgetExceeded,
     UsageLimitExceeded,
@@ -1791,7 +1791,7 @@ pub enum CodexErrorInfo {
     Other,
 }
 
-impl CodexErrorInfo {
+impl LemurclawErrorInfo {
     /// Whether this error should mark the current turn as failed when replaying history.
     pub fn affects_turn_status(&self) -> bool {
         match self {
@@ -1924,7 +1924,7 @@ pub struct ExitedReviewModeEvent {
 pub struct ErrorEvent {
     pub message: String,
     #[serde(default)]
-    pub codex_error_info: Option<CodexErrorInfo>,
+    pub codex_error_info: Option<LemurclawErrorInfo>,
 }
 
 impl ErrorEvent {
@@ -1932,7 +1932,7 @@ impl ErrorEvent {
     pub fn affects_turn_status(&self) -> bool {
         self.codex_error_info
             .as_ref()
-            .is_none_or(CodexErrorInfo::affects_turn_status)
+            .is_none_or(LemurclawErrorInfo::affects_turn_status)
     }
 }
 
@@ -3654,7 +3654,7 @@ pub struct ThreadRolledBackEvent {
 pub struct StreamErrorEvent {
     pub message: String,
     #[serde(default)]
-    pub codex_error_info: Option<CodexErrorInfo>,
+    pub codex_error_info: Option<LemurclawErrorInfo>,
     /// Optional details about the underlying stream failure (often the same
     /// human-readable message that is surfaced as the terminal error if retries
     /// are exhausted).
@@ -5000,7 +5000,7 @@ mod tests {
     fn restricted_file_system_policy_derives_effective_paths() {
         let cwd = TempDir::new().expect("tempdir");
         std::fs::create_dir_all(cwd.path().join(".agents")).expect("create .agents");
-        std::fs::create_dir_all(cwd.path().join(".codex")).expect("create .codex");
+        std::fs::create_dir_all(cwd.path().join(".lemurclaw")).expect("create .lemurclaw");
         let canonical_cwd = lemurclaw_utils_absolute_path::canonicalize_preserving_symlinks(cwd.path())
             .expect("canonicalize cwd");
         let cwd_absolute =
@@ -5010,8 +5010,8 @@ mod tests {
             .expect("canonical secret");
         let expected_agents = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".agents"))
             .expect("canonical .agents");
-        let expected_codex = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".codex"))
-            .expect("canonical .codex");
+        let expected_codex = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".lemurclaw"))
+            .expect("canonical .lemurclaw");
         let policy = FileSystemSandboxPolicy::restricted(vec![
             FileSystemSandboxEntry {
                 path: FileSystemPath::Special {
@@ -5081,8 +5081,8 @@ mod tests {
         let expected_docs_public =
             AbsolutePathBuf::from_absolute_path(canonical_cwd.join("docs/public"))
                 .expect("canonical docs/public");
-        let expected_dot_codex = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".codex"))
-            .expect("canonical .codex");
+        let expected_dot_codex = AbsolutePathBuf::from_absolute_path(canonical_cwd.join(".lemurclaw"))
+            .expect("canonical .lemurclaw");
         let policy = FileSystemSandboxPolicy::restricted(vec![
             FileSystemSandboxEntry {
                 path: FileSystemPath::Special {
@@ -5724,7 +5724,7 @@ mod tests {
     fn rollback_failed_error_does_not_affect_turn_status() {
         let event = ErrorEvent {
             message: "rollback failed".into(),
-            codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
+            codex_error_info: Some(LemurclawErrorInfo::ThreadRollbackFailed),
         };
         assert!(!event.affects_turn_status());
     }
@@ -5733,7 +5733,7 @@ mod tests {
     fn active_turn_not_steerable_error_does_not_affect_turn_status() {
         let event = ErrorEvent {
             message: "cannot steer a review turn".into(),
-            codex_error_info: Some(CodexErrorInfo::ActiveTurnNotSteerable {
+            codex_error_info: Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
                 turn_kind: NonSteerableTurnKind::Review,
             }),
         };
@@ -5744,7 +5744,7 @@ mod tests {
     fn generic_error_affects_turn_status() {
         let event = ErrorEvent {
             message: "generic".into(),
-            codex_error_info: Some(CodexErrorInfo::Other),
+            codex_error_info: Some(LemurclawErrorInfo::Other),
         };
         assert!(event.affects_turn_status());
     }

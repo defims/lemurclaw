@@ -105,8 +105,8 @@
       ],
       "type": "object"
     },
-    "CodexErrorInfo": {
-      "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.",
+    "LemurclawErrorInfo": {
+      "description": "This translation layer make sure that we expose lemurclaw error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.",
       "oneOf": [
         {
           "enum": [
@@ -144,7 +144,7 @@
           "required": [
             "httpConnectionFailed"
           ],
-          "title": "HttpConnectionFailedCodexErrorInfo",
+          "title": "HttpConnectionFailedLemurclawErrorInfo",
           "type": "object"
         },
         {
@@ -168,7 +168,7 @@
           "required": [
             "responseStreamConnectionFailed"
           ],
-          "title": "ResponseStreamConnectionFailedCodexErrorInfo",
+          "title": "ResponseStreamConnectionFailedLemurclawErrorInfo",
           "type": "object"
         },
         {
@@ -192,7 +192,7 @@
           "required": [
             "responseStreamDisconnected"
           ],
-          "title": "ResponseStreamDisconnectedCodexErrorInfo",
+          "title": "ResponseStreamDisconnectedLemurclawErrorInfo",
           "type": "object"
         },
         {
@@ -216,7 +216,7 @@
           "required": [
             "responseTooManyFailedAttempts"
           ],
-          "title": "ResponseTooManyFailedAttemptsCodexErrorInfo",
+          "title": "ResponseTooManyFailedAttemptsLemurclawErrorInfo",
           "type": "object"
         },
         {
@@ -238,7 +238,7 @@
           "required": [
             "activeTurnNotSteerable"
           ],
-          "title": "ActiveTurnNotSteerableCodexErrorInfo",
+          "title": "ActiveTurnNotSteerableLemurclawErrorInfo",
           "type": "object"
         }
       ]
@@ -1107,7 +1107,7 @@
           "description": "Optional Git metadata captured when the thread was created."
         },
         "id": {
-          "description": "Identifier for this thread. Codex-generated thread IDs are UUIDv7.",
+          "description": "Identifier for this thread. lemurclaw-generated thread IDs are UUIDv7.",
           "type": "string"
         },
         "modelProvider": {
@@ -1169,7 +1169,7 @@
               "$ref": "#/definitions/SessionSource"
             }
           ],
-          "description": "Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.)."
+          "description": "Origin of the thread (CLI, VSCode, lemurclaw exec, lemurclaw app-server, etc.)."
         },
         "status": {
           "allOf": [
@@ -1819,7 +1819,7 @@
             },
             "results": {
               "default": null,
-              "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a Codex release.",
+              "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a lemurclaw release.",
               "items": true,
               "type": [
                 "array",
@@ -2133,7 +2133,7 @@
           "description": "Only populated when the Turn's status is failed."
         },
         "id": {
-          "description": "Identifier for this turn. Codex-generated turn IDs are UUIDv7.",
+          "description": "Identifier for this turn. lemurclaw-generated turn IDs are UUIDv7.",
           "type": "string"
         },
         "items": {
@@ -2183,7 +2183,7 @@
         "codexErrorInfo": {
           "anyOf": [
             {
-              "$ref": "#/definitions/CodexErrorInfo"
+              "$ref": "#/definitions/LemurclawErrorInfo"
             },
             {
               "type": "null"

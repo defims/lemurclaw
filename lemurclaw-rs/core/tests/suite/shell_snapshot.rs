@@ -44,7 +44,7 @@ struct SnapshotRun {
 
 const POLICY_PATH_FOR_TEST: &str = "/codex/policy/path";
 const SNAPSHOT_PATH_FOR_TEST: &str = "/codex/snapshot/path";
-const SNAPSHOT_MARKER_VAR: &str = "CODEX_SNAPSHOT_POLICY_MARKER";
+const SNAPSHOT_MARKER_VAR: &str = "LEMURCLAW_SNAPSHOT_POLICY_MARKER";
 const SNAPSHOT_MARKER_VALUE: &str = "from_snapshot";
 const POLICY_SUCCESS_OUTPUT: &str = "policy-after-snapshot";
 

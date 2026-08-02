@@ -720,7 +720,7 @@ pub struct Config {
     /// appends one extra argument containing a JSON payload describing the
     /// event.
     ///
-    /// Example `~/.codex/config.toml` snippet:
+    /// Example `~/.lemurclaw/config.toml` snippet:
     ///
     /// ```toml
     /// notify = ["notify-send", "Codex"]
@@ -888,7 +888,7 @@ pub struct Config {
     /// Memories subsystem settings.
     pub memories: MemoriesConfig,
 
-    /// Directory containing all Codex state (defaults to `~/.codex` but can be
+    /// Directory containing all Codex state (defaults to `~/.lemurclaw` but can be
     /// overridden by the `CODEX_HOME` environment variable).
     pub codex_home: AbsolutePathBuf,
 
@@ -912,7 +912,7 @@ pub struct Config {
     /// Effective config lock used for strict replay validation.
     pub config_lock_toml: Option<Arc<ConfigLockfileToml>>,
 
-    /// Settings that govern if and what will be written to `~/.codex/history.jsonl`.
+    /// Settings that govern if and what will be written to `~/.lemurclaw/history.jsonl`.
     pub history: History,
 
     /// When true, session is not persisted on disk. Default to `false`
@@ -934,15 +934,15 @@ pub struct Config {
     /// file: it must be set in code via [`ConfigOverrides`].
     pub codex_self_exe: Option<PathBuf>,
 
-    /// Path to the `codex-linux-sandbox` executable. This must be set if
+    /// Path to the `lemurclaw-linux-sandbox` executable. This must be set if
     /// [`lemurclaw_sandboxing::SandboxType::LinuxSeccomp`] is used. Note that this
     /// cannot be set in the config file: it must be set in code via
     /// [`ConfigOverrides`].
     ///
-    /// When this program is invoked, arg0 will be set to `codex-linux-sandbox`.
+    /// When this program is invoked, arg0 will be set to `lemurclaw-linux-sandbox`.
     pub codex_linux_sandbox_exe: Option<PathBuf>,
 
-    /// Path to the `codex-execve-wrapper` executable used for shell
+    /// Path to the `lemurclaw-execve-wrapper` executable used for shell
     /// escalation. This cannot be set in the config file: it must be set in
     /// code via [`ConfigOverrides`].
     pub main_execve_wrapper_exe: Option<PathBuf>,
@@ -4572,7 +4572,7 @@ fn normalize_guardian_policy_config(value: Option<&str>) -> Option<String> {
 
 /// Returns the path to the Codex configuration directory, which can be
 /// specified by the `CODEX_HOME` environment variable. If not set, defaults to
-/// `~/.codex`.
+/// `~/.lemurclaw`.
 ///
 /// - If `CODEX_HOME` is set, the value must exist and be a directory. The
 ///   value will be canonicalized and this function will Err otherwise.

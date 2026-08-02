@@ -991,7 +991,7 @@ impl TurnRequestProcessor {
                         };
                         let error = TurnError {
                             message: message.clone(),
-                            codex_error_info: Some(CodexErrorInfo::ActiveTurnNotSteerable {
+                            codex_error_info: Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
                                 turn_kind: turn_kind.into(),
                             }),
                             additional_details: None,

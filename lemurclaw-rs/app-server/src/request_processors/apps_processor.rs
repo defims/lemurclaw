@@ -393,7 +393,7 @@ impl AppsRequestProcessor {
 const APP_LIST_LOAD_TIMEOUT: Duration = Duration::from_secs(90);
 // `app/list` is the legacy request-path baseline for the `app/installed` endpoint;
 // `path=legacy` keeps it separate from the new snapshot-backed implementation in dashboards.
-const APPS_INSTALLED_DURATION_METRIC: &str = "codex.apps.installed.duration_ms";
+const APPS_INSTALLED_DURATION_METRIC: &str = "lemurclaw.apps.installed.duration_ms";
 
 fn record_legacy_apps_installed_duration(started_at: Instant, reload: bool) {
     let reload = if reload { "true" } else { "false" };

@@ -643,7 +643,7 @@ async fn config_read_includes_project_layers_for_cwd() -> Result<()> {
     write_config(&codex_home, r#"model = "gpt-user""#)?;
 
     let workspace = TempDir::new()?;
-    let project_config_dir = workspace.path().join(".codex");
+    let project_config_dir = workspace.path().join(".lemurclaw");
     std::fs::create_dir_all(&project_config_dir)?;
     std::fs::write(
         project_config_dir.join("config.toml"),
@@ -726,7 +726,7 @@ writable_roots = [{}]
         .with_codex_home(codex_home.path())
         .without_auto_env()
         .with_env_overrides(&[(
-            "CODEX_APP_SERVER_MANAGED_CONFIG_PATH",
+            "LEMURCLAW_APP_SERVER_MANAGED_CONFIG_PATH",
             Some(&managed_path_str),
         )])
         .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
