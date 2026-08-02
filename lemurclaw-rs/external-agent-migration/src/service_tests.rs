@@ -14,7 +14,7 @@ const SOURCE_EXTERNAL_AGENT_UPPER_PRODUCT_NAME: &str = "CLAUDE-CODE";
 fn fixture_paths() -> (TempDir, PathBuf, PathBuf) {
     let root = TempDir::new().expect("create tempdir");
     let external_agent_home = root.path().join(EXTERNAL_AGENT_DIR);
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     (root, external_agent_home, codex_home)
 }
 

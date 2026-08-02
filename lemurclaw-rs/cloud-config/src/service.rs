@@ -115,7 +115,7 @@ where
         &self,
     ) -> Result<Option<CloudConfigBundle>, CloudConfigBundleLoadError> {
         let _timer =
-            lemurclaw_otel::start_global_timer("lemurclaw.cloud_config_bundle.fetch.duration_ms", &[]);
+            lemurclaw_otel::start_global_timer("codex.cloud_config_bundle.fetch.duration_ms", &[]);
         let started_at = Instant::now();
         let load_result = timeout(self.timeout, self.load_startup_bundle())
             .await

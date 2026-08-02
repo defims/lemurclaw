@@ -66,7 +66,7 @@ fn inserts_bwrap_argv0_before_command_separator() {
     apply_inner_command_argv0_for_launcher(
         &mut argv,
         /*supports_argv0*/ true,
-        "/tmp/codex-arg0-session/lemurclaw-linux-sandbox".to_string(),
+        "/tmp/codex-arg0-session/codex-linux-sandbox".to_string(),
     );
     assert_eq!(
         argv,
@@ -84,7 +84,7 @@ fn inserts_bwrap_argv0_before_command_separator() {
             "--proc".to_string(),
             "/proc".to_string(),
             "--argv0".to_string(),
-            "lemurclaw-linux-sandbox".to_string(),
+            "codex-linux-sandbox".to_string(),
             "--".to_string(),
             "/bin/true".to_string(),
         ]
@@ -110,13 +110,13 @@ fn rewrites_inner_command_path_when_bwrap_lacks_argv0() {
     apply_inner_command_argv0_for_launcher(
         &mut argv,
         /*supports_argv0*/ false,
-        "/tmp/codex-arg0-session/lemurclaw-linux-sandbox".to_string(),
+        "/tmp/codex-arg0-session/codex-linux-sandbox".to_string(),
     );
 
     assert!(!argv.iter().any(|arg| arg == "--argv0"));
     assert!(
         argv.windows(2)
-            .any(|window| { window == ["--", "/tmp/codex-arg0-session/lemurclaw-linux-sandbox"] })
+            .any(|window| { window == ["--", "/tmp/codex-arg0-session/codex-linux-sandbox"] })
     );
 }
 
@@ -134,7 +134,7 @@ fn rewrites_bwrap_helper_command_not_nested_user_command_when_current_exe_appear
         "/tmp/cwd".to_string(),
         "--".to_string(),
         nested_current_exe.clone(),
-        "--lemurclaw-run-as-apply-patch".to_string(),
+        "--codex-run-as-apply-patch".to_string(),
         "patch".to_string(),
     ];
 
@@ -154,7 +154,7 @@ fn rewrites_bwrap_helper_command_not_nested_user_command_when_current_exe_appear
             "/tmp/cwd".to_string(),
             "--".to_string(),
             nested_current_exe,
-            "--lemurclaw-run-as-apply-patch".to_string(),
+            "--codex-run-as-apply-patch".to_string(),
             "patch".to_string(),
         ]
     );

@@ -164,8 +164,8 @@ async fn apply_role_preserves_unspecified_keys() {
         TomlValue::String("base-model".to_string()),
     )])
     .await;
-    config.codex_linux_sandbox_exe = Some(PathBuf::from("/tmp/lemurclaw-linux-sandbox"));
-    config.main_execve_wrapper_exe = Some(PathBuf::from("/tmp/lemurclaw-execve-wrapper"));
+    config.codex_linux_sandbox_exe = Some(PathBuf::from("/tmp/codex-linux-sandbox"));
+    config.main_execve_wrapper_exe = Some(PathBuf::from("/tmp/codex-execve-wrapper"));
     let role_path = write_role_config(
         &home,
         "instructions-only.toml",
@@ -194,11 +194,11 @@ async fn apply_role_preserves_unspecified_keys() {
     );
     assert_eq!(
         config.codex_linux_sandbox_exe,
-        Some(PathBuf::from("/tmp/lemurclaw-linux-sandbox"))
+        Some(PathBuf::from("/tmp/codex-linux-sandbox"))
     );
     assert_eq!(
         config.main_execve_wrapper_exe,
-        Some(PathBuf::from("/tmp/lemurclaw-execve-wrapper"))
+        Some(PathBuf::from("/tmp/codex-execve-wrapper"))
     );
 }
 

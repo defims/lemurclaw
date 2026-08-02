@@ -1,19 +1,19 @@
-# lemurclaw-shell-escalation
+# codex-shell-escalation
 
 This crate contains the Unix shell-escalation protocol implementation and the
-`lemurclaw-execve-wrapper` executable.
+`codex-execve-wrapper` executable.
 
-`lemurclaw-execve-wrapper` receives the arguments to an intercepted `execve(2)` call and delegates the
+`codex-execve-wrapper` receives the arguments to an intercepted `execve(2)` call and delegates the
 decision to the shell-escalation protocol over a shared file descriptor (specified by the
 `CODEX_ESCALATE_SOCKET` environment variable). The server on the other side replies with one of:
 
-- `Run`: `lemurclaw-execve-wrapper` should invoke `execve(2)` on itself to run the original command
+- `Run`: `codex-execve-wrapper` should invoke `execve(2)` on itself to run the original command
   within the sandboxed shell.
 - `Escalate`: forward the file descriptors of the current process so the command can be run
   faithfully outside the sandbox. When the process completes, the server forwards the exit code
-  back to `lemurclaw-execve-wrapper`.
+  back to `codex-execve-wrapper`.
 - `Deny`: the server has declared the proposed command to be forbidden, so
-  `lemurclaw-execve-wrapper` prints an error to `stderr` and exits with `1`.
+  `codex-execve-wrapper` prints an error to `stderr` and exits with `1`.
 
 ## Patched zsh
 
@@ -29,6 +29,6 @@ make -j"$(nproc)"
 ```
 
 Release artifacts are built by `.github/workflows/rust-release-zsh.yml` when a
-`lemurclaw-zsh-vX.Y.Z` tag is pushed. When the zsh commit or patch changes, publish
+`codex-zsh-vX.Y.Z` tag is pushed. When the zsh commit or patch changes, publish
 the next version tag and update the checked-in DotSlash manifests to use the new
 release.

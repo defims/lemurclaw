@@ -1,4 +1,4 @@
-# lemurclaw-git-utils
+# codex-git-utils
 
 Helpers for interacting with git, including patch application. The crate also
 exposes a lightweight baseline API for internal directories that use git only

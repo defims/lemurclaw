@@ -2,7 +2,7 @@ use std::fs;
 use std::time::Duration;
 
 use chrono::Utc;
-use lemurclaw_app_server_protocol::LemurclawErrorInfo;
+use lemurclaw_app_server_protocol::CodexErrorInfo;
 use lemurclaw_protocol::ThreadId;
 use lemurclaw_protocol::protocol::EventMsg;
 use lemurclaw_protocol::protocol::HistoryPosition;
@@ -90,7 +90,7 @@ async fn list_turns_pages_projected_rows_and_applies_item_views() {
         first_page.turns[1].error,
         Some(StoredTurnError {
             message: "turn failed".to_string(),
-            codex_error_info: Some(LemurclawErrorInfo::ServerOverloaded),
+            codex_error_info: Some(CodexErrorInfo::ServerOverloaded),
             additional_details: Some("retry later".to_string()),
         })
     );

@@ -14,10 +14,10 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-lemurclaw-login = { workspace = true }
-lemurclaw-mcp-server = { workspace = true }
-lemurclaw-terminal-detection = { workspace = true }
-lemurclaw-utils-cargo-bin = { workspace = true }
+codex-login = { workspace = true }
+codex-mcp-server = { workspace = true }
+codex-terminal-detection = { workspace = true }
+codex-utils-cargo-bin = { workspace = true }
 rmcp = { workspace = true }
 os_info = { workspace = true }
 pretty_assertions = { workspace = true }

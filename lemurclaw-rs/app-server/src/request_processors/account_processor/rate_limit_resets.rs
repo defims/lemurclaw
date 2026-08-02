@@ -4,7 +4,7 @@ const RATE_LIMIT_RESET_REQUEST_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 
 const RATE_LIMIT_RESET_DETAILS_REQUEST_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 5);
 #[cfg(debug_assertions)]
 const RATE_LIMIT_RESET_REQUEST_TIMEOUT_ENV_VAR: &str =
-    "LEMURCLAW_TEST_RATE_LIMIT_RESET_REQUEST_TIMEOUT_MS";
+    "CODEX_TEST_RATE_LIMIT_RESET_REQUEST_TIMEOUT_MS";
 
 impl AccountRequestProcessor {
     pub(super) async fn detailed_rate_limit_reset_credits(

@@ -26,7 +26,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 use crate::manifest::rename_package;
 
@@ -37,10 +37,7 @@ const V8_ONLY_CRATES: &[&str] = &["code-mode-host", "v8-poc"];
 pub fn run() -> Result<()> {
     let publish_root = locate_publish_root()?;
 
-    println!(
-        "publish strip-v8\n  target: {}\n",
-        publish_root.display()
-    );
+    println!("publish strip-v8\n  target: {}\n", publish_root.display());
 
     // The lemurclaw-rs tree has already been renamed codex-* → lemurclaw-*, so the
     // code-mode crate lives under lemurclaw-rs/code-mode/ with package name
@@ -80,8 +77,7 @@ pub fn run() -> Result<()> {
     for name in V8_ONLY_CRATES {
         let dir = publish_root.join(name);
         if dir.exists() {
-            fs::remove_dir_all(&dir)
-                .with_context(|| format!("remove {}", dir.display()))?;
+            fs::remove_dir_all(&dir).with_context(|| format!("remove {}", dir.display()))?;
             removed_crates.push(name.to_string());
             println!("  removed crate directory: {}", name);
         }
@@ -104,8 +100,8 @@ pub fn run() -> Result<()> {
 fn read_code_mode_identity(manifest_path: &Path) -> Result<(String, String)> {
     let raw = fs::read_to_string(manifest_path)
         .with_context(|| format!("read {}", manifest_path.display()))?;
-    let doc: toml::Value = toml::from_str(&raw)
-        .with_context(|| format!("parse {}", manifest_path.display()))?;
+    let doc: toml::Value =
+        toml::from_str(&raw).with_context(|| format!("parse {}", manifest_path.display()))?;
     let package_name = doc
         .get("package")
         .and_then(|p| p.get("name"))
@@ -153,16 +149,14 @@ fn stub_code_mode_crate(
     // Wipe the existing src/ tree (V8 implementation + tests) and recreate it
     // with just the stub files. This is what makes strip-v8 idempotent.
     if src_dir.exists() {
-        fs::remove_dir_all(&src_dir)
-            .with_context(|| format!("remove {}", src_dir.display()))?;
+        fs::remove_dir_all(&src_dir).with_context(|| format!("remove {}", src_dir.display()))?;
     }
     fs::create_dir_all(&src_dir).context("recreate code-mode src/")?;
 
     // Determine the protocol crate's Rust identifier for the `pub use`.
     let protocol_ident = protocol_dep_key.replace('-', "_");
 
-    fs::write(src_dir.join("lib.rs"), stub_lib_rs(&protocol_ident))
-        .context("write stub lib.rs")?;
+    fs::write(src_dir.join("lib.rs"), stub_lib_rs(&protocol_ident)).context("write stub lib.rs")?;
     fs::write(src_dir.join("service.rs"), stub_service_rs(&protocol_ident))
         .context("write stub service.rs")?;
 
@@ -173,7 +167,10 @@ fn stub_code_mode_crate(
     )
     .context("write stub Cargo.toml")?;
 
-    println!("  stubbed `code-mode` crate ({} → V8-free stub)", package_name);
+    println!(
+        "  stubbed `code-mode` crate ({} → V8-free stub)",
+        package_name
+    );
     Ok(())
 }
 
@@ -437,7 +434,12 @@ fn dep_key_on_line(trimmed: &str) -> Option<String> {
 /// Regenerate the lockfile so V8 packages are no longer pinned. Instead of
 /// deleting the lockfile (which causes version drift on full regeneration),
 /// run `cargo update` so only the changed entries are updated — preserving the
-/// existing version selections for non-V8 dependencies.
+/// existing version selections for non-V8 dependencies. After the bulk update,
+/// pin back any pre-release crates that `cargo update` may have promoted to a
+/// stable release within the same semver range (cargo treats `0.3.0-alpha.4`
+/// as compatible with `^0.3.0`, but the alpha and stable lines are not actually
+/// ABI-compatible — e.g. `rama-core 0.3.0-alpha.4` requires `rama-error
+/// 0.3.0-alpha.4`, not the stable `0.3.0`).
 fn regenerate_lockfile(publish_root: &Path) -> Result<()> {
     let lockfile = publish_root.join("Cargo.lock");
     if !lockfile.exists() {
@@ -453,12 +455,65 @@ fn regenerate_lockfile(publish_root: &Path) -> Result<()> {
     if !status.success() {
         // cargo update may fail if the manifest is inconsistent; fall back to
         // deleting the lockfile so cargo regenerates from scratch.
-        eprintln!(
-            "  warn: cargo update failed; removing Cargo.lock for full regeneration"
-        );
+        eprintln!("  warn: cargo update failed; removing Cargo.lock for full regeneration");
         fs::remove_file(&lockfile).context("remove Cargo.lock")?;
+        return Ok(());
     }
+
+    // Re-pin pre-release crates that cargo may have promoted to a stable
+    // release. The `rama-*` family ships alpha and stable lines that share a
+    // `^0.3.0` range but are NOT ABI-compatible (the alpha has types the
+    // stable release renamed/removed, e.g. `OpaqueError`).
+    for (pkg, version) in PRERELEASE_PINS {
+        pin_package(publish_root, pkg, version)?;
+    }
+
     Ok(())
+}
+
+/// Pre-release crates that must stay on their pre-release version even though
+/// their semver range (`^0.3.0`) admits a newer stable release. Each entry is
+/// (package name, pre-release version that must be enforced).
+///
+/// Order matters: a crate must be pinned before any crate that depends on it
+/// with a stable-only semver range. `rama-utils` depends on `rama-macros`
+/// (`^0.3.0`), so `rama-utils` must be downgraded to `0.3.0-alpha.4` first —
+/// only then can `rama-macros` be pinned to `0.3.0-alpha.4` without cargo
+/// rejecting it as incompatible with the stable `rama-utils 0.3.0`.
+const PRERELEASE_PINS: &[(&str, &str)] = &[
+    ("rama-utils", "0.3.0-alpha.4"),
+    ("rama-macros", "0.3.0-alpha.4"),
+    ("rama-error", "0.3.0-alpha.4"),
+];
+
+/// Run `cargo update -p <pkg> --precise <version>` and treat "already at this
+/// version" as success (cargo exits non-zero when the requested version equals
+/// the current one).
+fn pin_package(publish_root: &Path, pkg: &str, version: &str) -> Result<()> {
+    let output = Command::new("cargo")
+        .args(["update", "-p", pkg, "--precise", version])
+        .current_dir(publish_root)
+        .output()
+        .with_context(|| format!("spawn cargo update -p {} --precise {}", pkg, version))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Cargo reports "not updated" when the package is already at the requested
+    // version — that's the desired state, not an error.
+    if stderr.contains("did not do anything") || stderr.contains("already") {
+        return Ok(());
+    }
+    // If the package isn't in the lockfile at all, that's fine too.
+    if stderr.contains("could not find") || stderr.contains("not found") {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "cargo update -p {} --precise {} failed: {}",
+        pkg,
+        version,
+        stderr.trim()
+    );
 }
 
 fn locate_publish_root() -> Result<PathBuf> {
@@ -728,11 +783,7 @@ fn is_section_boundary(trimmed: &str) -> bool {
 
 /// Append any of the RESTORE_WORKSPACE_DEPS entries (plus the code-mode-host
 /// dep) that are not already present in `current_manifest`.
-fn append_missing_deps(
-    out: &mut String,
-    current_manifest: &str,
-    code_mode_host_dep: Option<&str>,
-) {
+fn append_missing_deps(out: &mut String, current_manifest: &str, code_mode_host_dep: Option<&str>) {
     for (key, value) in RESTORE_WORKSPACE_DEPS {
         if !current_manifest.contains(&format!("{key} =")) {
             out.push_str(&format!("{key} = {value}\n"));

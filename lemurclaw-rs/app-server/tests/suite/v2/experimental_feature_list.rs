@@ -175,7 +175,7 @@ async fn experimental_feature_list_resolves_thread_project_config() -> Result<()
             "[projects.\"{workspace_key}\"]\ntrust_level = \"trusted\""
         ))
         .write(codex_home.path())?;
-    let project_config_dir = workspace.path().join(".lemurclaw");
+    let project_config_dir = workspace.path().join(".codex");
     std::fs::create_dir_all(&project_config_dir)?;
     std::fs::write(
         project_config_dir.join("config.toml"),

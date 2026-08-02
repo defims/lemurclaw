@@ -54,7 +54,7 @@ fn windows_wrapper_args_round_trip() {
     let args = create_windows_sandbox_command_args_for_permission_profile(
         vec![
             "codex.exe".to_string(),
-            "--lemurclaw-run-as-fs-helper".to_string(),
+            "--codex-run-as-fs-helper".to_string(),
         ],
         &command_cwd,
         workspace_roots.as_slice(),
@@ -70,7 +70,7 @@ fn windows_wrapper_args_round_trip() {
         Some(write_roots_override.as_slice()),
         deny_read_paths_override.as_slice(),
         deny_write_paths_override.as_slice(),
-        Path::new(r"C:\Users\me\.lemurclaw"),
+        Path::new(r"C:\Users\me\.codex"),
     );
 
     assert_eq!(args[0], CODEX_WINDOWS_SANDBOX_ARG1);
@@ -95,7 +95,7 @@ fn windows_wrapper_args_round_trip() {
 
     assert_eq!(
         parsed.command,
-        vec!["codex.exe", "--lemurclaw-run-as-fs-helper"]
+        vec!["codex.exe", "--codex-run-as-fs-helper"]
     );
     assert_eq!(parsed.command_cwd, command_cwd);
     assert_eq!(parsed.workspace_roots, workspace_roots);

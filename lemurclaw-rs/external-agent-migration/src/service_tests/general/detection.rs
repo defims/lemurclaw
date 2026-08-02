@@ -138,7 +138,7 @@ async fn detect_repo_lists_agents_md_for_each_cwd() {
 
     let items = service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".lemurclaw"),
+        root.path().join(".codex"),
     )
     .detect(ExternalAgentConfigDetectOptions {
         include_home: false,
@@ -178,7 +178,7 @@ async fn detect_repo_lists_agents_md_for_each_cwd() {
 async fn detect_repo_still_reports_non_plugin_items_when_home_config_is_invalid() {
     let root = TempDir::new().expect("create tempdir");
     let repo_root = root.path().join("repo");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     fs::create_dir_all(repo_root.join(".git")).expect("create git dir");
     fs::create_dir_all(
         repo_root
@@ -234,7 +234,7 @@ async fn detect_repo_still_reports_non_plugin_items_when_home_config_is_invalid(
                         .join(EXTERNAL_AGENT_DIR)
                         .join("settings.json")
                         .display(),
-                    repo_root.join(".lemurclaw").join("config.toml").display()
+                    repo_root.join(".codex").join("config.toml").display()
                 ),
                 cwd: Some(repo_root.clone()),
                 details: None,
@@ -312,7 +312,7 @@ async fn detect_repo_lists_mcp_hooks_commands_and_subagents() {
 
     let items = service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".lemurclaw"),
+        root.path().join(".codex"),
     )
     .detect(ExternalAgentConfigDetectOptions {
         include_home: false,
@@ -330,7 +330,7 @@ async fn detect_repo_lists_mcp_hooks_commands_and_subagents() {
                 description: format!(
                     "Migrate MCP servers from {} into {}",
                     repo_root.display(),
-                    repo_root.join(".lemurclaw").join("config.toml").display()
+                    repo_root.join(".codex").join("config.toml").display()
                 ),
                 cwd: Some(repo_root.clone()),
                 details: Some(MigrationDetails {
@@ -345,7 +345,7 @@ async fn detect_repo_lists_mcp_hooks_commands_and_subagents() {
                 description: format!(
                     "Migrate hooks from {} to {}",
                     repo_root.join(EXTERNAL_AGENT_DIR).display(),
-                    repo_root.join(".lemurclaw").join("hooks.json").display()
+                    repo_root.join(".codex").join("hooks.json").display()
                 ),
                 cwd: Some(repo_root.clone()),
                 details: Some(MigrationDetails {
@@ -378,7 +378,7 @@ async fn detect_repo_lists_mcp_hooks_commands_and_subagents() {
                 description: format!(
                     "Migrate subagents from {} to {}",
                     repo_root.join(EXTERNAL_AGENT_DIR).join("agents").display(),
-                    repo_root.join(".lemurclaw").join("agents").display()
+                    repo_root.join(".codex").join("agents").display()
                 ),
                 cwd: Some(repo_root),
                 details: Some(MigrationDetails {
@@ -406,7 +406,7 @@ async fn detect_repo_skips_hooks_when_only_unsupported_hooks_exist() {
 
     let items = service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".lemurclaw"),
+        root.path().join(".codex"),
     )
     .detect(ExternalAgentConfigDetectOptions {
         include_home: false,
@@ -480,7 +480,7 @@ async fn import_repo_migrates_mcp_hooks_commands_and_subagents() {
 
     service_for_paths(
         root.path().join(EXTERNAL_AGENT_DIR),
-        root.path().join(".lemurclaw"),
+        root.path().join(".codex"),
     )
     .import(vec![
         ExternalAgentConfigMigrationItem {
@@ -511,7 +511,7 @@ async fn import_repo_migrates_mcp_hooks_commands_and_subagents() {
     .await;
 
     let config: TomlValue = toml::from_str(
-        &fs::read_to_string(repo_root.join(".lemurclaw").join("config.toml")).expect("read config"),
+        &fs::read_to_string(repo_root.join(".codex").join("config.toml")).expect("read config"),
     )
     .expect("parse config");
     let expected_config: TomlValue = toml::from_str(
@@ -547,7 +547,7 @@ STATIC = "yes"
         .expect("migrated MCP config should be supported");
 
     let hooks: JsonValue = serde_json::from_str(
-        &fs::read_to_string(repo_root.join(".lemurclaw").join("hooks.json")).expect("read hooks"),
+        &fs::read_to_string(repo_root.join(".codex").join("hooks.json")).expect("read hooks"),
     )
     .expect("parse hooks");
     let _supported_hooks: lemurclaw_config::HooksFile =
@@ -575,7 +575,7 @@ STATIC = "yes"
     );
     assert!(
         !repo_root
-            .join(".lemurclaw")
+            .join(".codex")
             .join("hooks.migration-notes.md")
             .exists()
     );
@@ -595,7 +595,7 @@ STATIC = "yes"
     let agent: TomlValue = toml::from_str(
         &fs::read_to_string(
             repo_root
-                .join(".lemurclaw")
+                .join(".codex")
                 .join("agents")
                 .join("researcher.toml"),
         )

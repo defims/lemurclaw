@@ -1,5 +1,5 @@
 use lemurclaw_extension_api::ExtensionData;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::TokenUsage;
 use lemurclaw_protocol::protocol::TurnAbortReason;
 
@@ -76,7 +76,7 @@ impl Session {
     pub(crate) async fn emit_turn_error_lifecycle(
         &self,
         turn_context: &TurnContext,
-        error: LemurclawErrorInfo,
+        error: CodexErrorInfo,
     ) {
         for contributor in self.services.extensions.turn_lifecycle_contributors() {
             contributor

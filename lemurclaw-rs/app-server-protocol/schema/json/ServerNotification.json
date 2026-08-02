@@ -510,14 +510,14 @@
       "description": "Authentication mode for OpenAI-backed providers.",
       "oneOf": [
         {
-          "description": "OpenAI API key provided by the caller and stored by lemurclaw.",
+          "description": "OpenAI API key provided by the caller and stored by Codex.",
           "enum": [
             "apikey"
           ],
           "type": "string"
         },
         {
-          "description": "ChatGPT OAuth managed by lemurclaw (tokens persisted and refreshed by lemurclaw).",
+          "description": "ChatGPT OAuth managed by Codex (tokens persisted and refreshed by Codex).",
           "enum": [
             "chatgpt"
           ],
@@ -538,21 +538,21 @@
           "type": "string"
         },
         {
-          "description": "Programmatic lemurclaw auth backed by a registered Agent Identity.",
+          "description": "Programmatic Codex auth backed by a registered Agent Identity.",
           "enum": [
             "agentIdentity"
           ],
           "type": "string"
         },
         {
-          "description": "Programmatic lemurclaw auth backed by a personal access token.",
+          "description": "Programmatic Codex auth backed by a personal access token.",
           "enum": [
             "personalAccessToken"
           ],
           "type": "string"
         },
         {
-          "description": "Amazon Bedrock bearer token managed by lemurclaw.",
+          "description": "Amazon Bedrock bearer token managed by Codex.",
           "enum": [
             "bedrockApiKey"
           ],
@@ -586,8 +586,8 @@
       ],
       "type": "object"
     },
-    "LemurclawErrorInfo": {
-      "description": "This translation layer make sure that we expose lemurclaw error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.",
+    "CodexErrorInfo": {
+      "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.",
       "oneOf": [
         {
           "enum": [
@@ -625,7 +625,7 @@
           "required": [
             "httpConnectionFailed"
           ],
-          "title": "HttpConnectionFailedLemurclawErrorInfo",
+          "title": "HttpConnectionFailedCodexErrorInfo",
           "type": "object"
         },
         {
@@ -649,7 +649,7 @@
           "required": [
             "responseStreamConnectionFailed"
           ],
-          "title": "ResponseStreamConnectionFailedLemurclawErrorInfo",
+          "title": "ResponseStreamConnectionFailedCodexErrorInfo",
           "type": "object"
         },
         {
@@ -673,7 +673,7 @@
           "required": [
             "responseStreamDisconnected"
           ],
-          "title": "ResponseStreamDisconnectedLemurclawErrorInfo",
+          "title": "ResponseStreamDisconnectedCodexErrorInfo",
           "type": "object"
         },
         {
@@ -697,7 +697,7 @@
           "required": [
             "responseTooManyFailedAttempts"
           ],
-          "title": "ResponseTooManyFailedAttemptsLemurclawErrorInfo",
+          "title": "ResponseTooManyFailedAttemptsCodexErrorInfo",
           "type": "object"
         },
         {
@@ -719,7 +719,7 @@
           "required": [
             "activeTurnNotSteerable"
           ],
-          "title": "ActiveTurnNotSteerableLemurclawErrorInfo",
+          "title": "ActiveTurnNotSteerableCodexErrorInfo",
           "type": "object"
         }
       ]
@@ -772,7 +772,7 @@
       "type": "string"
     },
     "CollaborationMode": {
-      "description": "Collaboration mode for a lemurclaw session.",
+      "description": "Collaboration mode for a Codex session.",
       "properties": {
         "mode": {
           "$ref": "#/definitions/ModeKind"
@@ -3764,7 +3764,7 @@
           "description": "Optional Git metadata captured when the thread was created."
         },
         "id": {
-          "description": "Identifier for this thread. lemurclaw-generated thread IDs are UUIDv7.",
+          "description": "Identifier for this thread. Codex-generated thread IDs are UUIDv7.",
           "type": "string"
         },
         "modelProvider": {
@@ -3826,7 +3826,7 @@
               "$ref": "#/definitions/SessionSource"
             }
           ],
-          "description": "Origin of the thread (CLI, VSCode, lemurclaw exec, lemurclaw app-server, etc.)."
+          "description": "Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.)."
         },
         "status": {
           "allOf": [
@@ -4598,7 +4598,7 @@
             },
             "results": {
               "default": null,
-              "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a lemurclaw release.",
+              "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a Codex release.",
               "items": true,
               "type": [
                 "array",
@@ -5322,7 +5322,7 @@
           "description": "Only populated when the Turn's status is failed."
         },
         "id": {
-          "description": "Identifier for this turn. lemurclaw-generated turn IDs are UUIDv7.",
+          "description": "Identifier for this turn. Codex-generated turn IDs are UUIDv7.",
           "type": "string"
         },
         "items": {
@@ -5407,7 +5407,7 @@
         "codexErrorInfo": {
           "anyOf": [
             {
-              "$ref": "#/definitions/LemurclawErrorInfo"
+              "$ref": "#/definitions/CodexErrorInfo"
             },
             {
               "type": "null"

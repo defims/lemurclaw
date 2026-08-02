@@ -23,7 +23,7 @@ use tokio_tungstenite::client_async;
 use tokio_tungstenite::tungstenite::Message;
 
 pub(crate) const CONTROL_SOCKET_RESPONSE_TIMEOUT: Duration = Duration::from_secs(2);
-const CLIENT_NAME: &str = "lemurclaw_app_server_daemon";
+const CLIENT_NAME: &str = "codex_app_server_daemon";
 const INITIALIZE_REQUEST_ID: RequestId = RequestId::Integer(1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -167,7 +167,7 @@ mod tests {
     fn parses_version_from_codex_user_agent() {
         assert_eq!(
             parse_version_from_user_agent(
-                "lemurclaw_app_server_daemon/1.2.3 (Linux 6.8.0; x86_64) codex_cli_rs/1.2.3",
+                "codex_app_server_daemon/1.2.3 (Linux 6.8.0; x86_64) codex_cli_rs/1.2.3",
             )
             .expect("version"),
             "1.2.3"
@@ -176,6 +176,6 @@ mod tests {
 
     #[test]
     fn rejects_user_agent_without_version() {
-        assert!(parse_version_from_user_agent("lemurclaw_app_server_daemon").is_err());
+        assert!(parse_version_from_user_agent("codex_app_server_daemon").is_err());
     }
 }

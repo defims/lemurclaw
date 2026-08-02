@@ -674,7 +674,7 @@ impl App {
         }
 
         self.session_telemetry.counter(
-            "lemurclaw.thread.side",
+            "codex.thread.side",
             /*inc*/ 1,
             &[("source", "slash_command")],
         );

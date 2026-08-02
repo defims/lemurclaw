@@ -787,7 +787,7 @@ mod tests {
         let source = RequirementSource::Composite {
             sources: vec![
                 RequirementSource::SystemRequirementsToml {
-                    file: test_path_buf("/etc/lemurclaw/requirements.toml").abs(),
+                    file: test_path_buf("/etc/codex/requirements.toml").abs(),
                 },
                 RequirementSource::EnterpriseManaged {
                     id: "layer-1".to_string(),
@@ -1296,7 +1296,7 @@ mod tests {
     #[test]
     fn hook_metadata_for_config_layer_source_discards_source_details() {
         let config_file = test_path_buf("/tmp/.codex/config.toml").abs();
-        let dot_codex_folder = test_path_buf("/tmp/worktree/.lemurclaw").abs();
+        let dot_codex_folder = test_path_buf("/tmp/worktree/.codex").abs();
 
         assert_eq!(
             super::hook_metadata_for_config_layer_source(&ConfigLayerSource::System {

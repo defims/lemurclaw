@@ -2,7 +2,7 @@
 //!
 //! Providers can be defined in two places:
 //!   1. Built-in defaults compiled into the binary so Codex works out-of-the-box.
-//!   2. User-defined entries inside `~/.lemurclaw/config.toml` under the `model_providers`
+//!   2. User-defined entries inside `~/.codex/config.toml` under the `model_providers`
 //!      key. These override or extend the defaults at runtime.
 
 use lemurclaw_api::Provider as ApiProvider;
@@ -524,14 +524,14 @@ pub fn create_oss_provider(default_provider_port: u16, wire_api: WireApi) -> Mod
     // switch to reading values from config.toml instead.
     let default_codex_oss_base_url = format!(
         "http://localhost:{codex_oss_port}/v1",
-        codex_oss_port = std::env::var("LEMURCLAW_OSS_PORT")
+        codex_oss_port = std::env::var("CODEX_OSS_PORT")
             .ok()
             .filter(|value| !value.trim().is_empty())
             .and_then(|value| value.parse::<u16>().ok())
             .unwrap_or(default_provider_port)
     );
 
-    let codex_oss_base_url = std::env::var("LEMURCLAW_OSS_BASE_URL")
+    let codex_oss_base_url = std::env::var("CODEX_OSS_BASE_URL")
         .ok()
         .filter(|v| !v.trim().is_empty())
         .unwrap_or(default_codex_oss_base_url);

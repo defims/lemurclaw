@@ -1536,10 +1536,8 @@ impl ModelClientSession {
         model_info: &ModelInfo,
     ) -> Result<ResponseStream> {
         const CHAT_COMPLETIONS_ENDPOINT: &str = "chat/completions";
-        let mut payload = crate::chat_completions::build_chat_completions_payload(
-            prompt,
-            &model_info.slug,
-        )?;
+        let mut payload =
+            crate::chat_completions::build_chat_completions_payload(prompt, &model_info.slug)?;
         // Non-OpenAI Chat Completions providers commonly reject roles outside
         // the strict {system, user, assistant, tool} set; normalize only when
         // not talking to OpenAI's own chat endpoint. This mirrors the
@@ -1901,9 +1899,7 @@ impl ModelClientSession {
                 )
                 .await
             }
-            WireApi::Chat => {
-                self.stream_chat_completions(prompt, model_info).await
-            }
+            WireApi::Chat => self.stream_chat_completions(prompt, model_info).await,
             WireApi::ResponsesWebsocket => Err(CodexErr::UnsupportedOperation(
                 "ResponsesWebsocket wire_api is not yet supported on this code path".to_string(),
             )),
@@ -1992,9 +1988,7 @@ const STREAM_DROPPED_REASON: &str = "response stream dropped before provider ter
 /// [`ApiError`]s into [`CodexErr`]s, and forwards every [`ResponseEvent`]
 /// onto a core `ResponseStream` channel. The `consumer_dropped` cancellation
 /// token is honoured so that dropping the consumer cancels the bridging task.
-fn bridge_chat_completions_stream(
-    api_stream: lemurclaw_api::ResponseStream,
-) -> ResponseStream {
+fn bridge_chat_completions_stream(api_stream: lemurclaw_api::ResponseStream) -> ResponseStream {
     let lemurclaw_api::ResponseStream {
         mut rx_event,
         upstream_request_id,

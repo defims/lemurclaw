@@ -16,10 +16,10 @@ use crate::common::ResponseStream;
 use crate::error::ApiError;
 use crate::telemetry::SseTelemetry;
 use codex_client::ByteStream;
+use codex_protocol::ResponseItemId;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ReasoningItemContent;
 use codex_protocol::models::ResponseItem;
-use codex_protocol::ResponseItemId;
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use serde_json::Value;
@@ -57,13 +57,7 @@ pub fn spawn_chat_completions_stream(
         .map(str::to_string);
     let (tx_event, rx_event) = mpsc::channel::<Result<ResponseEvent, ApiError>>(1600);
     tokio::spawn(async move {
-        process_chat_sse(
-            stream_response.bytes,
-            tx_event,
-            idle_timeout,
-            telemetry,
-        )
-        .await;
+        process_chat_sse(stream_response.bytes, tx_event, idle_timeout, telemetry).await;
     });
 
     ResponseStream {
@@ -184,12 +178,8 @@ async fn process_chat_sse(
                 .and_then(|model| model.as_str())
                 .map(ToString::to_string);
         }
-        if !created_emitted
-            && (current_response_id.is_some() || current_response_model.is_some())
-        {
-            let _ = tx_event
-                .send(Ok(ResponseEvent::Created))
-                .await;
+        if !created_emitted && (current_response_id.is_some() || current_response_model.is_some()) {
+            let _ = tx_event.send(Ok(ResponseEvent::Created)).await;
             created_emitted = true;
         }
 
@@ -275,8 +265,7 @@ async fn process_chat_sse(
                         fn_call_state.name.get_or_insert_with(|| name.to_string());
                     }
 
-                    if let Some(args_fragment) =
-                        function.get("arguments").and_then(|a| a.as_str())
+                    if let Some(args_fragment) = function.get("arguments").and_then(|a| a.as_str())
                     {
                         fn_call_state.arguments.push_str(args_fragment);
                     }
@@ -303,9 +292,7 @@ async fn process_chat_sse(
                         encrypted_content: None,
                         internal_chat_message_metadata_passthrough: None,
                     };
-                    let _ = tx_event
-                        .send(Ok(ResponseEvent::OutputItemDone(item)))
-                        .await;
+                    let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
                 }
 
                 // Then emit the FunctionCall response item.
@@ -315,11 +302,10 @@ async fn process_chat_sse(
                     namespace: None,
                     arguments: std::mem::take(&mut fn_call_state.arguments),
                     call_id: fn_call_state.call_id.take().unwrap_or_default(),
+                    encrypted_function_args: None,
                     internal_chat_message_metadata_passthrough: None,
                 };
-                let _ = tx_event
-                    .send(Ok(ResponseEvent::OutputItemDone(item)))
-                    .await;
+                let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
             }
             "stop" => {
                 // Regular turn without tool-call. Emit the final assistant
@@ -334,9 +320,7 @@ async fn process_chat_sse(
                         phase: None,
                         internal_chat_message_metadata_passthrough: None,
                     };
-                    let _ = tx_event
-                        .send(Ok(ResponseEvent::OutputItemDone(item)))
-                        .await;
+                    let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
                 }
                 if !reasoning_text.is_empty() {
                     let item = ResponseItem::Reasoning {
@@ -348,9 +332,7 @@ async fn process_chat_sse(
                         encrypted_content: None,
                         internal_chat_message_metadata_passthrough: None,
                     };
-                    let _ = tx_event
-                        .send(Ok(ResponseEvent::OutputItemDone(item)))
-                        .await;
+                    let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
                 }
             }
             _ => {}
@@ -389,9 +371,7 @@ async fn flush_and_complete(
             phase: None,
             internal_chat_message_metadata_passthrough: None,
         };
-        let _ = tx_event
-            .send(Ok(ResponseEvent::OutputItemDone(item)))
-            .await;
+        let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
     }
 
     if !reasoning_text.is_empty() {
@@ -404,9 +384,7 @@ async fn flush_and_complete(
             encrypted_content: None,
             internal_chat_message_metadata_passthrough: None,
         };
-        let _ = tx_event
-            .send(Ok(ResponseEvent::OutputItemDone(item)))
-            .await;
+        let _ = tx_event.send(Ok(ResponseEvent::OutputItemDone(item))).await;
     }
 
     let _ = tx_event

@@ -1,6 +1,6 @@
 # Thread Store
 
-`lemurclaw-thread-store` is the storage boundary for lemurclaw threads. It defines the
+`codex-thread-store` is the storage boundary for Codex threads. It defines the
 `ThreadStore` trait plus local and in-memory implementations. Other storage
 implementations may live outside this repository.
 
@@ -19,7 +19,7 @@ implementations may live outside this repository.
 - `ThreadManager` routes metadata mutations for loaded and cold threads through
   one entrypoint. Loaded threads use their `LiveThread`; cold threads go
   directly to the store.
-- `LocalThreadStore` persists history through `lemurclaw-rollout` JSONL files and
+- `LocalThreadStore` persists history through `codex-rollout` JSONL files and
   persists queryable metadata through the SQLite state database when available.
   Local explicit metadata mutations also maintain JSONL/name-index compatibility
   so reading old or SQLite-less local storage keeps working.

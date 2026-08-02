@@ -101,7 +101,7 @@ use lemurclaw_protocol::models::ResponseInputItem;
 use lemurclaw_protocol::models::ResponseItem;
 use lemurclaw_protocol::protocol::AgentMessageContentDeltaEvent;
 use lemurclaw_protocol::protocol::AgentReasoningSectionBreakEvent;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::ErrorEvent;
 use lemurclaw_protocol::protocol::EventMsg;
 use lemurclaw_protocol::protocol::PlanDeltaEvent;
@@ -524,7 +524,7 @@ pub(crate) async fn run_turn(
                 ) =>
             {
                 sess.track_turn_codex_error(turn_context.as_ref(), &codex_error);
-                let error = LemurclawErrorInfo::BadRequest;
+                let error = CodexErrorInfo::BadRequest;
                 sess.emit_turn_error_lifecycle(turn_context.as_ref(), error.clone())
                     .await;
                 let event = EventMsg::Error(ErrorEvent {

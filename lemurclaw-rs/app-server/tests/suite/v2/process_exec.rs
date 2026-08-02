@@ -62,11 +62,11 @@ async fn process_spawn_returns_before_exit_and_emits_exit_notification() -> Resu
     };
     let env = HashMap::from([
         (
-            "LEMURCLAW_PROCESS_EXEC_PROBE_FILE".to_string(),
+            "CODEX_PROCESS_EXEC_PROBE_FILE".to_string(),
             Some(probe_file.display().to_string()),
         ),
         (
-            "LEMURCLAW_PROCESS_EXEC_RELEASE_FILE".to_string(),
+            "CODEX_PROCESS_EXEC_RELEASE_FILE".to_string(),
             Some(release_file.display().to_string()),
         ),
     ]);

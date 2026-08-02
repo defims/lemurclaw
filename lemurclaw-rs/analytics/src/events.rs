@@ -24,7 +24,7 @@ use crate::facts::TurnSteerRejectionReason;
 use crate::facts::TurnSteerResult;
 use crate::facts::TurnSubmissionType;
 use crate::now_unix_millis;
-use lemurclaw_app_server_protocol::LemurclawErrorInfo;
+use lemurclaw_app_server_protocol::CodexErrorInfo;
 use lemurclaw_app_server_protocol::CommandExecutionSource;
 use lemurclaw_login::default_client::originator;
 use lemurclaw_plugin::PluginId;
@@ -897,7 +897,7 @@ pub(crate) struct CodexTurnEventParams {
     pub(crate) num_input_images: usize,
     pub(crate) is_first_turn: bool,
     pub(crate) status: Option<TurnStatus>,
-    pub(crate) turn_error: Option<LemurclawErrorInfo>,
+    pub(crate) turn_error: Option<CodexErrorInfo>,
     pub(crate) codex_error_kind: Option<CodexErrKind>,
     pub(crate) codex_error_http_status_code: Option<u16>,
     pub(crate) steer_count: Option<usize>,

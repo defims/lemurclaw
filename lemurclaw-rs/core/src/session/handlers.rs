@@ -25,7 +25,7 @@ use crate::tasks::execute_user_shell_command;
 use lemurclaw_protocol::models::ContentItem;
 use lemurclaw_protocol::models::ResponseInputItem;
 use lemurclaw_protocol::models::ResponseItem;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::ErrorEvent;
 use lemurclaw_protocol::protocol::Event;
 use lemurclaw_protocol::protocol::EventMsg;
@@ -107,7 +107,7 @@ pub async fn update_thread_settings(
                 id: sub_id,
                 msg: EventMsg::Error(ErrorEvent {
                     message: format!("invalid thread settings override: {err}"),
-                    codex_error_info: Some(LemurclawErrorInfo::BadRequest),
+                    codex_error_info: Some(CodexErrorInfo::BadRequest),
                 }),
             })
             .await;
@@ -450,7 +450,7 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
             id: sub_id,
             msg: EventMsg::Error(ErrorEvent {
                 message: "num_turns must be >= 1".to_string(),
-                codex_error_info: Some(LemurclawErrorInfo::ThreadRollbackFailed),
+                codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
             }),
         })
         .await;
@@ -463,7 +463,7 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
             id: sub_id,
             msg: EventMsg::Error(ErrorEvent {
                 message: "Cannot rollback while a turn is in progress.".to_string(),
-                codex_error_info: Some(LemurclawErrorInfo::ThreadRollbackFailed),
+                codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
             }),
         })
         .await;
@@ -478,7 +478,7 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
                 id: turn_context.sub_id.clone(),
                 msg: EventMsg::Error(ErrorEvent {
                     message: "thread rollback requires persisted thread history".to_string(),
-                    codex_error_info: Some(LemurclawErrorInfo::ThreadRollbackFailed),
+                    codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
                 }),
             })
             .await;
@@ -490,7 +490,7 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
             id: turn_context.sub_id.clone(),
             msg: EventMsg::Error(ErrorEvent {
                 message: format!("failed to flush thread persistence for rollback replay: {err}"),
-                codex_error_info: Some(LemurclawErrorInfo::ThreadRollbackFailed),
+                codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
             }),
         })
         .await;
@@ -504,7 +504,7 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
                 id: turn_context.sub_id.clone(),
                 msg: EventMsg::Error(ErrorEvent {
                     message: format!("failed to load thread history for rollback replay: {err}"),
-                    codex_error_info: Some(LemurclawErrorInfo::ThreadRollbackFailed),
+                    codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
                 }),
             })
             .await;
@@ -573,7 +573,7 @@ pub async fn set_thread_memory_mode(sess: &Arc<Session>, sub_id: String, mode: T
             id: sub_id,
             msg: EventMsg::Error(ErrorEvent {
                 message: err.to_string(),
-                codex_error_info: Some(LemurclawErrorInfo::Other),
+                codex_error_info: Some(CodexErrorInfo::Other),
             }),
         };
         sess.send_event_raw(event).await;
@@ -642,7 +642,7 @@ pub async fn shutdown(sess: &Arc<Session>, sub_id: String) -> bool {
             id: sub_id.clone(),
             msg: EventMsg::Error(ErrorEvent {
                 message: "Failed to shutdown thread persistence".to_string(),
-                codex_error_info: Some(LemurclawErrorInfo::Other),
+                codex_error_info: Some(CodexErrorInfo::Other),
             }),
         };
         sess.send_event_raw(event).await;
@@ -688,7 +688,7 @@ pub async fn review(
                 id: sub_id,
                 msg: EventMsg::Error(ErrorEvent {
                     message: err.to_string(),
-                    codex_error_info: Some(LemurclawErrorInfo::Other),
+                    codex_error_info: Some(CodexErrorInfo::Other),
                 }),
             };
             sess.send_event(&turn_context, event.msg).await;
@@ -724,7 +724,7 @@ pub(super) async fn submission_loop(
                             id: sub.id.clone(),
                             msg: EventMsg::Error(ErrorEvent {
                                 message: err.to_string(),
-                                codex_error_info: Some(LemurclawErrorInfo::Other),
+                                codex_error_info: Some(CodexErrorInfo::Other),
                             }),
                         })
                         .await;

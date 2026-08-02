@@ -28,11 +28,11 @@ class Args(argparse.Namespace):
 
 
 def _request(url: str) -> bytes:
-    return github_request(url, "lemurclaw-skill-list")
+    return github_request(url, "codex-skill-list")
 
 
 def _codex_home() -> str:
-    return os.environ.get("LEMURCLAW_HOME", os.path.expanduser("~/.lemurclaw"))
+    return os.environ.get("CODEX_HOME", os.path.expanduser("~/.codex"))
 
 
 def _installed_skills() -> set[str]:

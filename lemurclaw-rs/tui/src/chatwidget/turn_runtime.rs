@@ -299,11 +299,11 @@ impl ChatWidget {
 
     pub(super) fn handle_app_server_steer_rejected_error(
         &mut self,
-        codex_error_info: &AppServerLemurclawErrorInfo,
+        codex_error_info: &AppServerCodexErrorInfo,
     ) -> bool {
         matches!(
             codex_error_info,
-            AppServerLemurclawErrorInfo::ActiveTurnNotSteerable { .. }
+            AppServerCodexErrorInfo::ActiveTurnNotSteerable { .. }
         ) && self.enqueue_rejected_steer()
     }
 
@@ -438,7 +438,7 @@ impl ChatWidget {
     pub(super) fn handle_non_retry_error(
         &mut self,
         message: String,
-        codex_error_info: Option<AppServerLemurclawErrorInfo>,
+        codex_error_info: Option<AppServerCodexErrorInfo>,
     ) {
         if codex_error_info
             .as_ref()

@@ -133,7 +133,9 @@ pub(crate) fn build_chat_completions_payload(
                 });
                 push_tool_call_message(&mut messages, tool_call, reasoning);
             }
-            ResponseItem::FunctionCallOutput { call_id, output, .. } => {
+            ResponseItem::FunctionCallOutput {
+                call_id, output, ..
+            } => {
                 messages.push(json!({
                     "role": "tool",
                     "tool_call_id": call_id,
@@ -199,7 +201,9 @@ pub(crate) fn build_chat_completions_payload(
     }
 
     let tools_json = create_tools_json_for_chat_completions_api(&prompt.tools)?;
-    Ok(create_chat_completions_payload(model_slug, messages, tools_json))
+    Ok(create_chat_completions_payload(
+        model_slug, messages, tools_json,
+    ))
 }
 
 /// Pre-scan the input and map each `Reasoning` block (that appears after the
@@ -210,11 +214,8 @@ pub(crate) fn build_chat_completions_payload(
 /// This preserves reasoning context for providers that support a `reasoning`
 /// field on assistant messages, while dropping reasoning that would otherwise
 /// dangle without an anchor.
-fn collect_reasoning_anchors(
-    input: &[ResponseItem],
-) -> std::collections::HashMap<usize, String> {
-    let mut anchors: std::collections::HashMap<usize, String> =
-        std::collections::HashMap::new();
+fn collect_reasoning_anchors(input: &[ResponseItem]) -> std::collections::HashMap<usize, String> {
+    let mut anchors: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
 
     // Determine the last role that would be emitted to Chat Completions.
     let mut last_emitted_role: Option<&str> = None;
@@ -375,7 +376,10 @@ fn push_tool_call_message(messages: &mut Vec<Value>, tool_call: Value, reasoning
                 }
                 existing.push_str(reasoning);
             } else {
-                obj.insert("reasoning".to_string(), Value::String(reasoning.to_string()));
+                obj.insert(
+                    "reasoning".to_string(),
+                    Value::String(reasoning.to_string()),
+                );
             }
         }
         return;
@@ -429,10 +433,7 @@ pub(crate) fn sanitize_message_roles_for_strict_chat_providers(payload: &mut Val
         match obj.get("role").and_then(|r| r.as_str()) {
             Some("system" | "user" | "assistant" | "tool") | None => {}
             Some(_) => {
-                obj.insert(
-                    "role".to_string(),
-                    Value::String("system".to_string()),
-                );
+                obj.insert("role".to_string(), Value::String("system".to_string()));
             }
         }
     }
@@ -506,10 +507,7 @@ mod tests {
             .iter()
             .map(|m| m["role"].as_str().expect("role should be a string"))
             .collect();
-        assert_eq!(
-            roles,
-            vec!["system", "user", "assistant", "tool", "system"]
-        );
+        assert_eq!(roles, vec!["system", "user", "assistant", "tool", "system"]);
     }
 
     #[test]

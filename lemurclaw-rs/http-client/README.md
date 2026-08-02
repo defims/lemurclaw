@@ -1,6 +1,6 @@
-# lemurclaw-http-client
+# codex-http-client
 
-`lemurclaw-http-client` is the low-level HTTP transport shared by lemurclaw crates. It is the intended
+`codex-http-client` is the low-level HTTP transport shared by Codex crates. It is the intended
 owner of the workspace's direct `reqwest` integration; product crates should use the types in this
 crate instead of constructing `reqwest::Client` values themselves.
 
@@ -15,7 +15,7 @@ short-lived clients that fragment reqwest's connection pool. In particular, this
 - the opt-in ChatGPT Cloudflare cookie store.
 
 Another important motivation is consistent support for the `respect_system_proxy` feature. That
-feature requires more than enabling reqwest's default proxy behavior: lemurclaw must resolve platform
+feature requires more than enabling reqwest's default proxy behavior: Codex must resolve platform
 system settings and PAC/WPAD for each destination, pool connections without mixing routes, and
 resolve redirect targets independently.
 
@@ -92,7 +92,7 @@ route. This preserves connection reuse without accidentally sending a URL over a
 the wrong route.
 
 Redirects need the same treatment. Reqwest normally follows them inside one client execution, which
-would skip lemurclaw's route selection for the redirect target. In `RespectSystemProxy` mode the pool
+would skip Codex's route selection for the redirect target. In `RespectSystemProxy` mode the pool
 follows redirects itself, resolves every hop, and removes sensitive headers when an origin changes.
 
 Do not create a new `HttpClient`, `HttpClientFactory`, or `RouteAwareClientPool` for every request.
@@ -122,5 +122,5 @@ let client = http_client_factory.build_client(api_url, ClientRouteClass::Api)?;
 let transport = ReqwestTransport::from_http_client(client);
 ```
 
-If the existing wrapper surface cannot support a use case, extend `lemurclaw-http-client` rather than
+If the existing wrapper surface cannot support a use case, extend `codex-http-client` rather than
 adding a direct `reqwest` dependency to another first-party crate.

@@ -4,18 +4,19 @@
 //! Phase 0 (`verify`): measure compressed tarball sizes and probe whether the
 //! `[patch.crates-io]` fork dependencies are actually required.
 //!
-//! Phase 1 (`publish rename`): generate a parallel `publish/` workspace where
+//! Phase 1 (`publish rename`): generate a parallel `lemurclaw-rs/` workspace where
 //! every `codex-*` crate has been renamed to `lemurclaw-*` without touching the
 //! original `codex-rs/` source tree.
 //!
 //! Phase 2 (`publish bundle`): merge the 23 `lemurclaw-utils-*` crates in
-//! `publish/` into a single `lemurclaw-utils` crate (each as a `pub mod`).
+//! `lemurclaw-rs/` into a single `lemurclaw-utils` crate (each as a `pub mod`).
 
 mod bundle;
 mod forks;
 mod manifest;
 mod rename;
 mod source_rewrite;
+mod strip_v8;
 mod verify;
 
 use anyhow::Result;
@@ -52,15 +53,15 @@ enum VerifyKind {
 
 #[derive(Subcommand)]
 enum PublishKind {
-    /// Phase 1: rename `codex-*` to `lemurclaw-*` and emit the publish/ workspace.
+    /// Phase 1: rename `codex-*` to `lemurclaw-*` and emit the lemurclaw-rs/ workspace.
     Rename,
     /// Phase 1.5: publish the 4 git forks as `lemurclaw-*` crates and rewire
-    /// the publish workspace to reference them.
+    /// the lemurclaw-rs workspace to reference them.
     Fork {
         #[command(subcommand)]
         kind: ForkKind,
     },
-    /// Phase 2/3: merge a cluster of crates in publish/ into a single
+    /// Phase 2/3: merge a cluster of crates in lemurclaw-rs/ into a single
     /// mega-crate (each former crate becomes a `pub mod`).
     Bundle {
         /// Which cluster to merge.
@@ -70,12 +71,20 @@ enum PublishKind {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Full-scope brand rewriter: Codex/codex → lemurclaw across the publish/
-    /// tree — env vars, paths, CLI flags, internal protocol identifiers,
+    /// Full-scope brand rewriter: Codex/codex → lemurclaw across the
+    /// lemurclaw-rs/ tree — env vars, paths, CLI flags, internal protocol identifiers,
     /// system prompts, and emit-only telemetry. (Display text is handled by
     /// the bundle post-merge fixups; this covers everything else.) Can be
-    /// re-run independently on an existing publish/ tree.
+    /// re-run independently on an existing lemurclaw-rs/ tree.
     RebrandFull,
+    /// Replace the code-mode crate in lemurclaw-rs/ with a V8-free stub and remove
+    /// the V8-only crates/deps so the lemurclaw binary does not link
+    /// librusty_v8 (~120 MB saved). Idempotent; run after `publish rename`.
+    StripV8,
+    /// Undo `strip-v8`: re-copy the full V8 code-mode implementation from the
+    /// source tree and restore the v8/deno_core_icudata deps and V8-only
+    /// members. Idempotent; run after `strip-v8` to get a V8-linking build.
+    RestoreV8,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -106,7 +115,7 @@ enum ForkKind {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Rewrite publish/Cargo.toml to reference the published forks via
+    /// Rewrite lemurclaw-rs/Cargo.toml to reference the published forks via
     /// `package = "lemurclaw-X"` aliases, dropping [patch.crates-io].
     Rewire,
 }
@@ -140,11 +149,12 @@ fn main() -> Result<()> {
             PublishKind::RebrandFull => {
                 // Locate the repo root the same way the other phases do:
                 // CARGO_MANIFEST_DIR is <repo>/xtask.
-                let manifest_dir =
-                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
                 let repo_root = manifest_dir.join("..").canonicalize()?;
-                bundle::rewrite_brand_full(&repo_root.join("publish"))
+                bundle::rewrite_brand_full(&repo_root.join("lemurclaw-rs"))
             }
+            PublishKind::StripV8 => strip_v8::run(),
+            PublishKind::RestoreV8 => strip_v8::restore(),
         },
     }
 }

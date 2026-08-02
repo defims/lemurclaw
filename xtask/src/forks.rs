@@ -1,5 +1,5 @@
 //! Phase 1.5: publish the 4 git forks as `lemurclaw-*` crates on crates.io,
-//! then rewire the publish workspace to reference them via `package = "..."`
+//! then rewire the lemurclaw-rs workspace to reference them via `package = "..."`
 //! aliases instead of `[patch.crates-io]`.
 //!
 //! The key trick: forks keep their original `[lib].name` (so `use ratatui::`
@@ -15,7 +15,7 @@ use std::process::Command;
 
 /// Description of one of the 4 fork crates we publish as `lemurclaw-*`.
 struct ForkSpec {
-    /// Local directory name under `publish.forks/`.
+    /// Local directory name under `lemurclaw-rs.forks/`.
     dir: &'static str,
     /// Git URL.
     repo: &'static str,
@@ -85,7 +85,7 @@ const FORKS: &[ForkSpec] = &[
 ];
 
 fn forks_root(repo_root: &Path) -> PathBuf {
-    repo_root.join("publish.forks")
+    repo_root.join("lemurclaw-rs.forks")
 }
 
 fn locate_repo_root() -> Result<PathBuf> {
@@ -437,7 +437,7 @@ pub fn run_publish(dry_run: bool) -> Result<()> {
     );
 
     if !forks_dir.exists() {
-        anyhow::bail!("publish.forks/ missing — run `clone` then `prepare` first");
+        anyhow::bail!("lemurclaw-rs.forks/ missing — run `clone` then `prepare` first");
     }
 
     for fork in FORKS {
@@ -492,7 +492,7 @@ pub fn run_publish(dry_run: bool) -> Result<()> {
 /// `xtask publish fork rewire`
 pub fn run_rewire() -> Result<()> {
     let repo_root = locate_repo_root()?;
-    let publish_root = repo_root.join("publish");
+    let publish_root = repo_root.join("lemurclaw-rs");
     let manifest_path = publish_root.join("Cargo.toml");
     println!(
         "Phase 1.5 — fork rewire\n  target: {}\n",
@@ -500,30 +500,30 @@ pub fn run_rewire() -> Result<()> {
     );
 
     if !manifest_path.exists() {
-        anyhow::bail!("publish/Cargo.toml missing — run `xtask publish rename` first");
+        anyhow::bail!("lemurclaw-rs/Cargo.toml missing — run `xtask publish rename` first");
     }
 
     let raw = fs::read_to_string(&manifest_path)
         .with_context(|| format!("read {}", manifest_path.display()))?;
     let rewritten = crate::manifest::rewrite_publish_workspace_for_forks(&raw)?;
     if rewritten == raw {
-        println!("No changes — publish/Cargo.toml is already rewired.");
+        println!("No changes — lemurclaw-rs/Cargo.toml is already rewired.");
         return Ok(());
     }
     fs::write(&manifest_path, rewritten)
         .with_context(|| format!("write {}", manifest_path.display()))?;
-    println!("Rewrote publish/Cargo.toml:");
+    println!("Rewrote lemurclaw-rs/Cargo.toml:");
     println!("  - removed [patch.crates-io] and [patch.\"<url>\"] sections");
     println!("  - added `package = \"lemurclaw-X\"` aliases to 4 workspace deps");
 
-    println!("\nRunning `cargo check --workspace` in publish/ ...");
+    println!("\nRunning `cargo check --workspace` in lemurclaw-rs/ ...");
     let status = Command::new("cargo")
         .args(["check", "--workspace"])
         .current_dir(&publish_root)
         .status()
         .context("spawn cargo check")?;
     if status.success() {
-        println!("\n✓ publish/ workspace compiles with fork aliases.");
+        println!("\n✓ lemurclaw-rs/ workspace compiles with fork aliases.");
     } else {
         println!("\n✗ cargo check failed — inspect errors above.");
     }

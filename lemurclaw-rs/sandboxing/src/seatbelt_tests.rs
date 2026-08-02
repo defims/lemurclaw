@@ -255,7 +255,7 @@ fn explicit_unreadable_paths_are_excluded_from_full_disk_read_and_write_access()
         writable_definitions,
         vec![
             "-DWRITABLE_ROOT_0=/".to_string(),
-            "-DWRITABLE_ROOT_0_EXCLUDED_0=/.lemurclaw".to_string(),
+            "-DWRITABLE_ROOT_0_EXCLUDED_0=/.codex".to_string(),
             format!("-DWRITABLE_ROOT_0_EXCLUDED_1={}", unreadable_root.display()),
         ],
         "unexpected write carveout parameters in args: {args:#?}"
@@ -974,7 +974,7 @@ fn create_seatbelt_args_with_read_only_git_and_codex_subpaths() {
             "-DWRITABLE_ROOT_0_EXCLUDED_0={}",
             cwd.canonicalize()
                 .expect("canonicalize cwd")
-                .join(".lemurclaw")
+                .join(".codex")
                 .display()
         ),
         format!(
@@ -1138,7 +1138,7 @@ fn create_seatbelt_args_block_first_time_dot_codex_creation_with_metadata_name_r
         .output()
         .expect("git init .");
 
-    let dot_codex = repo_root.join(".lemurclaw");
+    let dot_codex = repo_root.join(".codex");
     let config_toml = dot_codex.join("config.toml");
     let policy = SandboxPolicy::WorkspaceWrite {
         writable_roots: vec![repo_root.as_path().try_into().expect("absolute repo root")],
@@ -1425,9 +1425,9 @@ fn populate_tmpdir(tmp: &Path) -> PopulatedTmp {
         .output()
         .expect("git init .");
 
-    fs::create_dir_all(vulnerable_root.join(".lemurclaw")).expect("create .lemurclaw");
+    fs::create_dir_all(vulnerable_root.join(".codex")).expect("create .codex");
     fs::write(
-        vulnerable_root.join(".lemurclaw").join("config.toml"),
+        vulnerable_root.join(".codex").join("config.toml"),
         "sandbox_mode = \"read-only\"\n",
     )
     .expect("write .codex/config.toml");
@@ -1441,7 +1441,7 @@ fn populate_tmpdir(tmp: &Path) -> PopulatedTmp {
         .expect("canonicalize vulnerable_root");
     let dot_git_canonical = vulnerable_root_canonical.join(".git");
     let dot_agents_canonical = vulnerable_root_canonical.join(".agents");
-    let dot_codex_canonical = vulnerable_root_canonical.join(".lemurclaw");
+    let dot_codex_canonical = vulnerable_root_canonical.join(".codex");
     let empty_root_canonical = empty_root.canonicalize().expect("canonicalize empty_root");
     PopulatedTmp {
         vulnerable_root,

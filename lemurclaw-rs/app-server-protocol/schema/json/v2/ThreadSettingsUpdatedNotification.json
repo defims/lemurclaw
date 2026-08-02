@@ -84,7 +84,7 @@
       ]
     },
     "CollaborationMode": {
-      "description": "Collaboration mode for a lemurclaw session.",
+      "description": "Collaboration mode for a Codex session.",
       "properties": {
         "mode": {
           "$ref": "#/definitions/ModeKind"

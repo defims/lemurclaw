@@ -381,7 +381,7 @@ hooks = false
 "#,
     )?;
     std::fs::create_dir_all(workspace.path().join(".git"))?;
-    std::fs::create_dir_all(workspace.path().join(".lemurclaw"))?;
+    std::fs::create_dir_all(workspace.path().join(".codex"))?;
     std::fs::write(
         workspace.path().join(".codex/config.toml"),
         r#"[features]
@@ -479,8 +479,8 @@ async fn hooks_list_uses_root_repo_hooks_for_linked_worktrees() -> Result<()> {
         worktree_root.join(".git"),
         format!("gitdir: {}\n", worktree_git_dir.display()),
     )?;
-    write_project_hook_config(&repo_root.join(".lemurclaw"), "echo root hook")?;
-    write_project_hook_config(&worktree_root.join(".lemurclaw"), "echo worktree hook")?;
+    write_project_hook_config(&repo_root.join(".codex"), "echo root hook")?;
+    write_project_hook_config(&worktree_root.join(".codex"), "echo worktree hook")?;
     set_project_trust_level(codex_home.path(), &repo_root, TrustLevel::Trusted)?;
 
     let mut mcp = TestAppServer::builder()

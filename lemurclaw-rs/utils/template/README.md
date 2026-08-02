@@ -1,4 +1,4 @@
-# lemurclaw-utils-template
+# codex-utils-template
 
 Small, strict string templating for prompt and text assets.
 
@@ -26,13 +26,13 @@ let template = Template::parse(
 )?;
 
 let rendered = template.render([
-    ("name", "lemurclaw"),
+    ("name", "Codex"),
     ("mode", "strict"),
 ])?;
 
 assert_eq!(
     rendered,
-    "Hello, lemurclaw.\nLiteral braces: {{ and }}.\nMode: strict"
+    "Hello, Codex.\nLiteral braces: {{ and }}.\nMode: strict"
 );
 
 let one_shot = render("Hi {{ who }}!", [("who", "there")])?;

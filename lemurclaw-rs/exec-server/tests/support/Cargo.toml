@@ -1,5 +1,5 @@
 [package]
-name = "lemurclaw-exec-server-test-support"
+name = "codex-exec-server-test-support"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,5 +13,5 @@ doctest = false
 workspace = true
 
 [dependencies]
-lemurclaw-exec-server = { workspace = true }
-lemurclaw-http-client = { workspace = true }
+codex-exec-server = { workspace = true }
+codex-http-client = { workspace = true }

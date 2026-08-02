@@ -26,7 +26,7 @@ use wiremock::matchers::path;
 
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(/*secs*/ 10);
 const RATE_LIMIT_RESET_REQUEST_TIMEOUT_ENV_VAR: &str =
-    "LEMURCLAW_TEST_RATE_LIMIT_RESET_REQUEST_TIMEOUT_MS";
+    "CODEX_TEST_RATE_LIMIT_RESET_REQUEST_TIMEOUT_MS";
 const SERVER_TIMEOUT_READ_TIMEOUT: std::time::Duration =
     std::time::Duration::from_secs(/*secs*/ 15);
 const INVALID_REQUEST_ERROR_CODE: i64 = -32600;

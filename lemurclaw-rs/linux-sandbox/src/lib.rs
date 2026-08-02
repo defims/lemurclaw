@@ -1,6 +1,6 @@
 //! Linux sandbox helper entry point.
 //!
-//! On Linux, `lemurclaw-linux-sandbox` applies:
+//! On Linux, `codex-linux-sandbox` applies:
 //! - in-process restrictions (`no_new_privs` + seccomp), and
 //! - bubblewrap for filesystem isolation.
 #[cfg(target_os = "linux")]
@@ -27,5 +27,5 @@ pub fn run_main() -> ! {
 
 #[cfg(not(target_os = "linux"))]
 pub fn run_main() -> ! {
-    panic!("lemurclaw-linux-sandbox is only supported on Linux");
+    panic!("codex-linux-sandbox is only supported on Linux");
 }

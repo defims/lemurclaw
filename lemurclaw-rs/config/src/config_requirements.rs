@@ -2306,7 +2306,7 @@ mod tests {
         )?;
 
         let source_location = RequirementSource::MdmManagedPreferences {
-            domain: "com.lemurclaw".to_string(),
+            domain: "com.codex".to_string(),
             key: "allowed_approval_policies".to_string(),
         };
 
@@ -2365,7 +2365,7 @@ mod tests {
             "#,
         )?;
         let source_location = RequirementSource::MdmManagedPreferences {
-            domain: "com.lemurclaw".to_string(),
+            domain: "com.codex".to_string(),
             key: "allowed_approval_policies".to_string(),
         };
         populated_target.merge_unset_fields(source_location, source);

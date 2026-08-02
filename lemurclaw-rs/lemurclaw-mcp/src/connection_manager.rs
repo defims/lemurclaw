@@ -304,7 +304,7 @@ impl McpConnectionSet {
                 }
                 McpServerTransportConfig::Stdio { env, .. } => match env
                     .as_ref()
-                    .and_then(|variables| variables.get("LEMURCLAW_MCP_PROTOCOL_VERSION"))
+                    .and_then(|variables| variables.get("CODEX_MCP_PROTOCOL_VERSION"))
                 {
                     None => Some(crate::McpProtocolMode::Legacy),
                     Some(version)

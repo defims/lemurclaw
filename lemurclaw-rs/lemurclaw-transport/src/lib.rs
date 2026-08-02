@@ -1,7 +1,9 @@
 //! lemurclaw 传输抽象:让 GUI(wry 进程内)和 WebUI(WebSocket)共用同一套协议逻辑。
 //! 此 crate 独立,不含 wry/tao——webui 模式只依赖它,不背 GUI 重依赖。
 
-use lemurclaw_app_server_protocol::{ClientRequest, ServerNotification, ServerRequest};
+use lemurclaw_app_server_protocol::ClientRequest;
+use lemurclaw_app_server_protocol::ServerNotification;
+use lemurclaw_app_server_protocol::ServerRequest;
 
 /// 从后端到达前端的事件(包装 codex 的三类消息)。
 #[derive(Debug, Clone)]
@@ -18,14 +20,12 @@ pub trait Transport: Send {
 
 /// JSON 编码任意协议消息(codex JSON-RPC 格式)。
 pub fn encode<T: serde::Serialize>(msg: &T) -> std::io::Result<String> {
-    serde_json::to_string(msg)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    serde_json::to_string(msg).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
 }
 
 /// JSON 解码任意协议消息。
 pub fn decode<'de, T: serde::Deserialize<'de>>(json: &'de str) -> std::io::Result<T> {
-    serde_json::from_str(json)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    serde_json::from_str(json).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
 }
 
 #[cfg(test)]

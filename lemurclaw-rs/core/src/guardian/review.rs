@@ -8,7 +8,7 @@ use lemurclaw_analytics::GuardianReviewedAction;
 use lemurclaw_core_plugins::PluginCommandAttribution;
 use lemurclaw_protocol::config_types::ApprovalsReviewer;
 use lemurclaw_protocol::protocol::AskForApproval;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::EventMsg;
 use lemurclaw_protocol::protocol::GuardianAssessmentDecisionSource;
 use lemurclaw_protocol::protocol::GuardianAssessmentEvent;
@@ -111,7 +111,7 @@ pub(super) enum GuardianReviewError {
     },
     Session {
         message: String,
-        error_info: Option<LemurclawErrorInfo>,
+        error_info: Option<CodexErrorInfo>,
     },
     Parse {
         message: String,
@@ -134,7 +134,7 @@ impl GuardianReviewError {
         }
     }
 
-    fn session_with_error_info(err: anyhow::Error, error_info: LemurclawErrorInfo) -> Self {
+    fn session_with_error_info(err: anyhow::Error, error_info: CodexErrorInfo) -> Self {
         Self::Session {
             message: err.to_string(),
             error_info: Some(error_info),
@@ -983,11 +983,11 @@ fn should_retry_guardian_review(outcome: &GuardianReviewOutcome) -> bool {
         GuardianReviewOutcome::Error(
             GuardianReviewError::Session {
                 error_info: Some(
-                    LemurclawErrorInfo::ServerOverloaded
-                        | LemurclawErrorInfo::HttpConnectionFailed { .. }
-                        | LemurclawErrorInfo::ResponseStreamConnectionFailed { .. }
-                        | LemurclawErrorInfo::InternalServerError
-                        | LemurclawErrorInfo::ResponseStreamDisconnected { .. }
+                    CodexErrorInfo::ServerOverloaded
+                        | CodexErrorInfo::HttpConnectionFailed { .. }
+                        | CodexErrorInfo::ResponseStreamConnectionFailed { .. }
+                        | CodexErrorInfo::InternalServerError
+                        | CodexErrorInfo::ResponseStreamDisconnected { .. }
                 ),
                 ..
             } | GuardianReviewError::Parse { .. }
@@ -1008,7 +1008,7 @@ mod review_tests {
             GuardianReviewError::session(anyhow::anyhow!("guardian runtime failed"));
         let structured_session_error = GuardianReviewError::session_with_error_info(
             anyhow::anyhow!("temporary guardian failure"),
-            LemurclawErrorInfo::ServerOverloaded,
+            CodexErrorInfo::ServerOverloaded,
         );
 
         assert!(matches!(
@@ -1038,15 +1038,15 @@ mod review_tests {
             rationale: "deny".to_string(),
         };
         let transient_error_info = [
-            LemurclawErrorInfo::ServerOverloaded,
-            LemurclawErrorInfo::HttpConnectionFailed {
+            CodexErrorInfo::ServerOverloaded,
+            CodexErrorInfo::HttpConnectionFailed {
                 http_status_code: Some(502),
             },
-            LemurclawErrorInfo::ResponseStreamConnectionFailed {
+            CodexErrorInfo::ResponseStreamConnectionFailed {
                 http_status_code: Some(503),
             },
-            LemurclawErrorInfo::InternalServerError,
-            LemurclawErrorInfo::ResponseStreamDisconnected {
+            CodexErrorInfo::InternalServerError,
+            CodexErrorInfo::ResponseStreamDisconnected {
                 http_status_code: None,
             },
         ];
@@ -1079,7 +1079,7 @@ mod review_tests {
             (
                 GuardianReviewOutcome::Error(GuardianReviewError::session_with_error_info(
                     anyhow::anyhow!("bad request"),
-                    LemurclawErrorInfo::BadRequest,
+                    CodexErrorInfo::BadRequest,
                 )),
                 false,
             ),

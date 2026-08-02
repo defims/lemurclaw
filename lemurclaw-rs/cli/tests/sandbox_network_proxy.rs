@@ -34,7 +34,7 @@ mode = "full"
 
     let url = format!("http://127.0.0.2:{port}/");
     let output = std::process::Command::new(lemurclaw_utils_cargo_bin::cargo_bin("codex")?)
-        .env("LEMURCLAW_HOME", codex_home.path())
+        .env("CODEX_HOME", codex_home.path())
         .args([
             "sandbox",
             "--permission-profile",
@@ -125,7 +125,7 @@ allow_local_binding = false
 
     let url = format!("http://127.0.0.2:{port}/");
     let output = std::process::Command::new(lemurclaw_utils_cargo_bin::cargo_bin("codex")?)
-        .env("LEMURCLAW_HOME", codex_home.path())
+        .env("CODEX_HOME", codex_home.path())
         .args([
             "sandbox",
             "--permission-profile",

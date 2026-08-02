@@ -22,7 +22,7 @@ impl WineExecServer {
     {
         let executable = lemurclaw_utils_cargo_bin::cargo_bin("wine-windows-exec-server")?;
         let mut exec_server = WineTestCommand::new(executable)
-            .env("LEMURCLAW_HOME", r"C:\codex-home")
+            .env("CODEX_HOME", r"C:\codex-home")
             .spawn()?;
         let wine_prefix = exec_server.prefix_path().to_path_buf();
         let stdout = exec_server.take_stdout();

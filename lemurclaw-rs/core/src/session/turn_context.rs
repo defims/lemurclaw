@@ -663,7 +663,7 @@ impl Session {
                     id: sub_id.clone(),
                     msg: EventMsg::Error(ErrorEvent {
                         message: message.clone(),
-                        codex_error_info: Some(LemurclawErrorInfo::BadRequest),
+                        codex_error_info: Some(CodexErrorInfo::BadRequest),
                     }),
                 })
                 .await;

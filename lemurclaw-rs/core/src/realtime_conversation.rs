@@ -37,7 +37,7 @@ use lemurclaw_protocol::auth::AuthMode;
 use lemurclaw_protocol::error::CodexErr;
 use lemurclaw_protocol::error::Result as CodexResult;
 use lemurclaw_protocol::models::MessagePhase;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::CodexResponseHandoffMode;
 use lemurclaw_protocol::protocol::ConversationAudioParams;
 use lemurclaw_protocol::protocol::ConversationSpeechParams;
@@ -1527,7 +1527,7 @@ pub(crate) async fn handle_audio(
         if sess.conversation.running_state().await.is_some() {
             warn!("realtime audio input failed while the session was already ending");
         } else {
-            send_conversation_error(sess, sub_id, err.to_string(), LemurclawErrorInfo::BadRequest)
+            send_conversation_error(sess, sub_id, err.to_string(), CodexErrorInfo::BadRequest)
                 .await;
         }
     }
@@ -1642,7 +1642,7 @@ pub(crate) async fn handle_text(
         if sess.conversation.running_state().await.is_some() {
             warn!("realtime text input failed while the session was already ending");
         } else {
-            send_conversation_error(sess, sub_id, err.to_string(), LemurclawErrorInfo::BadRequest)
+            send_conversation_error(sess, sub_id, err.to_string(), CodexErrorInfo::BadRequest)
                 .await;
         }
     }
@@ -1659,7 +1659,7 @@ pub(crate) async fn handle_speech(
         if sess.conversation.running_state().await.is_some() {
             warn!("realtime speech append failed while the session was already ending");
         } else {
-            send_conversation_error(sess, sub_id, err.to_string(), LemurclawErrorInfo::BadRequest)
+            send_conversation_error(sess, sub_id, err.to_string(), CodexErrorInfo::BadRequest)
                 .await;
         }
     }
@@ -2372,7 +2372,7 @@ async fn send_conversation_error(
     sess: &Arc<Session>,
     sub_id: String,
     message: String,
-    codex_error_info: LemurclawErrorInfo,
+    codex_error_info: CodexErrorInfo,
 ) {
     sess.send_event_raw(Event {
         id: sub_id,

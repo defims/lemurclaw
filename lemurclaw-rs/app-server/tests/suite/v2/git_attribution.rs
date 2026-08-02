@@ -129,7 +129,7 @@ async fn git_attribution_follows_authenticated_workspace_policy() -> Result<()> 
 
     let mut app_server = TestAppServer::builder()
         .with_codex_home(codex_home.path())
-        .with_env_overrides(&[("OPENAI_API_KEY", None), ("LEMURCLAW_ACCESS_TOKEN", None)])
+        .with_env_overrides(&[("OPENAI_API_KEY", None), ("CODEX_ACCESS_TOKEN", None)])
         .build()
         .await?;
     timeout(DEFAULT_READ_TIMEOUT, app_server.initialize()).await??;
@@ -257,7 +257,7 @@ async fn cold_resume_replaces_legacy_attribution_without_duplication() -> Result
 
     let mut app_server = TestAppServer::builder()
         .with_codex_home(codex_home.path())
-        .with_env_overrides(&[("OPENAI_API_KEY", None), ("LEMURCLAW_ACCESS_TOKEN", None)])
+        .with_env_overrides(&[("OPENAI_API_KEY", None), ("CODEX_ACCESS_TOKEN", None)])
         .without_auto_env()
         .build()
         .await?;
@@ -279,7 +279,7 @@ async fn cold_resume_replaces_legacy_attribution_without_duplication() -> Result
 
     let mut app_server = TestAppServer::builder()
         .with_codex_home(codex_home.path())
-        .with_env_overrides(&[("OPENAI_API_KEY", None), ("LEMURCLAW_ACCESS_TOKEN", None)])
+        .with_env_overrides(&[("OPENAI_API_KEY", None), ("CODEX_ACCESS_TOKEN", None)])
         .without_auto_env()
         .build()
         .await?;

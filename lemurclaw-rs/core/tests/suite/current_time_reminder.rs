@@ -18,7 +18,7 @@ use lemurclaw_features::Feature;
 use lemurclaw_model_provider_info::built_in_model_providers;
 use lemurclaw_protocol::ThreadId;
 use lemurclaw_protocol::models::PermissionProfile;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::EventMsg;
 use lemurclaw_protocol::protocol::Op;
 use lemurclaw_protocol::user_input::UserInput;
@@ -396,7 +396,7 @@ async fn time_provider_failure_stops_before_inference() -> Result<()> {
         error.message,
         "Fatal error: failed to read current time: test clock unavailable"
     );
-    assert_eq!(error.codex_error_info, Some(LemurclawErrorInfo::Other));
+    assert_eq!(error.codex_error_info, Some(CodexErrorInfo::Other));
 
     wait_for_event(&test.codex, |event| {
         matches!(event, EventMsg::TurnComplete(_))

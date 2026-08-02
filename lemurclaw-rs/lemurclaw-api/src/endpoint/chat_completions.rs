@@ -88,8 +88,9 @@ impl<T: HttpTransport> ChatCompletionsClient<T> {
         body: Value,
         options: ChatCompletionsOptions,
     ) -> Result<ResponseStream, ApiError> {
-        let encoded = EncodedJsonBody::encode(&body)
-            .map_err(|e| ApiError::Stream(format!("failed to encode chat completions request: {e}")))?;
+        let encoded = EncodedJsonBody::encode(&body).map_err(|e| {
+            ApiError::Stream(format!("failed to encode chat completions request: {e}"))
+        })?;
 
         let stream_response = self
             .session

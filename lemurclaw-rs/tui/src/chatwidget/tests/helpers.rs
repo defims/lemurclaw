@@ -417,7 +417,7 @@ pub(super) fn handle_token_count(chat: &mut ChatWidget, info: Option<TokenUsageI
 pub(super) fn handle_error(
     chat: &mut ChatWidget,
     message: impl Into<String>,
-    codex_error_info: Option<LemurclawErrorInfo>,
+    codex_error_info: Option<CodexErrorInfo>,
 ) {
     chat.handle_server_notification(
         ServerNotification::Error(ErrorNotification {

@@ -164,7 +164,7 @@ impl App {
             }
             AppEvent::ForkCurrentSession => {
                 self.session_telemetry.counter(
-                    "lemurclaw.thread.fork",
+                    "codex.thread.fork",
                     /*inc*/ 1,
                     &[("source", "slash_command")],
                 );
@@ -243,7 +243,7 @@ impl App {
                     return Ok(AppRunControl::Continue);
                 }
                 self.session_telemetry.counter(
-                    "lemurclaw.thread.fork",
+                    "codex.thread.fork",
                     /*inc*/ 1,
                     &[("source", "transcript")],
                 );
@@ -1226,14 +1226,14 @@ impl App {
                 profile_selection,
             } => {
                 self.session_telemetry.counter(
-                    "lemurclaw.windows_sandbox.fallback_prompt_shown",
+                    "codex.windows_sandbox.fallback_prompt_shown",
                     /*inc*/ 1,
                     &[],
                 );
                 self.chat_widget.clear_windows_sandbox_setup_status();
                 if let Some(started_at) = self.windows_sandbox.setup_started_at.take() {
                     self.session_telemetry.record_duration(
-                        "lemurclaw.windows_sandbox.elevated_setup_duration_ms",
+                        "codex.windows_sandbox.elevated_setup_duration_ms",
                         started_at.elapsed(),
                         &[("result", "failure")],
                     );
@@ -1309,7 +1309,7 @@ impl App {
                         let event = match result {
                             Ok(()) => {
                                 session_telemetry.counter(
-                                    "lemurclaw.windows_sandbox.elevated_setup_success",
+                                    "codex.windows_sandbox.elevated_setup_success",
                                     /*inc*/ 1,
                                     &[],
                                 );
@@ -1416,7 +1416,7 @@ impl App {
                             )
                         {
                             session_telemetry.counter(
-                                "lemurclaw.windows_sandbox.legacy_setup_preflight_failed",
+                                "codex.windows_sandbox.legacy_setup_preflight_failed",
                                 /*inc*/ 1,
                                 &[],
                             );
@@ -1504,7 +1504,7 @@ impl App {
                     self.chat_widget.clear_windows_sandbox_setup_status();
                     if let Some(started_at) = self.windows_sandbox.setup_started_at.take() {
                         self.session_telemetry.record_duration(
-                            "lemurclaw.windows_sandbox.elevated_setup_duration_ms",
+                            "codex.windows_sandbox.elevated_setup_duration_ms",
                             started_at.elapsed(),
                             &[("result", "success")],
                         );

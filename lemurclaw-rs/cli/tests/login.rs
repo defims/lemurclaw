@@ -24,7 +24,7 @@ use wiremock::matchers::path;
 
 fn codex_command(codex_home: &Path) -> Result<assert_cmd::Command> {
     let mut cmd = assert_cmd::Command::new(lemurclaw_utils_cargo_bin::cargo_bin("codex")?);
-    cmd.env("LEMURCLAW_HOME", codex_home);
+    cmd.env("CODEX_HOME", codex_home);
     Ok(cmd)
 }
 
@@ -115,7 +115,7 @@ async fn debug_prompt_input_follows_authenticated_attribution_setting() -> Resul
         let output = codex_command(codex_home.path())?
             .env("NO_PROXY", "127.0.0.1,localhost")
             .env("no_proxy", "127.0.0.1,localhost")
-            .env_remove("LEMURCLAW_ACCESS_TOKEN")
+            .env_remove("CODEX_ACCESS_TOKEN")
             .env_remove("OPENAI_API_KEY")
             .args(["debug", "prompt-input"])
             .output()?;
@@ -195,7 +195,7 @@ async fn device_login_revokes_existing_auth_before_requesting_new_tokens() -> Re
     )
     .env("NO_PROXY", "127.0.0.1,localhost")
     .env("no_proxy", "127.0.0.1,localhost")
-    .env_remove("LEMURCLAW_ACCESS_TOKEN")
+    .env_remove("CODEX_ACCESS_TOKEN")
     .env_remove("OPENAI_API_KEY")
     .args(["login", "--device-auth", "--experimental_issuer", &issuer])
     .assert()

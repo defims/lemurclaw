@@ -180,7 +180,7 @@ fn extract_shell_script_supports_wrapped_command_prefixes() {
     assert_eq!(
         extract_shell_script(&[
             "/usr/bin/env".into(),
-            "LEMURCLAW_EXECVE_WRAPPER=1".into(),
+            "CODEX_EXECVE_WRAPPER=1".into(),
             "/bin/zsh".into(),
             "-lc".into(),
             "echo hello".into()

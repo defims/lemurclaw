@@ -48,7 +48,7 @@ async fn app_server_cyber_policy_error_renders_dedicated_notice() {
     handle_error(
         &mut chat,
         "server fallback message",
-        Some(LemurclawErrorInfo::CyberPolicy),
+        Some(CodexErrorInfo::CyberPolicy),
     );
 
     let cells = drain_insert_history(&mut rx);

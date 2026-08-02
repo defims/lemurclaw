@@ -428,7 +428,7 @@ mod tests {
 
     #[tokio::test]
     async fn localhost_probe_succeeds_with_invalid_inherited_ca_bundle() {
-        const CHILD_ENV: &str = "LEMURCLAW_OSS_SELECTION_INVALID_CA_TEST_CHILD";
+        const CHILD_ENV: &str = "CODEX_OSS_SELECTION_INVALID_CA_TEST_CHILD";
 
         if std::env::var_os(CHILD_ENV).is_none() {
             let temp_dir = tempfile::tempdir().expect("temporary directory should be created");
@@ -436,14 +436,14 @@ mod tests {
             std::fs::write(&invalid_ca_path, "not a PEM certificate")
                 .expect("invalid CA fixture should be written");
 
-            for ca_env in ["LEMURCLAW_CA_CERTIFICATE", "SSL_CERT_FILE"] {
+            for ca_env in ["CODEX_CA_CERTIFICATE", "SSL_CERT_FILE"] {
                 let output = std::process::Command::new(
                     std::env::current_exe().expect("test executable should be available"),
                 )
                 .arg("--exact")
                 .arg("oss_selection::tests::localhost_probe_succeeds_with_invalid_inherited_ca_bundle")
                 .arg("--nocapture")
-                .env_remove("LEMURCLAW_CA_CERTIFICATE")
+                .env_remove("CODEX_CA_CERTIFICATE")
                 .env_remove("SSL_CERT_FILE")
                 .env(ca_env, &invalid_ca_path)
                 .env(CHILD_ENV, "1")

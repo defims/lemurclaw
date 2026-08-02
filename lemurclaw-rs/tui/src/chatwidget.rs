@@ -81,7 +81,7 @@ use crate::version::CODEX_CLI_VERSION;
 use lemurclaw_app_server_protocol::AddCreditsNudgeCreditType;
 use lemurclaw_app_server_protocol::AddCreditsNudgeEmailStatus;
 use lemurclaw_app_server_protocol::AppSummary;
-use lemurclaw_app_server_protocol::LemurclawErrorInfo as AppServerLemurclawErrorInfo;
+use lemurclaw_app_server_protocol::CodexErrorInfo as AppServerCodexErrorInfo;
 use lemurclaw_app_server_protocol::CollabAgentTool;
 use lemurclaw_app_server_protocol::CollabAgentToolCallStatus;
 use lemurclaw_app_server_protocol::CommandExecutionRequestApprovalParams;

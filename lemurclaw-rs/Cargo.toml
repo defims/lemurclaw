@@ -2,10 +2,6 @@
 resolver = "2"
 
 members = [
-    "lemurclaw-transport",
-    "lemurclaw-webui",
-    "lemurclaw",
-    "lemurclaw-gui",
     "aws-auth",
     "analytics",
     "agent-graph-store",
@@ -26,7 +22,6 @@ members = [
     "install-context",
     "lemurclaw-backend-openapi-models",
     "code-mode",
-    "code-mode-host",
     "code-mode-protocol",
     "lemurclaw-home",
     "cloud-config",
@@ -93,7 +88,6 @@ members = [
     "otel",
     "tui",
     "tools",
-    "v8-poc",
     "websocket-client",
     "utils/absolute-path",
     "utils/path-uri",
@@ -128,6 +122,10 @@ members = [
     "lemurclaw-experimental-api-macros",
     "plugin",
     "model-provider",
+    "lemurclaw",
+    "lemurclaw-gui",
+    "lemurclaw-webui",
+    "lemurclaw-transport",
 ]
 
 [workspace.package]
@@ -317,7 +315,6 @@ lemurclaw-utils-sleep-inhibitor = { path = "utils/sleep-inhibitor", version = "0
 lemurclaw-utils-stream-parser = { path = "utils/stream-parser", version = "0.0.0" }
 lemurclaw-utils-string = { path = "utils/string", version = "0.0.0" }
 lemurclaw-utils-template = { path = "utils/template", version = "0.0.0" }
-lemurclaw-v8-poc = { path = "v8-poc", version = "0.0.0" }
 lemurclaw-web-search-extension = { path = "ext/web-search", version = "0.0.0" }
 lemurclaw-websocket-client = { path = "websocket-client", version = "0.0.0" }
 lemurclaw-windows-sandbox = { path = "windows-sandbox-rs", version = "0.0.0" }
@@ -327,7 +324,6 @@ crossbeam-channel = "0.5.15"
 crossterm = "0.29.0"
 crypto_box = { features = ["seal"], version = "0.9.1" }
 ctor = "0.6.3"
-deno_core_icudata = "0.77.0"
 derive_more = "2"
 diffy = "0.4.2"
 dirs = "6"
@@ -363,9 +359,6 @@ jsonwebtoken = "9.3.1"
 keyring = { default-features = false, version = "3.6" }
 landlock = "0.4.4"
 lazy_static = "1"
-lemurclaw-gui = { path = "lemurclaw-gui", version = "0.0.0" }
-lemurclaw-transport = { path = "lemurclaw-transport", version = "0.0.0" }
-lemurclaw-webui = { path = "lemurclaw-webui", version = "0.0.0" }
 libc = "0.2.182"
 libsqlite3-sys = { default-features = false, version = "0.37" }
 log = "0.4"
@@ -462,7 +455,6 @@ unicode-width = "0.2"
 url = "2"
 urlencoding = "2.1"
 uuid = "1"
-v8 = "=150.4.0"
 vt100 = "0.16.2"
 walkdir = "2.5.0"
 webbrowser = "1.0"
@@ -475,6 +467,9 @@ wry = "0.54"
 zeroize = "1.8.2"
 zip = "2.4.2"
 zstd = "0.13"
+lemurclaw-gui = { path = "lemurclaw-gui", version = "0.0.0" }
+lemurclaw-transport = { path = "lemurclaw-transport", version = "0.0.0" }
+lemurclaw-webui = { path = "lemurclaw-webui", version = "0.0.0" }
 
 [profile.ci-test]
 debug = "limited"

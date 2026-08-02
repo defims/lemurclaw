@@ -2926,7 +2926,7 @@ fn reusable_server_config(url: &str) -> McpServerConfig {
         auth: Default::default(),
         transport: McpServerTransportConfig::StreamableHttp {
             url: url.to_string(),
-            bearer_token_env_var: Some("LEMURCLAW_MCP_REUSE_TEST_TOKEN".to_string()),
+            bearer_token_env_var: Some("CODEX_MCP_REUSE_TEST_TOKEN".to_string()),
             http_headers: None,
             env_http_headers: None,
         },
@@ -3199,7 +3199,7 @@ async fn reconciliation_reuses_legacy_stdio_server_with_existing_protocol_marker
         command: "legacy-server".to_string(),
         args: Vec::new(),
         env: Some(HashMap::from([(
-            "LEMURCLAW_MCP_PROTOCOL_VERSION".to_string(),
+            "CODEX_MCP_PROTOCOL_VERSION".to_string(),
             "1999-01-01".to_string(),
         )])),
         env_vars: Vec::new(),

@@ -908,7 +908,7 @@ mod tests {
 
     #[tokio::test]
     async fn git_metadata_commands_do_not_inherit_stdin() {
-        const CHILD_ENV: &str = "LEMURCLAW_GIT_UTILS_STDIN_CHILD";
+        const CHILD_ENV: &str = "CODEX_GIT_UTILS_STDIN_CHILD";
 
         if std::env::var_os(CHILD_ENV).is_some() {
             let temp_dir = tempfile::tempdir().expect("create temp dir");

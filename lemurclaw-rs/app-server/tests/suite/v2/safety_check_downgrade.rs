@@ -2,7 +2,7 @@ use anyhow::Result;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
 use lemurclaw_app_server_protocol::ClientRequest;
-use lemurclaw_app_server_protocol::LemurclawErrorInfo;
+use lemurclaw_app_server_protocol::CodexErrorInfo;
 use lemurclaw_app_server_protocol::ErrorNotification;
 use lemurclaw_app_server_protocol::ItemCompletedNotification;
 use lemurclaw_app_server_protocol::ItemStartedNotification;
@@ -138,7 +138,7 @@ async fn cyber_policy_response_emits_typed_error_notification_v2() -> Result<()>
         ErrorNotification {
             error: lemurclaw_app_server_protocol::TurnError {
                 message: CYBER_POLICY_MESSAGE.to_string(),
-                codex_error_info: Some(LemurclawErrorInfo::CyberPolicy),
+                codex_error_info: Some(CodexErrorInfo::CyberPolicy),
                 additional_details: None,
             },
             will_retry: false,
@@ -450,7 +450,7 @@ async fn collect_cyber_policy_error_and_validate_no_reroute(
                     .params
                     .ok_or_else(|| anyhow::anyhow!("error notifications must include params"))?;
                 let payload: ErrorNotification = serde_json::from_value(params)?;
-                if payload.error.codex_error_info == Some(LemurclawErrorInfo::CyberPolicy) {
+                if payload.error.codex_error_info == Some(CodexErrorInfo::CyberPolicy) {
                     error = Some(payload);
                 }
             }

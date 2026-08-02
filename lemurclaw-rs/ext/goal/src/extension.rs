@@ -26,7 +26,7 @@ use lemurclaw_extension_api::TurnStartInput;
 use lemurclaw_extension_api::TurnStopInput;
 use lemurclaw_otel::MetricsClient;
 use lemurclaw_protocol::ThreadId;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::SessionSource;
 use lemurclaw_protocol::protocol::SubAgentSource;
 use lemurclaw_protocol::protocol::ThreadGoalStatus;
@@ -312,7 +312,7 @@ where
             };
 
             let reason = match input.error {
-                LemurclawErrorInfo::UsageLimitExceeded => ActiveGoalStopReason::UsageLimit,
+                CodexErrorInfo::UsageLimitExceeded => ActiveGoalStopReason::UsageLimit,
                 // The turn has ended because the error was non-retryable or its
                 // retries were exhausted. Block the goal to prevent automatic
                 // continuation from looping and consuming tokens, as can happen

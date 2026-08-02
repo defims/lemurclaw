@@ -569,10 +569,10 @@ mod tests {
     #[test]
     fn supports_grep_recursive_current_dir() {
         assert_parsed(
-            &vec_str(&["grep", "-R", "LEMURCLAW_SANDBOX_ENV_VAR", "-n", "."]),
+            &vec_str(&["grep", "-R", "CODEX_SANDBOX_ENV_VAR", "-n", "."]),
             vec![ParsedCommand::Search {
                 cmd: "grep -R CODEX_SANDBOX_ENV_VAR -n .".to_string(),
-                query: Some("LEMURCLAW_SANDBOX_ENV_VAR".to_string()),
+                query: Some("CODEX_SANDBOX_ENV_VAR".to_string()),
                 path: Some(".".to_string()),
             }],
         );
@@ -584,13 +584,13 @@ mod tests {
             &vec_str(&[
                 "grep",
                 "-R",
-                "LEMURCLAW_SANDBOX_ENV_VAR",
+                "CODEX_SANDBOX_ENV_VAR",
                 "-n",
                 "core/src/spawn.rs",
             ]),
             vec![ParsedCommand::Search {
                 cmd: "grep -R CODEX_SANDBOX_ENV_VAR -n core/src/spawn.rs".to_string(),
-                query: Some("LEMURCLAW_SANDBOX_ENV_VAR".to_string()),
+                query: Some("CODEX_SANDBOX_ENV_VAR".to_string()),
                 path: Some("spawn.rs".to_string()),
             }],
         );

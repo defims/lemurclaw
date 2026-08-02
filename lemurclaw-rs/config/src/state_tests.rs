@@ -113,7 +113,7 @@ exclude = ["LEGACY_*"]
 fn disabled_layers_do_not_validate_shell_environment_policy() {
     let layer = ConfigLayerEntry::new_disabled(
         ConfigLayerSource::Project {
-            dot_codex_folder: AbsolutePathBuf::from_absolute_path("/untrusted/.lemurclaw")
+            dot_codex_folder: AbsolutePathBuf::from_absolute_path("/untrusted/.codex")
                 .expect("project path should be absolute"),
         },
         toml::from_str(

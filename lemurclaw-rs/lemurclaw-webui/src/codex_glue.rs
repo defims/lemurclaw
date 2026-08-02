@@ -20,7 +20,6 @@ use std::sync::Arc;
 use lemurclaw_app_server_client::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
 use lemurclaw_app_server_client::EnvironmentManager;
 use lemurclaw_app_server_client::InProcessAppServerClient;
-use lemurclaw_app_server_client::InProcessAppServerRequestHandle;
 use lemurclaw_app_server_client::InProcessClientStartArgs;
 use lemurclaw_app_server_client::InProcessServerEvent;
 use lemurclaw_app_server_client::legacy_core::config::ConfigBuilder;
@@ -52,8 +51,13 @@ pub type RequestResult = Result<JsonRpcResult, JSONRPCErrorError>;
 /// (does not spawn anything itself). Pulls the RequestId / JSONRPCErrorError
 /// types from the protocol crate; falls back to a safe null/error payload on
 /// malformed input so a bad JS envelope never kills the worker.
+///
+/// Takes the full `InProcessAppServerClient` (not just the request handle)
+/// because `resolve_server_request` / `reject_server_request` are methods on
+/// the client, not on the handle — the upstream `InProcessAppServerRequestHandle`
+/// does not expose them.
 pub async fn respond_to_server_request(
-    handle: &InProcessAppServerRequestHandle,
+    client: &InProcessAppServerClient,
     request_id: serde_json::Value,
     payload: serde_json::Value,
     kind: ResolveKind,
@@ -73,7 +77,7 @@ pub async fn respond_to_server_request(
             // the resolve, so a bad JS body never hangs an approval flow.
             let json_result: JsonRpcResult =
                 serde_json::from_value(payload).unwrap_or(serde_json::Value::Null);
-            handle.resolve_server_request(req_id, json_result).await
+            client.resolve_server_request(req_id, json_result).await
         }
         ResolveKind::Reject => {
             let err: JSONRPCErrorError =
@@ -82,7 +86,7 @@ pub async fn respond_to_server_request(
                     message: format!("malformed reject payload: {e}"),
                     data: None,
                 });
-            handle.reject_server_request(req_id, err).await
+            client.reject_server_request(req_id, err).await
         }
     };
     if let Err(e) = result {

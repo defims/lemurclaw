@@ -70,7 +70,7 @@ fn codex_new_thread_url(workspace: &str) -> String {
     let mut serializer = url::form_urlencoded::Serializer::new(String::new());
     serializer.append_pair("path", workspace);
     let query = serializer.finish();
-    format!("lemurclaw://threads/new?{query}")
+    format!("codex://threads/new?{query}")
 }
 
 fn display_workspace_path(workspace: &Path) -> String {
@@ -119,7 +119,7 @@ mod tests {
     fn codex_new_thread_url_encodes_windows_workspace_path() {
         assert_eq!(
             codex_new_thread_url(r"C:\Users\akuma\repos\koba"),
-            r"lemurclaw://threads/new?path=C%3A%5CUsers%5Cakuma%5Crepos%5Ckoba"
+            r"codex://threads/new?path=C%3A%5CUsers%5Cakuma%5Crepos%5Ckoba"
         );
     }
 
@@ -127,7 +127,7 @@ mod tests {
     fn codex_new_thread_url_preserves_verbatim_workspace_path() {
         assert_eq!(
             codex_new_thread_url(r"\\?\C:\Users\akuma\repos\koba"),
-            r"lemurclaw://threads/new?path=%5C%5C%3F%5CC%3A%5CUsers%5Cakuma%5Crepos%5Ckoba"
+            r"codex://threads/new?path=%5C%5C%3F%5CC%3A%5CUsers%5Cakuma%5Crepos%5Ckoba"
         );
     }
 }

@@ -20,7 +20,7 @@ use tempfile::TempDir;
 const APPLY_PATCH_ARG0: &str = "apply_patch";
 const MISSPELLED_APPLY_PATCH_ARG0: &str = "applypatch";
 #[cfg(unix)]
-const EXECVE_WRAPPER_ARG0: &str = "lemurclaw-execve-wrapper";
+const EXECVE_WRAPPER_ARG0: &str = "codex-execve-wrapper";
 const LOCK_FILENAME: &str = ".lock";
 const TOKIO_WORKER_STACK_SIZE_BYTES: usize = 16 * 1024 * 1024;
 
@@ -194,14 +194,14 @@ fn prepare_path_env_var_with_aliases(
 /// Linux (but not Windows).
 ///
 /// When the current executable is invoked through the hard-link or alias named
-/// `lemurclaw-linux-sandbox` we *directly* execute
+/// `codex-linux-sandbox` we *directly* execute
 /// [`lemurclaw_linux_sandbox::run_main`] (which never returns). Otherwise we:
 ///
-/// 1.  Load `.env` values from `~/.lemurclaw/.env` before creating any threads.
+/// 1.  Load `.env` values from `~/.codex/.env` before creating any threads.
 /// 2.  Spawn a main runtime thread with a controlled stack size.
 /// 3.  Construct a Tokio multi-thread runtime.
 /// 4.  Capture the current executable path and derive the
-///     `lemurclaw-linux-sandbox` helper path (falling back to the current
+///     `codex-linux-sandbox` helper path (falling back to the current
 ///     executable if needed) so children can re-invoke the sandbox when running
 ///     on Linux.
 /// 5.  Execute the provided async `main_fn` inside that runtime, forwarding any
@@ -274,7 +274,7 @@ fn linux_sandbox_exe_path(
     path_entry_guard: Option<&Arg0PathEntryGuard>,
     current_exe: Option<PathBuf>,
 ) -> Option<PathBuf> {
-    // Prefer the `lemurclaw-linux-sandbox` alias when available so callers can
+    // Prefer the `codex-linux-sandbox` alias when available so callers can
     // re-exec through a path whose basename still triggers arg0 dispatch on
     // bubblewrap builds that do not support `--argv0`.
     path_entry_guard
@@ -289,9 +289,9 @@ fn build_runtime() -> anyhow::Result<tokio::runtime::Runtime> {
     Ok(builder.build()?)
 }
 
-const ILLEGAL_ENV_VAR_PREFIX: &str = "LEMURCLAW_";
+const ILLEGAL_ENV_VAR_PREFIX: &str = "CODEX_";
 
-/// Load env vars from ~/.lemurclaw/.env.
+/// Load env vars from ~/.codex/.env.
 ///
 /// Security: Do not allow `.env` files to create or modify any variables
 /// with names starting with `CODEX_`.
@@ -321,7 +321,7 @@ where
 ///
 /// - UNIX: `apply_patch` symlink to the current executable
 /// - WINDOWS: `apply_patch.bat` batch script to invoke the current executable
-///   with the hidden `--lemurclaw-run-as-apply-patch` flag.
+///   with the hidden `--codex-run-as-apply-patch` flag.
 ///
 /// Returns the temporary directory guard and the PATH value that prepends the
 /// temporary directory so `apply_patch` can be on the PATH without requiring the
@@ -592,7 +592,7 @@ mod tests {
     fn linux_sandbox_exe_path_prefers_codex_linux_sandbox_alias() -> std::io::Result<()> {
         let temp_dir = TempDir::new()?;
         let lock_file = create_lock(temp_dir.path())?;
-        let alias_path = temp_dir.path().join("lemurclaw-linux-sandbox");
+        let alias_path = temp_dir.path().join("codex-linux-sandbox");
         let path_entry = Arg0PathEntryGuard::new(
             temp_dir,
             lock_file,

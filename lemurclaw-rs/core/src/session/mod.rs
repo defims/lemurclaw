@@ -264,11 +264,11 @@ impl SteerInputError {
         match self {
             Self::NoActiveTurn(_) => ErrorEvent {
                 message: "no active turn to steer".to_string(),
-                codex_error_info: Some(LemurclawErrorInfo::BadRequest),
+                codex_error_info: Some(CodexErrorInfo::BadRequest),
             },
             Self::ExpectedTurnMismatch { expected, actual } => ErrorEvent {
                 message: format!("expected active turn id `{expected}` but found `{actual}`"),
-                codex_error_info: Some(LemurclawErrorInfo::BadRequest),
+                codex_error_info: Some(CodexErrorInfo::BadRequest),
             },
             Self::ActiveTurnNotSteerable { turn_kind } => {
                 let turn_kind_label = match turn_kind {
@@ -277,14 +277,14 @@ impl SteerInputError {
                 };
                 ErrorEvent {
                     message: format!("cannot steer a {turn_kind_label} turn"),
-                    codex_error_info: Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
+                    codex_error_info: Some(CodexErrorInfo::ActiveTurnNotSteerable {
                         turn_kind: *turn_kind,
                     }),
                 }
             }
             Self::EmptyInput => ErrorEvent {
                 message: "input must not be empty".to_string(),
-                codex_error_info: Some(LemurclawErrorInfo::BadRequest),
+                codex_error_info: Some(CodexErrorInfo::BadRequest),
             },
         }
     }
@@ -357,7 +357,7 @@ use lemurclaw_protocol::models::ResponseItem;
 use lemurclaw_protocol::openai_models::ReasoningEffort as ReasoningEffortConfig;
 use lemurclaw_protocol::protocol::ApplyPatchApprovalRequestEvent;
 use lemurclaw_protocol::protocol::AskForApproval;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::CompactedItem;
 use lemurclaw_protocol::protocol::DeprecationNoticeEvent;
 use lemurclaw_protocol::protocol::ErrorEvent;
@@ -1836,7 +1836,7 @@ impl Session {
             && error
                 .codex_error_info
                 .as_ref()
-                .is_some_and(LemurclawErrorInfo::affects_turn_status)
+                .is_some_and(CodexErrorInfo::affects_turn_status)
         {
             turn_context
                 .terminal_error
@@ -3938,7 +3938,7 @@ impl Session {
         codex_error: CodexErr,
     ) {
         let additional_details = codex_error.to_string();
-        let codex_error_info = LemurclawErrorInfo::ResponseStreamDisconnected {
+        let codex_error_info = CodexErrorInfo::ResponseStreamDisconnected {
             http_status_code: codex_error.http_status_code_value(),
         };
         let event = EventMsg::StreamError(StreamErrorEvent {

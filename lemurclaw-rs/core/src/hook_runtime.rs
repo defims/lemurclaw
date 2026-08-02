@@ -25,7 +25,7 @@ use lemurclaw_protocol::items::TurnItem;
 use lemurclaw_protocol::items::UserMessageItem;
 use lemurclaw_protocol::models::ResponseItem;
 use lemurclaw_protocol::protocol::AskForApproval;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo;
 use lemurclaw_protocol::protocol::EventMsg;
 use lemurclaw_protocol::protocol::HookCompletedEvent;
 use lemurclaw_protocol::protocol::HookEventName;
@@ -523,7 +523,7 @@ pub(crate) async fn run_legacy_after_agent_hook(
     };
     let event = EventMsg::Error(lemurclaw_protocol::protocol::ErrorEvent {
         message,
-        codex_error_info: Some(LemurclawErrorInfo::Other),
+        codex_error_info: Some(CodexErrorInfo::Other),
     });
     sess.send_event(turn_context, event).await;
     true

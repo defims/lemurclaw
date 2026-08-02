@@ -40,9 +40,9 @@ use super::assert_relay_data_is_encrypted;
 use super::proxy_relay_frames;
 use super::registered_executor_public_key;
 
-const RELEASED_CODEX_ENV_VAR: &str = "LEMURCLAW_TEST_RELEASED_CODEX";
-const CURRENT_CODEX_ENV_VAR: &str = "LEMURCLAW_TEST_CURRENT_CODEX";
-const EXECUTOR_MARKER_ENV_VAR: &str = "LEMURCLAW_EXECUTOR_VERSION_SKEW_MARKER";
+const RELEASED_CODEX_ENV_VAR: &str = "CODEX_TEST_RELEASED_CODEX";
+const CURRENT_CODEX_ENV_VAR: &str = "CODEX_TEST_CURRENT_CODEX";
+const EXECUTOR_MARKER_ENV_VAR: &str = "CODEX_EXECUTOR_VERSION_SKEW_MARKER";
 const VERSION_SKEW_TIMEOUT: Duration = Duration::from_secs(30);
 const EXPECTED_OUTPUT: &str = "executor-version-skew-ok";
 
@@ -143,8 +143,8 @@ stream_max_retries = 0
             ENVIRONMENT_ID,
         ])
         .current_dir(codex_home.path())
-        .env("LEMURCLAW_HOME", codex_home.path())
-        .env("LEMURCLAW_API_KEY", REGISTRY_TOKEN)
+        .env("CODEX_HOME", codex_home.path())
+        .env("CODEX_API_KEY", REGISTRY_TOKEN)
         .env(EXECUTOR_MARKER_ENV_VAR, EXPECTED_OUTPUT)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -185,10 +185,10 @@ stream_max_retries = 0
     let mut app_server = Command::new(app_binary)
         .arg("app-server")
         .current_dir(codex_home.path())
-        .env("LEMURCLAW_HOME", codex_home.path())
-        .env("LEMURCLAW_API_KEY", REGISTRY_TOKEN)
+        .env("CODEX_HOME", codex_home.path())
+        .env("CODEX_API_KEY", REGISTRY_TOKEN)
         .env(
-            "LEMURCLAW_APP_SERVER_MANAGED_CONFIG_PATH",
+            "CODEX_APP_SERVER_MANAGED_CONFIG_PATH",
             codex_home.path().join("managed_config.toml"),
         )
         .env(CODEX_EXEC_SERVER_NOISE_REGISTRY_URL_ENV_VAR, &registry_url)

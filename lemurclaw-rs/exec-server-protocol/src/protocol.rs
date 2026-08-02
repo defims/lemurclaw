@@ -177,7 +177,7 @@ pub struct ExecParams {
     /// Keep non-tty stdin writable through `process/write`.
     #[serde(default)]
     pub pipe_stdin: bool,
-    /// Optional process-visible argv0 override. Values such as `lemurclaw-linux-sandbox` are command
+    /// Optional process-visible argv0 override. Values such as `codex-linux-sandbox` are command
     /// names rather than paths, so this is not a [`PathUri`].
     pub arg0: Option<String>,
     /// Portable sandbox intent. Concrete wrapper argv is resolved by the exec-server.
@@ -895,7 +895,7 @@ mod tests {
                 FileSystemSandboxEntry::skip_missing_path(
                     FileSystemPath::Special {
                         value: FileSystemSpecialPath::ProjectRoots {
-                            subpath: Some(".lemurclaw".into()),
+                            subpath: Some(".codex".into()),
                         },
                     },
                     FileSystemAccessMode::Read,

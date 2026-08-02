@@ -2915,7 +2915,7 @@ async fn compact_queues_user_messages_snapshot() {
     handle_error(
         &mut chat,
         "cannot steer a compact turn",
-        Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
+        Some(CodexErrorInfo::ActiveTurnNotSteerable {
             turn_kind: NonSteerableTurnKind::Compact,
         }),
     );

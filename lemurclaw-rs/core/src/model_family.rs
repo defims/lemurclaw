@@ -3,13 +3,13 @@ use lemurclaw_protocol::config_types::Personality;
 // `resolve_context_mode_limits`. codex-rs does not carry `ContextMode`, so the
 // import (and that helper) are intentionally omitted — see the note near the
 // bottom of this file.
-use lemurclaw_protocol::openai_models::ReasoningEffort;
 use lemurclaw_protocol::config_types::ReasoningSummary;
 use lemurclaw_protocol::openai_models::ApplyPatchToolType;
 use lemurclaw_protocol::openai_models::ConfigShellToolType;
 use lemurclaw_protocol::openai_models::InputModality;
 use lemurclaw_protocol::openai_models::ModelInfo;
 use lemurclaw_protocol::openai_models::ModelsResponse;
+use lemurclaw_protocol::openai_models::ReasoningEffort;
 use lemurclaw_protocol::openai_models::TruncationMode;
 use lemurclaw_protocol::openai_models::WebSearchToolType;
 use lemurclaw_protocol::protocol::TruncationPolicy;
@@ -39,9 +39,11 @@ const CONTEXT_WINDOW_1M: u64 = 1_047_576;
 const MAX_OUTPUT_DEFAULT: u64 = 128_000;
 
 static UPSTREAM_MODELS: Lazy<Vec<ModelInfo>> = Lazy::new(|| {
-    serde_json::from_str::<ModelsResponse>(include_str!("../../../codex-rs/models-manager/models.json"))
-        .map(|response| response.models)
-        .unwrap_or_else(|err| panic!("failed to parse upstream models.json: {err}"))
+    serde_json::from_str::<ModelsResponse>(include_str!(
+        "../../../codex-rs/models-manager/models.json"
+    ))
+    .map(|response| response.models)
+    .unwrap_or_else(|err| panic!("failed to parse upstream models.json: {err}"))
 });
 
 fn namespaced_model_suffix(model: &str) -> Option<&str> {
@@ -208,7 +210,10 @@ fn apply_upstream_model_overrides(mut family: ModelFamily) -> ModelFamily {
         .strip_prefix("openai/")
         .or_else(|| namespaced_model_suffix(&family.slug))
         .unwrap_or(&family.slug);
-    let Some(model_info) = UPSTREAM_MODELS.iter().find(|model| model.slug == model_slug) else {
+    let Some(model_info) = UPSTREAM_MODELS
+        .iter()
+        .find(|model| model.slug == model_slug)
+    else {
         return family;
     };
 
@@ -216,21 +221,26 @@ fn apply_upstream_model_overrides(mut family: ModelFamily) -> ModelFamily {
     family.context_window = model_info
         .resolved_context_window()
         .and_then(|limit| u64::try_from(limit).ok());
-    family.default_reasoning_effort = model_info
-        .default_reasoning_level
-        .as_ref()
-        .map(|effort| match effort {
-            lemurclaw_protocol::openai_models::ReasoningEffort::None
-            | lemurclaw_protocol::openai_models::ReasoningEffort::Minimal => ReasoningEffort::Minimal,
-            lemurclaw_protocol::openai_models::ReasoningEffort::Low => ReasoningEffort::Low,
-            lemurclaw_protocol::openai_models::ReasoningEffort::Medium => ReasoningEffort::Medium,
-            lemurclaw_protocol::openai_models::ReasoningEffort::High => ReasoningEffort::High,
-            lemurclaw_protocol::openai_models::ReasoningEffort::XHigh
-            | lemurclaw_protocol::openai_models::ReasoningEffort::Max => ReasoningEffort::XHigh,
-            // code-rs does not model `Ultra`; codex-rs does, so pass it through.
-            lemurclaw_protocol::openai_models::ReasoningEffort::Ultra => ReasoningEffort::Ultra,
-            lemurclaw_protocol::openai_models::ReasoningEffort::Custom(_) => ReasoningEffort::Medium,
-        });
+    family.default_reasoning_effort =
+        model_info
+            .default_reasoning_level
+            .as_ref()
+            .map(|effort| match effort {
+                lemurclaw_protocol::openai_models::ReasoningEffort::None
+                | lemurclaw_protocol::openai_models::ReasoningEffort::Minimal => {
+                    ReasoningEffort::Minimal
+                }
+                lemurclaw_protocol::openai_models::ReasoningEffort::Low => ReasoningEffort::Low,
+                lemurclaw_protocol::openai_models::ReasoningEffort::Medium => ReasoningEffort::Medium,
+                lemurclaw_protocol::openai_models::ReasoningEffort::High => ReasoningEffort::High,
+                lemurclaw_protocol::openai_models::ReasoningEffort::XHigh
+                | lemurclaw_protocol::openai_models::ReasoningEffort::Max => ReasoningEffort::XHigh,
+                // code-rs does not model `Ultra`; codex-rs does, so pass it through.
+                lemurclaw_protocol::openai_models::ReasoningEffort::Ultra => ReasoningEffort::Ultra,
+                lemurclaw_protocol::openai_models::ReasoningEffort::Custom(_) => {
+                    ReasoningEffort::Medium
+                }
+            });
     family.default_reasoning_summary = model_info.default_reasoning_summary.into();
     // code-rs uses `supports_reasoning_summaries`; codex-rs's ModelInfo exposes
     // `supports_reasoning_summary_parameter` instead. Map accordingly.

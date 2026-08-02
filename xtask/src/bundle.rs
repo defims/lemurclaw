@@ -1,8 +1,8 @@
-//! Phase 2: merge the 23 fine-grained `lemurclaw-utils-*` crates in `publish/`
+//! Phase 2: merge the 23 fine-grained `lemurclaw-utils-*` crates in `lemurclaw-rs/`
 //! into a single `lemurclaw-utils` crate, where each former crate becomes a
 //! `pub mod <name>` submodule.
 //!
-//! This is a post-hoc transform on the `publish/` workspace emitted by Phase 1
+//! This is a post-hoc transform on the `lemurclaw-rs/` workspace emitted by Phase 1
 //! (`xtask publish rename`), mirroring the Phase 1.5 fork-rewire pattern. The
 //! source tree `codex-rs/` is never touched, so upstream changes can be merged
 //! by re-running the pipeline: `publish rename && publish bundle && publish fork
@@ -28,7 +28,7 @@ use std::process::Command;
 /// core cluster will construct owned equivalents.
 #[derive(Clone)]
 pub(crate) struct SubCrate {
-    /// Directory name under publish/ (from the source layout).
+    /// Directory name under lemurclaw-rs/ (from the source layout).
     dir: &'static str,
     /// Package name assigned by Phase 1 rename.
     package: &'static str,
@@ -179,10 +179,10 @@ pub(crate) struct Cluster {
     /// Short identifier for this cluster (e.g. "core", "extensions").
     /// Used to dispatch cluster-specific post-merge fixups.
     pub name: &'static str,
-    /// Subdirectory under `publish/` where the source crates live
-    /// (e.g. `"utils"`). Empty string means crates live at the publish/ root.
+    /// Subdirectory under `lemurclaw-rs/` where the source crates live
+    /// (e.g. `"utils"`). Empty string means crates live at the lemurclaw-rs/ root.
     pub source_subdir: &'static str,
-    /// Workspace member path for the merged crate relative to publish/
+    /// Workspace member path for the merged crate relative to lemurclaw-rs/
     /// (e.g. `"utils/utils"` or `"core"`).
     pub merged_member_path: &'static str,
     /// Package name of the merged crate (e.g. `"lemurclaw-utils"`).
@@ -363,7 +363,7 @@ pub(crate) fn core_cluster() -> Result<Cluster> {
 
     Ok(Cluster {
         name: "core",
-        source_subdir: "", // core members live at publish/ root level
+        source_subdir: "", // core members live at lemurclaw-rs/ root level
         merged_member_path: "core",
         merged_package: "lemurclaw-core",
         merged_lib_ident: "lemurclaw_core",
@@ -371,9 +371,9 @@ pub(crate) fn core_cluster() -> Result<Cluster> {
     })
 }
 
-/// Construct the `extensions` cluster: 9 extension crates under publish/ext/
+/// Construct the `extensions` cluster: 9 extension crates under lemurclaw-rs/ext/
 /// merged into `lemurclaw-extensions`. No host crate -- creates a fresh merged
-/// crate at publish/ext/extensions/.
+/// crate at lemurclaw-rs/ext/extensions/.
 pub(crate) fn extensions_cluster() -> Cluster {
     Cluster {
         name: "extensions",
@@ -433,7 +433,7 @@ pub(crate) fn extensions_cluster() -> Cluster {
 
 /// Construct the `server` cluster: 12 server-layer crates merged into
 /// `lemurclaw-server`. No host crate -- creates a fresh merged crate at
-/// publish/server/.
+/// lemurclaw-rs/server/.
 pub(crate) fn server_cluster() -> Cluster {
     Cluster {
         name: "server",
@@ -541,7 +541,7 @@ pub(crate) fn server_cluster() -> Cluster {
 }
 
 /// Construct the `tui` cluster: ansi-escape + message-history merged into the
-/// existing `lemurclaw-tui` crate (host-crate pattern -- publish/tui/ already
+/// existing `lemurclaw-tui` crate (host-crate pattern -- lemurclaw-rs/tui/ already
 /// exists, its src/ migrates to src/tui_internal/).
 pub(crate) fn tui_cluster() -> Cluster {
     Cluster {
@@ -566,7 +566,7 @@ pub(crate) fn tui_cluster() -> Cluster {
 }
 
 /// Construct the `cli` cluster: 14 CLI-layer crates merged into the existing
-/// `lemurclaw-cli` crate (host-crate pattern -- publish/cli/ already exists,
+/// `lemurclaw-cli` crate (host-crate pattern -- lemurclaw-rs/cli/ already exists,
 /// its src/ migrates to src/cli_internal/).
 pub(crate) fn cli_cluster() -> Cluster {
     Cluster {
@@ -814,11 +814,11 @@ fn ident_to_module() -> BTreeMap<&'static str, &'static str> {
 
 /// `xtask publish bundle [--target <utils|core>] [--dry-run]`
 ///
-/// Merges a cluster of `publish/` crates into a single mega-crate. With
+/// Merges a cluster of `lemurclaw-rs/` crates into a single mega-crate. With
 /// `--dry-run`, prints the plan and exits without modifying any files.
 pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     let repo_root = locate_repo_root()?;
-    let publish_root = repo_root.join("publish");
+    let publish_root = repo_root.join("lemurclaw-rs");
     let source_root = if cluster.source_subdir.is_empty() {
         publish_root.clone()
     } else {
@@ -873,7 +873,7 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     }
 
     // For the utils cluster, merged_dir is a fresh new dir. For the core
-    // cluster, merged_dir (publish/core/) ALREADY EXISTS — it's core's own
+    // cluster, merged_dir (lemurclaw-rs/core/) ALREADY EXISTS — it's core's own
     // source tree from Phase 1 rename. We handle core's own src/ specially.
     let host_crate_exists = cluster.source_subdir.is_empty() && merged_dir.is_dir();
     if merged_dir.exists() && !host_crate_exists {
@@ -890,7 +890,7 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
         cluster.members.len(),
         cluster.merged_package
     );
-    // For the core cluster, the merged crate dir (publish/core/) already holds
+    // For the core cluster, the merged crate dir (lemurclaw-rs/core/) already holds
     // core's own source. Migrate core's own src/ into a submodule first, so
     // create_merged_crate can overwrite lib.rs cleanly.
     let host_module = if host_crate_exists {
@@ -965,7 +965,7 @@ pub(crate) fn run(cluster: &Cluster, dry_run: bool) -> Result<()> {
     }
     println!("Deleted {} member dirs.", cluster.members.len());
 
-    // Step 4: rewrite publish/Cargo.toml (members + workspace deps).
+    // Step 4: rewrite lemurclaw-rs/Cargo.toml (members + workspace deps).
     rewrite_publish_manifest(&publish_root, cluster)?;
 
     // Step 5: rewrite .rs imports + downstream Cargo.toml dep lines.
@@ -1041,7 +1041,7 @@ fn print_dry_run_plan(cluster: &Cluster, source_root: &Path) -> Result<()> {
 
     println!("  3. Delete the {} member dirs.\n", cluster.members.len());
 
-    println!("  4. Rewrite publish/Cargo.toml:");
+    println!("  4. Rewrite lemurclaw-rs/Cargo.toml:");
     println!(
         "     [workspace.members]: {} merged → 1 {}",
         cluster.members.len(),
@@ -1245,7 +1245,7 @@ fn unify_dep_value(a: &toml::Value, b: &toml::Value) -> toml::Value {
 
 /// Create the merged crate directory with a synthesized Cargo.toml and lib.rs.
 /// `host_module`: if Some, the merged crate's own former source lives in this
-/// submodule (used for core, where publish/core/ already exists).
+/// submodule (used for core, where lemurclaw-rs/core/ already exists).
 fn create_merged_crate(
     merged_dir: &Path,
     agg: &AggregateDeps,
@@ -1356,7 +1356,7 @@ fn render_toml_value(v: &toml::Value) -> String {
 /// Move a sub-crate's `src/` contents into the merged crate as a submodule
 /// directory. `lib.rs` becomes `mod.rs`; all other files keep their names.
 /// Migrate the HOST crate's own src/ (the crate that becomes the merged
-/// crate root — e.g. publish/core/src/). Unlike member crates, the host's
+/// crate root — e.g. lemurclaw-rs/core/src/). Unlike member crates, the host's
 /// src/ lives directly in merged_dir, so we move its contents into a
 /// submodule and preserve the bin/ directory at the crate root.
 fn migrate_host_crate_src(merged_dir: &Path, module: &str) -> Result<()> {
@@ -1820,7 +1820,7 @@ impl RewriteScope {
     }
 }
 
-/// Rewrite `publish/Cargo.toml`: replace the 17 merged `utils/<dir>` workspace
+/// Rewrite `lemurclaw-rs/Cargo.toml`: replace the 17 merged `utils/<dir>` workspace
 /// members with a single `utils/utils`, and collapse the 17 merged
 /// `lemurclaw-utils-*` workspace dep entries into a single `lemurclaw-utils`.
 /// Standalone crates keep their members + deps.
@@ -1920,7 +1920,7 @@ fn rewrite_publish_manifest(publish_root: &Path, cluster: &Cluster) -> Result<()
     }
 
     fs::write(&path, &out).with_context(|| format!("write {}", path.display()))?;
-    println!("Rewrote publish/Cargo.toml (members + workspace deps).");
+    println!("Rewrote lemurclaw-rs/Cargo.toml (members + workspace deps).");
     Ok(())
 }
 
@@ -2345,7 +2345,7 @@ fn post_merge_fixups_core(src_dir: &Path) -> Result<()> {
     // 9. Unify reqwest version. After merge, rmcp (which depends on reqwest
     //    0.13) and the main crate (which depends on reqwest 0.12) end up in
     //    the same compilation unit, causing E0308 type mismatches. Fix by
-    //    upgrading the workspace reqwest to 0.13 in publish/Cargo.toml.
+    //    upgrading the workspace reqwest to 0.13 in lemurclaw-rs/Cargo.toml.
     unify_reqwest_version(src_dir)?;
 
     // 10. Add crate-root re-exports from core_internal. Downstream crates
@@ -2447,7 +2447,10 @@ fn add_core_root_reexports(src_dir: &Path) -> Result<()> {
 
     let new = format!("{}\n{}", raw.trim_end(), block);
     fs::write(&lib_rs, new)?;
-    println!("  ✓ Added {} crate-root re-exports to lib.rs", reexports.len());
+    println!(
+        "  ✓ Added {} crate-root re-exports to lib.rs",
+        reexports.len()
+    );
     Ok(())
 }
 
@@ -2487,14 +2490,10 @@ fn add_core_member_reexports(src_dir: &Path) -> Result<()> {
         ];
         let raw = fs::read_to_string(&config_mod)?;
         if !raw.contains("pub use crate::core_internal::config::find_codex_home") {
-            let mut block = String::from(
-                "\n// Re-export core_internal::config items for downstream crates.\n",
-            );
+            let mut block =
+                String::from("\n// Re-export core_internal::config items for downstream crates.\n");
             for sym in &config_reexports {
-                block.push_str(&format!(
-                    "pub use crate::core_internal::config::{};\n",
-                    sym
-                ));
+                block.push_str(&format!("pub use crate::core_internal::config::{};\n", sym));
             }
             // Cross-module re-exports needed by downstream crates.
             block.push_str("pub use crate::sandboxing::system_bwrap_warning;\n");
@@ -2533,8 +2532,7 @@ fn add_core_member_reexports(src_dir: &Path) -> Result<()> {
     let connectors_mod = src_dir.join("connectors").join("mod.rs");
     if connectors_mod.is_file() {
         let raw = fs::read_to_string(&connectors_mod)?;
-        if !raw.contains("pub use crate::core_internal::connectors::AccessibleConnectorsStatus")
-        {
+        if !raw.contains("pub use crate::core_internal::connectors::AccessibleConnectorsStatus") {
             let block = "\n// Re-export core_internal connector functions for downstream crates.\npub use crate::core_internal::connectors::AccessibleConnectorsStatus;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_environment_manager;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_mcp_manager;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_options;\npub use crate::core_internal::connectors::list_accessible_connectors_from_mcp_tools_with_options_and_status;\npub use crate::core_internal::connectors::list_cached_accessible_connectors_from_mcp_tools;\npub use crate::core_internal::connectors::with_app_enabled_state;\n";
             let new = format!("{}\n{}", raw.trim_end(), block);
             fs::write(&connectors_mod, new)?;
@@ -2546,8 +2544,7 @@ fn add_core_member_reexports(src_dir: &Path) -> Result<()> {
     let ws_mod = src_dir.join("windows_sandbox").join("mod.rs");
     if ws_mod.is_file() {
         let raw = fs::read_to_string(&ws_mod)?;
-        if !raw.contains("pub use crate::core_internal::windows_sandbox::WindowsSandboxLevelExt")
-        {
+        if !raw.contains("pub use crate::core_internal::windows_sandbox::WindowsSandboxLevelExt") {
             let block = "\n// Re-export core_internal windows_sandbox types for downstream crates.\npub use crate::core_internal::windows_sandbox::WindowsSandboxLevelExt;\npub use crate::core_internal::windows_sandbox::WindowsSandboxSetupMode;\npub use crate::core_internal::windows_sandbox::WindowsSandboxSetupRequest;\npub use crate::core_internal::windows_sandbox::sandbox_setup_is_complete;\npub use crate::core_internal::windows_sandbox::run_windows_sandbox_setup;\n";
             let new = format!("{}\n{}", raw.trim_end(), block);
             fs::write(&ws_mod, new)?;
@@ -2603,7 +2600,8 @@ fn fix_otel_dangling_assignments(src_dir: &Path) -> Result<()> {
         let raw = fs::read_to_string(&metrics_client)?;
         // Remove the dangling client assignment block and unused mut.
         let old_block = "                let client =\n                    crate::otel::otlp::build_http_client(tls, OTEL_EXPORTER_OTLP_METRICS_TIMEOUT)\n                        .map_err(|err| MetricsError::InvalidConfig {\n                            message: err.to_string(),\n                        })?;\n\n                // TODO(merge): with_http_client disabled — reqwest 0.13 (rmcp) and";
-        let new_block = "                // TODO(merge): with_http_client disabled — reqwest 0.13 (rmcp) and";
+        let new_block =
+            "                // TODO(merge): with_http_client disabled — reqwest 0.13 (rmcp) and";
         let mut new = raw.replace(old_block, new_block);
         // Remove unused mut on MetricExporter builder.
         new = new.replace(
@@ -2797,7 +2795,7 @@ fn add_reexport_from_host(src_dir: &Path, member_module: &str, type_name: &str) 
     Ok(())
 }
 
-/// Unify reqwest version in publish/Cargo.toml. After merging crates that
+/// Unify reqwest version in lemurclaw-rs/Cargo.toml. After merging crates that
 /// depend on different major versions of reqwest (e.g. rmcp needs 0.13 while
 /// the workspace pins 0.12), the type mismatch causes E0308 errors. Fix by
 /// upgrading the workspace reqwest entry to the newer version, adding the
@@ -2826,7 +2824,7 @@ fn unify_reqwest_version(src_dir: &Path) -> Result<()> {
         fs::write(&publish_manifest, new)?;
     }
 
-    // 2. In all Cargo.toml files under publish/, replace the `rustls-tls`
+    // 2. In all Cargo.toml files under lemurclaw-rs/, replace the `rustls-tls`
     //    feature of reqwest with `rustls` (renamed in 0.13), and upgrade
     //    any hardcoded reqwest 0.12 version references to 0.13.
     for entry in walkdir(publish_root)? {
@@ -2954,10 +2952,10 @@ fn fix_otel_with_http_client(src_dir: &Path) -> Result<()> {
 /// side of any pair.
 fn rewrite_brand_display_text(src_dir: &Path) -> Result<()> {
     // Each entry: (relative path under src_dir, old, new).
-    // Paths are cluster-relative: cli fixup → publish/cli/src/, tui fixup →
-    // publish/tui/src/, server fixup → publish/server/src/.
+    // Paths are cluster-relative: cli fixup → lemurclaw-rs/cli/src/, tui fixup →
+    // lemurclaw-rs/tui/src/, server fixup → lemurclaw-rs/server/src/.
     let edits: &[(&str, &str, &str)] = &[
-        // ===== CLI cluster (publish/cli/src/) =====
+        // ===== CLI cluster (lemurclaw-rs/cli/src/) =====
         // main.rs — top-level CLI doc comments, usage, and user messages.
         ("main.rs", "/// Codex CLI", "/// lemurclaw CLI"),
         (
@@ -3384,7 +3382,7 @@ fn rewrite_brand_display_text(src_dir: &Path) -> Result<()> {
             "format!(\"lemurclaw cloud list --cursor='{cursor}'\")",
         ),
 
-        // ===== TUI cluster (publish/tui/src/, files under tui_internal/) =====
+        // ===== TUI cluster (lemurclaw-rs/tui/src/, files under tui_internal/) =====
         // tui_internal/slash_command.rs
         (
             "tui_internal/slash_command.rs",
@@ -3759,7 +3757,7 @@ fn rewrite_brand_display_text(src_dir: &Path) -> Result<()> {
             "StatusSurfacePreviewItem::AppName => \"lemurclaw\"",
         ),
 
-        // ===== Server cluster (publish/server/src/) =====
+        // ===== Server cluster (lemurclaw-rs/server/src/) =====
         // app_server_daemon/update_loop.rs
         (
             "app_server_daemon/update_loop.rs",
@@ -3867,8 +3865,8 @@ fn rewrite_brand_display_text(src_dir: &Path) -> Result<()> {
     for (rel, old, new) in edits {
         let path = src_dir.join(rel);
         if path.is_file() {
-            let raw = fs::read_to_string(&path)
-                .with_context(|| format!("read {}", path.display()))?;
+            let raw =
+                fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
             if raw.contains(old) {
                 fs::write(&path, raw.replace(old, new))
                     .with_context(|| format!("write {}", path.display()))?;
@@ -3914,7 +3912,7 @@ fn rewrite_brand_display_text(src_dir: &Path) -> Result<()> {
 }
 
 /// Full-scope brand rewriter: Codex/codex → lemurclaw across the whole
-/// `publish/` tree, covering categories BEYOND display text — environment
+/// `lemurclaw-rs/` tree, covering categories BEYOND display text — environment
 /// variables (`CODEX_*` → `LEMURCLAW_*`), filesystem paths (`~/.codex` →
 /// `~/.lemurclaw`, `/etc/codex/` → `/etc/lemurclaw/`), CLI flags
 /// (`--codex-*` → `--lemurclaw-*`), internal protocol identifiers
@@ -3946,7 +3944,7 @@ fn rewrite_brand_display_text(src_dir: &Path) -> Result<()> {
 /// name (on-wire, brand-irrelevant). Each is stashed before editing and
 /// restored after, so a loose `\bCodex\b` match can never touch them.
 pub(crate) fn rewrite_brand_full(publish_root: &Path) -> Result<()> {
-    println!("\n🔄 Full-scope brand rewrite (Codex→lemurclaw) across publish/…");
+    println!("\n🔄 Full-scope brand rewrite (Codex→lemurclaw) across lemurclaw-rs/…");
 
     // Files worth scanning. Skip target/ (walkdir already does), .snap
     // (regenerated by tests), .lock (handled by rename), and build artifacts.
@@ -3957,34 +3955,62 @@ pub(crate) fn rewrite_brand_full(publish_root: &Path) -> Result<()> {
     // (See function docstring for why each is preserved.)
     let protected: &[&str] = &[
         // Model slugs (real OpenAI API model names).
-        "gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.1-codex", "gpt-5-codex",
-        "gpt-5.1-codex-max", "gpt-5.2-codex-sonic",
+        "gpt-5.3-codex",
+        "gpt-5.2-codex",
+        "gpt-5.1-codex",
+        "gpt-5-codex",
+        "gpt-5.1-codex-max",
+        "gpt-5.2-codex-sonic",
         // Originator header values (cloud gates first-party on these).
-        "codex_cli_rs", "codex-tui", "codex_vscode", "codex_atlas",
-        "codex_chatgpt_desktop", "codex_desktop", "codex-cli",
-        "codex-app-server-sdk", "codex_sdk_ts",
+        "codex_cli_rs",
+        "codex-tui",
+        "codex_vscode",
+        "codex_atlas",
+        "codex_chatgpt_desktop",
+        "codex_desktop",
+        "codex-cli",
+        "codex-app-server-sdk",
+        "codex_sdk_ts",
         // JWT audience (cloud validates the `aud` claim).
         "codex-app-server",
         // codex_exec originator (outbound Originator header).
         "codex_exec",
         // Analytics event_type wire values (backend consumes by name).
-        "codex_app_mentioned", "codex_app_used", "codex_thread_initialized",
-        "codex_turn_event", "codex_turn_steer_event", "codex_goal_event",
-        "codex_guardian_review", "codex_hook_run", "codex_review_event",
-        "codex_command_execution_event", "codex_compaction_event",
-        "codex_web_search_event", "codex_image_generation_event",
-        "codex_mcp_tool_call_event", "codex_dynamic_tool_call_event",
-        "codex_collab_agent_tool_call_event", "codex_file_change_event",
-        "codex_plugin_used", "codex_plugin_enabled", "codex_plugin_disabled",
-        "codex_plugin_installed", "codex_plugin_uninstalled",
-        "codex_plugin_install_requested", "codex_plugin_install_failed",
+        "codex_app_mentioned",
+        "codex_app_used",
+        "codex_thread_initialized",
+        "codex_turn_event",
+        "codex_turn_steer_event",
+        "codex_goal_event",
+        "codex_guardian_review",
+        "codex_hook_run",
+        "codex_review_event",
+        "codex_command_execution_event",
+        "codex_compaction_event",
+        "codex_web_search_event",
+        "codex_image_generation_event",
+        "codex_mcp_tool_call_event",
+        "codex_dynamic_tool_call_event",
+        "codex_collab_agent_tool_call_event",
+        "codex_file_change_event",
+        "codex_plugin_used",
+        "codex_plugin_enabled",
+        "codex_plugin_disabled",
+        "codex_plugin_installed",
+        "codex_plugin_uninstalled",
+        "codex_plugin_install_requested",
+        "codex_plugin_install_failed",
         "codex_onboarding_external_agent_import_complete",
         "codex_onboarding_external_agent_import_failure",
         // On-wire JSON field name (brand-irrelevant; renaming changes wire).
         "codexErrorInfo",
         // Cloud URLs / OpenAI infrastructure.
-        "openai/codex", "chatgpt.com/codex", "developers.openai.com/codex",
-        "community.openai.com/c/codex", "@openai/codex", "com.openai.codex",
+        "openai/codex",
+        "chatgpt.com/codex",
+        "developers.openai.com/codex",
+        "community.openai.com/c/codex",
+        "@openai/codex",
+        "com.openai.codex",
         "codex-backend",
     ];
 
@@ -4003,10 +4029,7 @@ pub(crate) fn rewrite_brand_full(publish_root: &Path) -> Result<()> {
             continue;
         }
         // Skip snapshot dirs entirely (tests regenerate them).
-        if path
-            .components()
-            .any(|c| c.as_os_str() == "snapshots")
-        {
+        if path.components().any(|c| c.as_os_str() == "snapshots") {
             continue;
         }
 
@@ -4019,8 +4042,7 @@ pub(crate) fn rewrite_brand_full(publish_root: &Path) -> Result<()> {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         let new = rewrite_brand_full_text(&raw, ext, protected, &mut occ_total);
         if new != raw {
-            fs::write(&path, &new)
-                .with_context(|| format!("write {}", path.display()))?;
+            fs::write(&path, &new).with_context(|| format!("write {}", path.display()))?;
             files_changed += 1;
         }
     }
@@ -4039,6 +4061,23 @@ pub(crate) fn rewrite_brand_full(publish_root: &Path) -> Result<()> {
     let file_renames: &[(&str, &str)] = &[
         ("CodexErrorInfo.ts", "LemurclawErrorInfo.ts"),
         ("CodexErrorInfo.json", "LemurclawErrorInfo.json"),
+        // Generated proto files named after the proto package. A4 rewrites the
+        // package string (`codex.thread_config.v1` → `lemurclaw.…`) inside
+        // `#[path = "..."]` attrs and SERVICE_NAME consts, so the generated
+        // `.rs`/`.proto` files must follow or the `#[path]` include breaks.
+        ("codex.thread_config.v1.rs", "lemurclaw.thread_config.v1.rs"),
+        (
+            "codex.thread_config.v1.proto",
+            "lemurclaw.thread_config.v1.proto",
+        ),
+        (
+            "codex.exec_server.relay.v1.rs",
+            "lemurclaw.exec_server.relay.v1.rs",
+        ),
+        (
+            "codex.exec_server.relay.v1.proto",
+            "lemurclaw.exec_server.relay.v1.proto",
+        ),
     ];
     let mut renamed = 0usize;
     for entry in walkdir(publish_root)? {
@@ -4059,7 +4098,10 @@ pub(crate) fn rewrite_brand_full(publish_root: &Path) -> Result<()> {
         }
     }
     if renamed > 0 {
-        println!("  ✓ Renamed {} generated schema files to match type names", renamed);
+        println!(
+            "  ✓ Renamed {} generated schema files to match type names",
+            renamed
+        );
     }
 
     Ok(())
@@ -4102,7 +4144,11 @@ fn rewrite_brand_full_text(
         s = buf.clone();
         cur = &s;
     }
-    let working = if stashed.is_empty() { raw.to_string() } else { s };
+    let working = if stashed.is_empty() {
+        raw.to_string()
+    } else {
+        s
+    };
 
     // 2. Apply A-zone rewrites. Each rule is (find, replace). Order matters:
     //    longer/more-specific patterns first so they win over generic ones.
@@ -4112,42 +4158,105 @@ fn rewrite_brand_full_text(
         // *identifiers* (CODEX_HOME_ENV_VAR) are already renamed by
         // source_rewrite's AST pass; only the quoted string literals remain.
         // Match the quoted form to stay surgical.
-        ("\"CODEX_SANDBOX_NETWORK_DISABLED\"", "\"LEMURCLAW_SANDBOX_NETWORK_DISABLED\""),
+        (
+            "\"CODEX_SANDBOX_NETWORK_DISABLED\"",
+            "\"LEMURCLAW_SANDBOX_NETWORK_DISABLED\"",
+        ),
         ("\"CODEX_SANDBOX\"", "\"LEMURCLAW_SANDBOX\""),
         ("\"CODEX_HOME\"", "\"LEMURCLAW_HOME\""),
         ("\"CODEX_API_KEY\"", "\"LEMURCLAW_API_KEY\""),
         ("\"CODEX_ACCESS_TOKEN\"", "\"LEMURCLAW_ACCESS_TOKEN\""),
         ("\"CODEX_SQLITE_HOME\"", "\"LEMURCLAW_SQLITE_HOME\""),
         ("\"CODEX_CA_CERTIFICATE\"", "\"LEMURCLAW_CA_CERTIFICATE\""),
-        ("\"CODEX_PERMISSION_PROFILE\"", "\"LEMURCLAW_PERMISSION_PROFILE\""),
+        (
+            "\"CODEX_PERMISSION_PROFILE\"",
+            "\"LEMURCLAW_PERMISSION_PROFILE\"",
+        ),
         ("\"CODEX_THREAD_ID\"", "\"LEMURCLAW_THREAD_ID\""),
         ("\"CODEX_ESCALATE_SOCKET\"", "\"LEMURCLAW_ESCALATE_SOCKET\""),
-        ("\"CODEX_ROLLOUT_TRACE_ROOT\"", "\"LEMURCLAW_ROLLOUT_TRACE_ROOT\""),
-        ("\"CODEX_CONNECTORS_TOKEN\"", "\"LEMURCLAW_CONNECTORS_TOKEN\""),
-        ("\"CODEX_CODE_MODE_HOST_PATH\"", "\"LEMURCLAW_CODE_MODE_HOST_PATH\""),
+        (
+            "\"CODEX_ROLLOUT_TRACE_ROOT\"",
+            "\"LEMURCLAW_ROLLOUT_TRACE_ROOT\"",
+        ),
+        (
+            "\"CODEX_CONNECTORS_TOKEN\"",
+            "\"LEMURCLAW_CONNECTORS_TOKEN\"",
+        ),
+        (
+            "\"CODEX_CODE_MODE_HOST_PATH\"",
+            "\"LEMURCLAW_CODE_MODE_HOST_PATH\"",
+        ),
         ("\"CODEX_EXEC_SERVER_URL\"", "\"LEMURCLAW_EXEC_SERVER_URL\""),
-        ("\"CODEX_EXEC_SERVER_NOISE_AUTH_TOKEN\"", "\"LEMURCLAW_EXEC_SERVER_NOISE_AUTH_TOKEN\""),
-        ("\"CODEX_AUTHAPI_BASE_URL\"", "\"LEMURCLAW_AUTHAPI_BASE_URL\""),
-        ("\"CODEX_REFRESH_TOKEN_URL_OVERRIDE\"", "\"LEMURCLAW_REFRESH_TOKEN_URL_OVERRIDE\""),
-        ("\"CODEX_REVOKE_TOKEN_URL_OVERRIDE\"", "\"LEMURCLAW_REVOKE_TOKEN_URL_OVERRIDE\""),
-        ("\"CODEX_APP_SERVER_LOGIN_CLIENT_ID\"", "\"LEMURCLAW_APP_SERVER_LOGIN_CLIENT_ID\""),
-        ("\"CODEX_INTERNAL_ORIGINATOR_OVERRIDE\"", "\"LEMURCLAW_INTERNAL_ORIGINATOR_OVERRIDE\""),
-        ("\"CODEX_NETWORK_PROXY_ACTIVE\"", "\"LEMURCLAW_NETWORK_PROXY_ACTIVE\""),
-        ("\"CODEX_NETWORK_ALLOW_LOCAL_BINDING\"", "\"LEMURCLAW_NETWORK_ALLOW_LOCAL_BINDING\""),
-        ("\"CODEX_NETWORK_PROXY_CREDENTIAL_BROKER_ACTIVE\"", "\"LEMURCLAW_NETWORK_PROXY_CREDENTIAL_BROKER_ACTIVE\""),
-        ("\"CODEX_NETWORK_PROXY_BROKERED_CREDENTIALS\"", "\"LEMURCLAW_NETWORK_PROXY_BROKERED_CREDENTIALS\""),
-        ("\"CODEX_NETWORK_PROXY_ATTRIBUTION\"", "\"LEMURCLAW_NETWORK_PROXY_ATTRIBUTION\""),
-        ("\"CODEX_NETWORK_POLICY_VIOLATION\"", "\"LEMURCLAW_NETWORK_POLICY_VIOLATION\""),
-        ("\"CODEX_PROXY_GIT_SSH_COMMAND\"", "\"LEMURCLAW_PROXY_GIT_SSH_COMMAND\""),
+        (
+            "\"CODEX_EXEC_SERVER_NOISE_AUTH_TOKEN\"",
+            "\"LEMURCLAW_EXEC_SERVER_NOISE_AUTH_TOKEN\"",
+        ),
+        (
+            "\"CODEX_AUTHAPI_BASE_URL\"",
+            "\"LEMURCLAW_AUTHAPI_BASE_URL\"",
+        ),
+        (
+            "\"CODEX_REFRESH_TOKEN_URL_OVERRIDE\"",
+            "\"LEMURCLAW_REFRESH_TOKEN_URL_OVERRIDE\"",
+        ),
+        (
+            "\"CODEX_REVOKE_TOKEN_URL_OVERRIDE\"",
+            "\"LEMURCLAW_REVOKE_TOKEN_URL_OVERRIDE\"",
+        ),
+        (
+            "\"CODEX_APP_SERVER_LOGIN_CLIENT_ID\"",
+            "\"LEMURCLAW_APP_SERVER_LOGIN_CLIENT_ID\"",
+        ),
+        (
+            "\"CODEX_INTERNAL_ORIGINATOR_OVERRIDE\"",
+            "\"LEMURCLAW_INTERNAL_ORIGINATOR_OVERRIDE\"",
+        ),
+        (
+            "\"CODEX_NETWORK_PROXY_ACTIVE\"",
+            "\"LEMURCLAW_NETWORK_PROXY_ACTIVE\"",
+        ),
+        (
+            "\"CODEX_NETWORK_ALLOW_LOCAL_BINDING\"",
+            "\"LEMURCLAW_NETWORK_ALLOW_LOCAL_BINDING\"",
+        ),
+        (
+            "\"CODEX_NETWORK_PROXY_CREDENTIAL_BROKER_ACTIVE\"",
+            "\"LEMURCLAW_NETWORK_PROXY_CREDENTIAL_BROKER_ACTIVE\"",
+        ),
+        (
+            "\"CODEX_NETWORK_PROXY_BROKERED_CREDENTIALS\"",
+            "\"LEMURCLAW_NETWORK_PROXY_BROKERED_CREDENTIALS\"",
+        ),
+        (
+            "\"CODEX_NETWORK_PROXY_ATTRIBUTION\"",
+            "\"LEMURCLAW_NETWORK_PROXY_ATTRIBUTION\"",
+        ),
+        (
+            "\"CODEX_NETWORK_POLICY_VIOLATION\"",
+            "\"LEMURCLAW_NETWORK_POLICY_VIOLATION\"",
+        ),
+        (
+            "\"CODEX_PROXY_GIT_SSH_COMMAND\"",
+            "\"LEMURCLAW_PROXY_GIT_SSH_COMMAND\"",
+        ),
         // Managed-install contract (JS shim + Rust; scattered, no constant).
         ("CODEX_MANAGED_BY_NPM", "LEMURCLAW_MANAGED_BY_NPM"),
         ("CODEX_MANAGED_BY_PNPM", "LEMURCLAW_MANAGED_BY_PNPM"),
         ("CODEX_MANAGED_BY_BUN", "LEMURCLAW_MANAGED_BY_BUN"),
-        ("CODEX_MANAGED_PACKAGE_ROOT", "LEMURCLAW_MANAGED_PACKAGE_ROOT"),
+        (
+            "CODEX_MANAGED_PACKAGE_ROOT",
+            "LEMURCLAW_MANAGED_PACKAGE_ROOT",
+        ),
         // Cloud-tasks inline reads.
-        ("CODEX_CLOUD_TASKS_BASE_URL", "LEMURCLAW_CLOUD_TASKS_BASE_URL"),
+        (
+            "CODEX_CLOUD_TASKS_BASE_URL",
+            "LEMURCLAW_CLOUD_TASKS_BASE_URL",
+        ),
         ("CODEX_CLOUD_TASKS_MODE", "LEMURCLAW_CLOUD_TASKS_MODE"),
-        ("CODEX_CLOUD_TASKS_FORCE_INTERNAL", "LEMURCLAW_CLOUD_TASKS_FORCE_INTERNAL"),
+        (
+            "CODEX_CLOUD_TASKS_FORCE_INTERNAL",
+            "LEMURCLAW_CLOUD_TASKS_FORCE_INTERNAL",
+        ),
         // Remote auth token.
         ("CODEX_REMOTE_AUTH_TOKEN", "LEMURCLAW_REMOTE_AUTH_TOKEN"),
         // Misc inline env vars.
@@ -4217,7 +4326,10 @@ fn rewrite_brand_full_text(
         ("codex://", "lemurclaw://"),
         // Protobuf packages (local gRPC; both ends in-tree).
         ("codex.thread_config.v1", "lemurclaw.thread_config.v1"),
-        ("codex.exec_server.relay.v1", "lemurclaw.exec_server.relay.v1"),
+        (
+            "codex.exec_server.relay.v1",
+            "lemurclaw.exec_server.relay.v1",
+        ),
         // Daemon client name (local Unix socket).
         ("codex_app_server_daemon", "lemurclaw_app_server_daemon"),
         // arg0 helper binary basenames.
@@ -4250,7 +4362,10 @@ fn rewrite_brand_full_text(
         ("codex.windows_sandbox.", "lemurclaw.windows_sandbox."),
         ("codex.apps.refresh.", "lemurclaw.apps.refresh."),
         ("codex.apps.installed.", "lemurclaw.apps.installed."),
-        ("codex.cloud_config_bundle.", "lemurclaw.cloud_config_bundle."),
+        (
+            "codex.cloud_config_bundle.",
+            "lemurclaw.cloud_config_bundle.",
+        ),
     ];
     for (find, repl) in telem_rules {
         if out.contains(find) {
@@ -4325,8 +4440,7 @@ fn replace_word_boundary(s: &str, needle: &str, repl: &str, occ_count: &mut usiz
     while i < bytes.len() {
         if i + nb.len() <= bytes.len() && &bytes[i..i + nb.len()] == nb {
             // Check left boundary (start-of-string or boundary char before).
-            let left_ok = i == 0
-                || s[..i].chars().next_back().is_some_and(is_boundary);
+            let left_ok = i == 0 || s[..i].chars().next_back().is_some_and(is_boundary);
             // Check right boundary (end-of-string or boundary char after).
             let right_ok = if i + nb.len() == bytes.len() {
                 true
@@ -4691,7 +4805,7 @@ fn next_char_boundary(bytes: &[u8], start: usize) -> usize {
     j
 }
 
-/// Rewrite every downstream (non-utils) crate in `publish/`: `.rs` files get
+/// Rewrite every downstream (non-utils) crate in `lemurclaw-rs/`: `.rs` files get
 /// `lemurclaw_utils::<sub>` path conversion, and each crate's `Cargo.toml`
 /// collapses its `lemurclaw-utils-* = { workspace = true }` dep lines into a
 /// single `lemurclaw-utils = { workspace = true }`.
@@ -4745,7 +4859,7 @@ fn rewrite_downstream_dir(
                 *rs_files += 1;
             }
         } else if name == "Cargo.toml" {
-            // The workspace root (publish/Cargo.toml) is already handled by
+            // The workspace root (lemurclaw-rs/Cargo.toml) is already handled by
             // rewrite_publish_manifest; collapse is a no-op there. For all
             // other crate manifests, collapse member dep lines.
             collapse_deps_in_manifest(&path, cluster)?;

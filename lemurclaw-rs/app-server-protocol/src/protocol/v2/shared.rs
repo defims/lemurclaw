@@ -2,7 +2,7 @@ use lemurclaw_experimental_api_macros::ExperimentalApi;
 use lemurclaw_protocol::config_types::ApprovalsReviewer as CoreApprovalsReviewer;
 use lemurclaw_protocol::config_types::SandboxMode as CoreSandboxMode;
 use lemurclaw_protocol::protocol::AskForApproval as CoreAskForApproval;
-use lemurclaw_protocol::protocol::LemurclawErrorInfo as CoreLemurclawErrorInfo;
+use lemurclaw_protocol::protocol::CodexErrorInfo as CoreCodexErrorInfo;
 use lemurclaw_protocol::protocol::GranularApprovalConfig as CoreGranularApprovalConfig;
 use lemurclaw_protocol::protocol::NonSteerableTurnKind as CoreNonSteerableTurnKind;
 use schemars::JsonSchema;
@@ -68,7 +68,7 @@ pub enum NonSteerableTurnKind {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
-pub enum LemurclawErrorInfo {
+pub enum CodexErrorInfo {
     ContextWindowExceeded,
     SessionBudgetExceeded,
     UsageLimitExceeded,
@@ -112,37 +112,37 @@ pub enum LemurclawErrorInfo {
     Other,
 }
 
-impl From<CoreLemurclawErrorInfo> for LemurclawErrorInfo {
-    fn from(value: CoreLemurclawErrorInfo) -> Self {
+impl From<CoreCodexErrorInfo> for CodexErrorInfo {
+    fn from(value: CoreCodexErrorInfo) -> Self {
         match value {
-            CoreLemurclawErrorInfo::ContextWindowExceeded => LemurclawErrorInfo::ContextWindowExceeded,
-            CoreLemurclawErrorInfo::SessionBudgetExceeded => LemurclawErrorInfo::SessionBudgetExceeded,
-            CoreLemurclawErrorInfo::UsageLimitExceeded => LemurclawErrorInfo::UsageLimitExceeded,
-            CoreLemurclawErrorInfo::ServerOverloaded => LemurclawErrorInfo::ServerOverloaded,
-            CoreLemurclawErrorInfo::CyberPolicy => LemurclawErrorInfo::CyberPolicy,
-            CoreLemurclawErrorInfo::HttpConnectionFailed { http_status_code } => {
-                LemurclawErrorInfo::HttpConnectionFailed { http_status_code }
+            CoreCodexErrorInfo::ContextWindowExceeded => CodexErrorInfo::ContextWindowExceeded,
+            CoreCodexErrorInfo::SessionBudgetExceeded => CodexErrorInfo::SessionBudgetExceeded,
+            CoreCodexErrorInfo::UsageLimitExceeded => CodexErrorInfo::UsageLimitExceeded,
+            CoreCodexErrorInfo::ServerOverloaded => CodexErrorInfo::ServerOverloaded,
+            CoreCodexErrorInfo::CyberPolicy => CodexErrorInfo::CyberPolicy,
+            CoreCodexErrorInfo::HttpConnectionFailed { http_status_code } => {
+                CodexErrorInfo::HttpConnectionFailed { http_status_code }
             }
-            CoreLemurclawErrorInfo::ResponseStreamConnectionFailed { http_status_code } => {
-                LemurclawErrorInfo::ResponseStreamConnectionFailed { http_status_code }
+            CoreCodexErrorInfo::ResponseStreamConnectionFailed { http_status_code } => {
+                CodexErrorInfo::ResponseStreamConnectionFailed { http_status_code }
             }
-            CoreLemurclawErrorInfo::InternalServerError => LemurclawErrorInfo::InternalServerError,
-            CoreLemurclawErrorInfo::Unauthorized => LemurclawErrorInfo::Unauthorized,
-            CoreLemurclawErrorInfo::BadRequest => LemurclawErrorInfo::BadRequest,
-            CoreLemurclawErrorInfo::ThreadRollbackFailed => LemurclawErrorInfo::ThreadRollbackFailed,
-            CoreLemurclawErrorInfo::SandboxError => LemurclawErrorInfo::SandboxError,
-            CoreLemurclawErrorInfo::ResponseStreamDisconnected { http_status_code } => {
-                LemurclawErrorInfo::ResponseStreamDisconnected { http_status_code }
+            CoreCodexErrorInfo::InternalServerError => CodexErrorInfo::InternalServerError,
+            CoreCodexErrorInfo::Unauthorized => CodexErrorInfo::Unauthorized,
+            CoreCodexErrorInfo::BadRequest => CodexErrorInfo::BadRequest,
+            CoreCodexErrorInfo::ThreadRollbackFailed => CodexErrorInfo::ThreadRollbackFailed,
+            CoreCodexErrorInfo::SandboxError => CodexErrorInfo::SandboxError,
+            CoreCodexErrorInfo::ResponseStreamDisconnected { http_status_code } => {
+                CodexErrorInfo::ResponseStreamDisconnected { http_status_code }
             }
-            CoreLemurclawErrorInfo::ResponseTooManyFailedAttempts { http_status_code } => {
-                LemurclawErrorInfo::ResponseTooManyFailedAttempts { http_status_code }
+            CoreCodexErrorInfo::ResponseTooManyFailedAttempts { http_status_code } => {
+                CodexErrorInfo::ResponseTooManyFailedAttempts { http_status_code }
             }
-            CoreLemurclawErrorInfo::ActiveTurnNotSteerable { turn_kind } => {
-                LemurclawErrorInfo::ActiveTurnNotSteerable {
+            CoreCodexErrorInfo::ActiveTurnNotSteerable { turn_kind } => {
+                CodexErrorInfo::ActiveTurnNotSteerable {
                     turn_kind: turn_kind.into(),
                 }
             }
-            CoreLemurclawErrorInfo::Other => LemurclawErrorInfo::Other,
+            CoreCodexErrorInfo::Other => CodexErrorInfo::Other,
         }
     }
 }

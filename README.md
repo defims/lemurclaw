@@ -9,6 +9,92 @@ If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="http
 
 ---
 
+# Lemurclaw
+
+> Lemurclaw is a fork of openai/codex that adds a **native GUI stack** and a
+> **crates.io publishing toolkit** on top of the Codex agent. The original Codex
+> TUI, agent core, and cloud integration are unchanged.
+>
+> 简体中文说明见 [README.zh-CN.md](./README.zh-CN.md)。
+
+## What's different from upstream
+
+- **GUI stack** — run Codex as a native desktop window (`--frontend gui`) or a
+  browser app (`--frontend webui`), in addition to the original TUI. The three
+  frontends share one React/Vite/TypeScript UI and talk to an in-process
+  AppServer over JSON-RPC.
+- **xtask publishing toolkit** — rename `codex-*` → `lemurclaw-*`, merge 40+
+  crates into 6 mega-crates, rewrite the brand, and optionally strip the V8
+  runtime (~120 MB smaller binary).
+- The original `codex-rs/` source tree is **never modified** by the tooling; all
+  publish output lands in `lemurclaw-rs/` (only `target/` is gitignored).
+
+See [docs/lemurclaw.md](./docs/lemurclaw.md) for the full architecture, build,
+and brand-rewrite reference.
+
+## Quickstart — build and run the GUI
+
+The lemurclaw binary is built from a generated `lemurclaw-rs/` workspace, which renames
+the upstream `codex-*` crates to `lemurclaw-*` and strips the V8 runtime. This is
+the recommended path: it produces a ~120 MB smaller binary that doesn't need to
+download `librusty_v8`, and the GUI conversation path never uses V8 anyway
+(code-mode is an optional, default-off feature).
+
+Prerequisites: Rust (stable), Node.js (for the frontend build).
+
+```shell
+# 1. Generate the lemurclaw-rs/ workspace and strip V8 (run from the repo root)
+cd xtask
+cargo run -q -- publish rename     # codex-rs/ → lemurclaw-rs/, renames crates
+cargo run -q -- publish strip-v8   # replace code-mode with a V8-free stub
+
+# 2. Build and run — from lemurclaw-rs/
+cd ../lemurclaw-rs
+cargo build -p lemurclaw
+
+# Browser UI (axum + WebSocket) — then open http://127.0.0.1:8080
+./target/debug/lemurclaw --frontend webui --port 8080
+
+# Native desktop window (wry + tao)
+./target/debug/lemurclaw --frontend gui
+
+# TUI (same as upstream codex)
+./target/debug/lemurclaw
+```
+
+The `lemurclaw-webui` build script automatically runs `npm install && npm run
+build` to produce the embedded React `dist/`. If Node is missing it falls back
+to a committed `dist/` with a warning.
+
+> **Why `lemurclaw-rs/` and not `codex-rs/`?** The GUI crates live as members of the
+> `codex-rs/` workspace for development convenience, but building the launcher
+> there pulls in the full V8 runtime (a ~120 MB download). `lemurclaw-rs/` is the
+> self-contained lemurclaw workspace — rename + strip-v8 gives you a binary that
+> runs the TUI/GUI/WebUI frontends without V8.
+
+### Frontend development
+
+For React/Vite HMR while developing the shared UI, edit under
+`codex-rs/lemurclaw-webui/assets/` (the source the lemurclaw-rs build embeds):
+
+```shell
+cd codex-rs/lemurclaw-webui/assets
+npm install
+npm run dev    # Vite dev server with HMR
+npm run test   # vitest
+```
+
+## Publishing to crates.io
+
+The full pipeline (rename → bundle into 6 crates → rewire forks → publish) is
+documented in [docs/lemurclaw.md](./docs/lemurclaw.md#2-xtask-publishing-toolkit)
+and the runbook at
+[`.agents/skills/lemurclaw-upstream-sync/SKILL.md`](./.agents/skills/lemurclaw-upstream-sync/SKILL.md).
+
+---
+
+# Codex CLI (upstream)
+
 ## Quickstart
 
 ### Installing and running Codex CLI

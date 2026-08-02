@@ -91,7 +91,7 @@ use lemurclaw_app_server_client::TypedRequestError;
 use lemurclaw_app_server_protocol::AddCreditsNudgeCreditType;
 use lemurclaw_app_server_protocol::AskForApproval;
 use lemurclaw_app_server_protocol::ClientRequest;
-use lemurclaw_app_server_protocol::LemurclawErrorInfo as AppServerLemurclawErrorInfo;
+use lemurclaw_app_server_protocol::CodexErrorInfo as AppServerCodexErrorInfo;
 use lemurclaw_app_server_protocol::ConfigBatchWriteParams;
 use lemurclaw_app_server_protocol::ConfigReadResponse;
 use lemurclaw_app_server_protocol::ConfigValueWriteParams;
@@ -620,7 +620,7 @@ fn active_turn_not_steerable_turn_error(error: &TypedRequestError) -> Option<App
     let turn_error: AppServerTurnError = serde_json::from_value(source.data.clone()?).ok()?;
     matches!(
         turn_error.codex_error_info,
-        Some(AppServerLemurclawErrorInfo::ActiveTurnNotSteerable { .. })
+        Some(AppServerCodexErrorInfo::ActiveTurnNotSteerable { .. })
     )
     .then_some(turn_error)
 }
@@ -975,7 +975,7 @@ impl App {
             }
             SessionSelection::Fork(target_session) => {
                 session_telemetry.counter(
-                    "lemurclaw.thread.fork",
+                    "codex.thread.fork",
                     /*inc*/ 1,
                     &[("source", "cli_subcommand")],
                 );

@@ -150,7 +150,7 @@ fn search_provider(context: &InstallContext) -> &'static str {
 }
 
 fn build_commit() -> &'static str {
-    option_env!("LEMURCLAW_BUILD_COMMIT")
+    option_env!("CODEX_BUILD_COMMIT")
         .or(option_env!("GIT_COMMIT"))
         .unwrap_or("unknown")
 }

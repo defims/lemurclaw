@@ -167,8 +167,8 @@ async fn personal_access_token_without_email_supports_auth_status_and_account_re
         .without_auto_env()
         .with_env_overrides(&[
             ("OPENAI_API_KEY", None),
-            ("LEMURCLAW_ACCESS_TOKEN", Some("at-test-token")),
-            ("LEMURCLAW_AUTHAPI_BASE_URL", Some(authapi_base_url.as_str())),
+            ("CODEX_ACCESS_TOKEN", Some("at-test-token")),
+            ("CODEX_AUTHAPI_BASE_URL", Some(authapi_base_url.as_str())),
         ])
         .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
         .await?;

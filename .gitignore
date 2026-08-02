@@ -96,8 +96,8 @@ __pycache__/
 *.pyc
 
 # xtask publish output (parallel renamed workspace for crates.io)
-/publish/
-/publish.forks/
+/lemurclaw-rs/target/
+/lemurclaw-rs.forks/
 
 # Local agent session state
 /.zcode/

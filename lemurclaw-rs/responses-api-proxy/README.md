@@ -1,29 +1,29 @@
-# lemurclaw-responses-api-proxy
+# codex-responses-api-proxy
 
 #### tl;dr:
 
 ```
 # Launch the proxy, dump request/response pairs to /tmp/proxy
-cd path/to/lemurclaw/lemurclaw-rs
+cd path/to/codex/codex-rs
 cargo build
-echo $OPENAI_API_KEY | ./target/debug/lemurclaw-responses-api-proxy \
+echo $OPENAI_API_KEY | ./target/debug/codex-responses-api-proxy \
     --port 60001 \
     --dump-dir /tmp/proxy
 
 
-# Add this to ~/.lemurclaw/config.toml:
+# Add this to ~/.codex/config.toml:
 
-[model_providers.lemurclaw-responses-api-proxy]
-name = 'lemurclaw-responses-api-proxy'
+[model_providers.codex-responses-api-proxy]
+name = 'codex-responses-api-proxy'
 base_url = 'http://127.0.0.1:60001/v1'
 wire_api='responses'
 
 [profiles.proxy]
-model_provider = "lemurclaw-responses-api-proxy"
+model_provider = "codex-responses-api-proxy"
 
 
 # Use it
-lemurclaw -p proxy
+codex -p proxy
 ```
 
 # Detailed docs
@@ -32,20 +32,20 @@ A strict HTTP proxy that only forwards `POST` requests to `/v1/responses` to the
 
 ## Expected Usage
 
-**IMPORTANT:** `lemurclaw-responses-api-proxy` is designed to be run by a privileged user with access to `OPENAI_API_KEY` so that an unprivileged user cannot inspect or tamper with the process. Though if `--http-shutdown` is specified, an unprivileged user _can_ make a `GET` request to `/shutdown` to shutdown the server, as an unprivileged user could not send `SIGTERM` to kill the process.
+**IMPORTANT:** `codex-responses-api-proxy` is designed to be run by a privileged user with access to `OPENAI_API_KEY` so that an unprivileged user cannot inspect or tamper with the process. Though if `--http-shutdown` is specified, an unprivileged user _can_ make a `GET` request to `/shutdown` to shutdown the server, as an unprivileged user could not send `SIGTERM` to kill the process.
 
-A privileged user (i.e., `root` or a user with `sudo`) who has access to `OPENAI_API_KEY` would run the following to start the server, as `lemurclaw-responses-api-proxy` reads the auth token from `stdin`:
+A privileged user (i.e., `root` or a user with `sudo`) who has access to `OPENAI_API_KEY` would run the following to start the server, as `codex-responses-api-proxy` reads the auth token from `stdin`:
 
 ```shell
-printenv OPENAI_API_KEY | env -u OPENAI_API_KEY lemurclaw-responses-api-proxy --http-shutdown --server-info /tmp/server-info.json
+printenv OPENAI_API_KEY | env -u OPENAI_API_KEY codex-responses-api-proxy --http-shutdown --server-info /tmp/server-info.json
 ```
 
-A non-privileged user would then run lemurclaw as follows, specifying the `model_provider` dynamically:
+A non-privileged user would then run Codex as follows, specifying the `model_provider` dynamically:
 
 ```shell
 PROXY_PORT=$(jq .port /tmp/server-info.json)
 PROXY_BASE_URL="http://127.0.0.1:${PROXY_PORT}"
-lemurclaw exec -c "model_providers.openai-proxy={ name = 'OpenAI Proxy', base_url = '${PROXY_BASE_URL}/v1', wire_api='responses' }" \
+codex exec -c "model_providers.openai-proxy={ name = 'OpenAI Proxy', base_url = '${PROXY_BASE_URL}/v1', wire_api='responses' }" \
     -c model_provider="openai-proxy" \
     'Your prompt here'
 ```
@@ -58,7 +58,7 @@ curl --fail --silent --show-error "${PROXY_BASE_URL}/shutdown"
 
 ## Behavior
 
-- Reads the API key from `stdin`. All callers should pipe the key in (for example, `printenv OPENAI_API_KEY | lemurclaw-responses-api-proxy`).
+- Reads the API key from `stdin`. All callers should pipe the key in (for example, `printenv OPENAI_API_KEY | codex-responses-api-proxy`).
 - Formats the header value as `Bearer <key>` and attempts to `mlock(2)` the memory holding that header so it is not swapped to disk.
 - Listens on the provided port or an ephemeral port if `--port` is not specified.
 - Accepts exactly `POST /v1/responses` (no query string). The request body is forwarded to `https://api.openai.com/v1/responses` with `Authorization: Bearer <key>` set. All original request headers (except any incoming `Authorization`) are forwarded upstream, with `Host` overridden to `api.openai.com`. For other requests, it responds with `403`.
@@ -69,7 +69,7 @@ curl --fail --silent --show-error "${PROXY_BASE_URL}/shutdown"
 ## CLI
 
 ```
-lemurclaw-responses-api-proxy [--port <PORT>] [--server-info <FILE>] [--http-shutdown] [--upstream-url <URL>] [--dump-dir <DIR>]
+codex-responses-api-proxy [--port <PORT>] [--server-info <FILE>] [--http-shutdown] [--upstream-url <URL>] [--dump-dir <DIR>]
 ```
 
 - `--port <PORT>`: Port to bind on `127.0.0.1`. If omitted, an ephemeral port is chosen.
@@ -77,12 +77,12 @@ lemurclaw-responses-api-proxy [--port <PORT>] [--server-info <FILE>] [--http-shu
 - `--http-shutdown`: If set, enables `GET /shutdown` to exit the process with code `0`.
 - `--upstream-url <URL>`: Absolute URL to forward requests to. Defaults to `https://api.openai.com/v1/responses`.
 - `--dump-dir <DIR>`: If set, writes one request JSON file and one response JSON file per accepted proxy call under this directory. Filenames use a shared sequence/timestamp prefix so each pair is easy to correlate.
-- Authentication is fixed to `Authorization: Bearer <key>` to match the lemurclaw CLI expectations.
+- Authentication is fixed to `Authorization: Bearer <key>` to match the Codex CLI expectations.
 
 For Azure, for example (ensure your deployment accepts `Authorization: Bearer <key>`):
 
 ```shell
-printenv AZURE_OPENAI_API_KEY | env -u AZURE_OPENAI_API_KEY lemurclaw-responses-api-proxy \
+printenv AZURE_OPENAI_API_KEY | env -u AZURE_OPENAI_API_KEY codex-responses-api-proxy \
   --http-shutdown \
   --server-info /tmp/server-info.json \
   --upstream-url "https://YOUR_PROJECT_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/responses?api-version=2025-04-01-preview"
@@ -97,7 +97,7 @@ printenv AZURE_OPENAI_API_KEY | env -u AZURE_OPENAI_API_KEY lemurclaw-responses-
 
 Care is taken to restrict access/copying to the value of `OPENAI_API_KEY` retained in memory:
 
-- We leverage [`codex_process_hardening`](https://github.com/openai/codex/blob/main/lemurclaw-rs/process-hardening/README.md) so `lemurclaw-responses-api-proxy` is run with standard process-hardening techniques.
+- We leverage [`codex_process_hardening`](https://github.com/openai/codex/blob/main/codex-rs/process-hardening/README.md) so `codex-responses-api-proxy` is run with standard process-hardening techniques.
 - At startup, we allocate a `1024` byte buffer on the stack and copy `"Bearer "` into the start of the buffer.
 - We then read from `stdin`, copying the contents into the buffer after `"Bearer "`.
 - After verifying the key matches `/^[a-zA-Z0-9_-]+$/` (and does not exceed the buffer), we create a `String` from that buffer (so the data is now on the heap).

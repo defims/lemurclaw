@@ -133,7 +133,9 @@ pub(crate) fn build_chat_completions_payload(
                 });
                 push_tool_call_message(&mut messages, tool_call, reasoning);
             }
-            ResponseItem::FunctionCallOutput { call_id, output, .. } => {
+            ResponseItem::FunctionCallOutput {
+                call_id, output, ..
+            } => {
                 messages.push(json!({
                     "role": "tool",
                     "tool_call_id": call_id,
@@ -199,7 +201,9 @@ pub(crate) fn build_chat_completions_payload(
     }
 
     let tools_json = create_tools_json_for_chat_completions_api(&prompt.tools)?;
-    Ok(create_chat_completions_payload(model_slug, messages, tools_json))
+    Ok(create_chat_completions_payload(
+        model_slug, messages, tools_json,
+    ))
 }
 
 /// Pre-scan the input and map each `Reasoning` block (that appears after the
@@ -210,11 +214,8 @@ pub(crate) fn build_chat_completions_payload(
 /// This preserves reasoning context for providers that support a `reasoning`
 /// field on assistant messages, while dropping reasoning that would otherwise
 /// dangle without an anchor.
-fn collect_reasoning_anchors(
-    input: &[ResponseItem],
-) -> std::collections::HashMap<usize, String> {
-    let mut anchors: std::collections::HashMap<usize, String> =
-        std::collections::HashMap::new();
+fn collect_reasoning_anchors(input: &[ResponseItem]) -> std::collections::HashMap<usize, String> {
+    let mut anchors: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
 
     // Determine the last role that would be emitted to Chat Completions.
     let mut last_emitted_role: Option<&str> = None;
@@ -375,7 +376,10 @@ fn push_tool_call_message(messages: &mut Vec<Value>, tool_call: Value, reasoning
                 }
                 existing.push_str(reasoning);
             } else {
-                obj.insert("reasoning".to_string(), Value::String(reasoning.to_string()));
+                obj.insert(
+                    "reasoning".to_string(),
+                    Value::String(reasoning.to_string()),
+                );
             }
         }
         return;
@@ -429,12 +433,74 @@ pub(crate) fn sanitize_message_roles_for_strict_chat_providers(payload: &mut Val
         match obj.get("role").and_then(|r| r.as_str()) {
             Some("system" | "user" | "assistant" | "tool") | None => {}
             Some(_) => {
-                obj.insert(
-                    "role".to_string(),
-                    Value::String("system".to_string()),
-                );
+                obj.insert("role".to_string(), Value::String("system".to_string()));
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stream bridge (forward codex_api stream into core ResponseStream)
+// ---------------------------------------------------------------------------
+
+use crate::client_common::{ResponseEvent, ResponseStream};
+use crate::feedback_tags;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+
+/// The channel capacity for the Chat Completions response bridge. Mirrors the
+/// Responses-API constant in `client.rs`.
+const RESPONSE_STREAM_CHANNEL_CAPACITY: usize = 1600;
+
+/// Bridge a `codex_api::ResponseStream` (produced by the Chat Completions
+/// client) into a core [`ResponseStream`].
+///
+/// Unlike the Responses-API path, the Chat Completions path is not yet wired
+/// into the inference-trace / last-response tracking machinery
+/// (`map_response_stream` + `InferenceTraceAttempt`), so this is a lightweight
+/// forwarder: it drains the upstream `codex_api` stream, maps errors into
+/// `CodexErr`s, and forwards every [`ResponseEvent`] onto a core
+/// `ResponseStream` channel. The `consumer_dropped` cancellation token is
+/// honoured so that dropping the consumer cancels the bridging task.
+pub(crate) fn bridge_chat_completions_stream(api_stream: codex_api::ResponseStream) -> ResponseStream {
+    let codex_api::ResponseStream {
+        mut rx_event,
+        upstream_request_id,
+    } = api_stream;
+    if let Some(upstream_request_id) = upstream_request_id.as_deref() {
+        feedback_tags!(last_model_request_id = upstream_request_id);
+    }
+    let (tx_event, rx_event_out) =
+        mpsc::channel::<Result<ResponseEvent, codex_protocol::error::CodexErr>>(RESPONSE_STREAM_CHANNEL_CAPACITY);
+    let consumer_dropped = CancellationToken::new();
+    let consumer_dropped_for_stream = consumer_dropped.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = consumer_dropped_for_stream.cancelled() => {
+                    return;
+                }
+                event = rx_event.recv() => {
+                    let Some(event) = event else { break };
+                    match event {
+                        Ok(ev) => {
+                            if tx_event.send(Ok(ev)).await.is_err() {
+                                return;
+                            }
+                        }
+                        Err(err) => {
+                            let err = codex_api::map_api_error(err);
+                            let _ = tx_event.send(Err(err)).await;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    ResponseStream {
+        rx_event: rx_event_out,
+        consumer_dropped,
     }
 }
 
@@ -506,10 +572,7 @@ mod tests {
             .iter()
             .map(|m| m["role"].as_str().expect("role should be a string"))
             .collect();
-        assert_eq!(
-            roles,
-            vec!["system", "user", "assistant", "tool", "system"]
-        );
+        assert_eq!(roles, vec!["system", "user", "assistant", "tool", "system"]);
     }
 
     #[test]

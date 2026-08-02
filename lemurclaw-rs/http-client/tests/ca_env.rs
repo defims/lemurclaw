@@ -38,10 +38,10 @@ use std::time::Duration;
 use std::time::Instant;
 use tempfile::TempDir;
 
-const CODEX_CA_CERT_ENV: &str = "LEMURCLAW_CA_CERTIFICATE";
-const PROBE_PROXY_ENV: &str = "LEMURCLAW_CUSTOM_CA_PROBE_PROXY";
-const PROBE_TLS13_ENV: &str = "LEMURCLAW_CUSTOM_CA_PROBE_TLS13";
-const PROBE_URL_ENV: &str = "LEMURCLAW_CUSTOM_CA_PROBE_URL";
+const CODEX_CA_CERT_ENV: &str = "CODEX_CA_CERTIFICATE";
+const PROBE_PROXY_ENV: &str = "CODEX_CUSTOM_CA_PROBE_PROXY";
+const PROBE_TLS13_ENV: &str = "CODEX_CUSTOM_CA_PROBE_TLS13";
+const PROBE_URL_ENV: &str = "CODEX_CUSTOM_CA_PROBE_URL";
 const SSL_CERT_FILE_ENV: &str = "SSL_CERT_FILE";
 const PROXY_ENV_VARS: &[&str] = &[
     "HTTP_PROXY",
@@ -495,7 +495,7 @@ fn rejects_empty_pem_file_with_hint() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("no certificates found in PEM file"));
-    assert!(stderr.contains("LEMURCLAW_CA_CERTIFICATE"));
+    assert!(stderr.contains("CODEX_CA_CERTIFICATE"));
     assert!(stderr.contains("SSL_CERT_FILE"));
 }
 
@@ -513,7 +513,7 @@ fn rejects_malformed_pem_with_hint() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("failed to parse PEM file"));
-    assert!(stderr.contains("LEMURCLAW_CA_CERTIFICATE"));
+    assert!(stderr.contains("CODEX_CA_CERTIFICATE"));
     assert!(stderr.contains("SSL_CERT_FILE"));
 }
 

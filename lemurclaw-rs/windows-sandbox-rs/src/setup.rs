@@ -704,11 +704,11 @@ const PROXY_ENV_KEYS: &[&str] = &[
     "ws_proxy",
     "wss_proxy",
 ];
-const ALLOW_LOCAL_BINDING_ENV_KEY: &str = "LEMURCLAW_NETWORK_ALLOW_LOCAL_BINDING";
+const ALLOW_LOCAL_BINDING_ENV_KEY: &str = "CODEX_NETWORK_ALLOW_LOCAL_BINDING";
 // Internal wire format shared with network-proxy/src/proxy.rs. The value is a comma-separated,
 // sorted list of non-zero loopback proxy ports used only when computing the Windows offline
 // sandbox setup marker.
-const WINDOWS_SANDBOX_PROXY_PORTS_ENV_KEY: &str = "LEMURCLAW_WINDOWS_SANDBOX_PROXY_PORTS";
+const WINDOWS_SANDBOX_PROXY_PORTS_ENV_KEY: &str = "CODEX_WINDOWS_SANDBOX_PROXY_PORTS";
 
 pub(crate) fn offline_proxy_settings_from_env(
     env_map: &HashMap<String, String>,
@@ -1632,7 +1632,7 @@ mod tests {
             "http://127.0.0.1:8080".to_string(),
         );
         env.insert(
-            "LEMURCLAW_NETWORK_ALLOW_LOCAL_BINDING".to_string(),
+            "CODEX_NETWORK_ALLOW_LOCAL_BINDING".to_string(),
             "1".to_string(),
         );
 
@@ -1657,7 +1657,7 @@ mod tests {
             "socks5h://127.0.0.1:1081".to_string(),
         );
         env.insert(
-            "LEMURCLAW_NETWORK_ALLOW_LOCAL_BINDING".to_string(),
+            "CODEX_NETWORK_ALLOW_LOCAL_BINDING".to_string(),
             "1".to_string(),
         );
 
@@ -2105,10 +2105,10 @@ mod tests {
         let command_cwd = tmp.path().join("workspace");
         let extra_write_root = tmp.path().join("extra-write-root");
         let command_git = command_cwd.join(".git");
-        let extra_codex = extra_write_root.join(".lemurclaw");
+        let extra_codex = extra_write_root.join(".codex");
         let explicit_deny = tmp.path().join("explicit-deny");
         fs::create_dir_all(&command_git).expect("create command .git");
-        fs::create_dir_all(&extra_codex).expect("create extra .lemurclaw");
+        fs::create_dir_all(&extra_codex).expect("create extra .codex");
         let writable_roots = vec![
             AbsolutePathBuf::from_absolute_path(&extra_write_root).expect("absolute writable root"),
         ];
@@ -2133,7 +2133,7 @@ mod tests {
         assert_eq!(
             [
                 dunce::canonicalize(&command_git).expect("canonical command .git"),
-                dunce::canonicalize(&extra_codex).expect("canonical extra .lemurclaw"),
+                dunce::canonicalize(&extra_codex).expect("canonical extra .codex"),
                 explicit_deny,
             ]
             .into_iter()

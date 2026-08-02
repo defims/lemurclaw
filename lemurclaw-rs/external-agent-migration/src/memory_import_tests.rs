@@ -20,7 +20,7 @@ fn write_project_session(project_root: &Path, project_cwd: &Path) {
 #[test]
 fn copies_only_selected_projects_and_recopies_changed_content() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let source_home = root.path().join(".external-agent");
     let project_a_memory = source_home.join("projects/project-a/memory");
     let project_b_memory = source_home.join("projects/project-b/memory");
@@ -105,7 +105,7 @@ fn copies_only_selected_projects_and_recopies_changed_content() {
 #[test]
 fn preserves_project_successes_and_reports_each_failed_selection() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let source_home = root.path().join(".external-agent");
     let project_a_memory = source_home.join("projects/project-a/memory");
     let project_b_memory = source_home.join("projects/project-b/memory");
@@ -159,7 +159,7 @@ fn preserves_project_successes_and_reports_each_failed_selection() {
 #[test]
 fn removes_project_resources_when_the_source_project_disappears() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let source_home = root.path().join(".external-agent");
     let project_root = source_home.join("projects/project-a");
     let project_memory = project_root.join("memory");
@@ -192,7 +192,7 @@ fn removes_project_resources_when_the_source_project_disappears() {
 #[test]
 fn uses_scope_file_to_identify_owned_projects() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let resources_root = resources_root(&codex_home);
     fs::create_dir_all(resources_root.join("project-a")).expect("create project resources");
     fs::write(resources_root.join("project-a/scope.json"), b"{}").expect("write project scope");
@@ -212,7 +212,7 @@ fn uses_scope_file_to_identify_owned_projects() {
 #[test]
 fn project_rename_removes_the_old_target_and_imports_the_new_target() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let source_home = root.path().join(".external-agent");
     let project_a_root = source_home.join("projects/project-a");
     let project_a_memory = project_a_root.join("memory");
@@ -252,7 +252,7 @@ fn project_rename_removes_the_old_target_and_imports_the_new_target() {
 #[test]
 fn does_not_import_a_new_project_without_a_reliable_cwd() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let source_home = root.path().join(".external-agent");
     let project_memory = source_home.join("projects/project-a/memory");
     fs::create_dir_all(&project_memory).expect("create project memory");
@@ -283,7 +283,7 @@ fn does_not_import_a_new_project_without_a_reliable_cwd() {
 #[test]
 fn missing_cwd_does_not_make_an_existing_scoped_project_look_deleted() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let source_home = root.path().join(".external-agent");
     let project_root = source_home.join("projects/project-a");
     let project_memory = project_root.join("memory");
@@ -307,7 +307,7 @@ fn missing_cwd_does_not_make_an_existing_scoped_project_look_deleted() {
 #[test]
 fn removes_an_existing_unscoped_target_when_cwd_is_unavailable() {
     let root = TempDir::new().expect("create tempdir");
-    let codex_home = root.path().join(".lemurclaw");
+    let codex_home = root.path().join(".codex");
     let source_home = root.path().join(".external-agent");
     let project_memory = source_home.join("projects/project-a/memory");
     fs::create_dir_all(&project_memory).expect("create project memory");

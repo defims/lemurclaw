@@ -43,17 +43,17 @@ class InstallError(Exception):
 
 
 def _codex_home() -> str:
-    return os.environ.get("LEMURCLAW_HOME", os.path.expanduser("~/.lemurclaw"))
+    return os.environ.get("CODEX_HOME", os.path.expanduser("~/.codex"))
 
 
 def _tmp_root() -> str:
-    base = os.path.join(tempfile.gettempdir(), "lemurclaw")
+    base = os.path.join(tempfile.gettempdir(), "codex")
     os.makedirs(base, exist_ok=True)
     return base
 
 
 def _request(url: str) -> bytes:
-    return github_request(url, "lemurclaw-skill-install")
+    return github_request(url, "codex-skill-install")
 
 
 def _parse_github_url(url: str, default_ref: str) -> tuple[str, str, str, str | None]:

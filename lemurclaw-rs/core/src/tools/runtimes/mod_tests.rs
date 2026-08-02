@@ -522,12 +522,12 @@ fn maybe_wrap_shell_lc_with_snapshot_restores_codex_thread_id_from_env() {
         &session_shell,
         Some(&shell_snapshot),
         &HashMap::new(),
-        &HashMap::from([("LEMURCLAW_THREAD_ID".to_string(), "nested-thread".to_string())]),
+        &HashMap::from([("CODEX_THREAD_ID".to_string(), "nested-thread".to_string())]),
         &RuntimePathPrepends::default(),
     );
     let output = Command::new(&rewritten[0])
         .args(&rewritten[1..])
-        .env("LEMURCLAW_THREAD_ID", "nested-thread")
+        .env("CODEX_THREAD_ID", "nested-thread")
         .output()
         .expect("run rewritten command");
 
@@ -1128,7 +1128,7 @@ fn maybe_wrap_shell_lc_with_snapshot_preserves_unset_override_variables() {
             "if [ \"${CODEX_TEST_UNSET_OVERRIDE+x}\" = x ]; then printf 'set:%s' \"$CODEX_TEST_UNSET_OVERRIDE\"; else printf 'unset'; fi".to_string(),
         ];
     let explicit_env_overrides = HashMap::from([(
-        "LEMURCLAW_TEST_UNSET_OVERRIDE".to_string(),
+        "CODEX_TEST_UNSET_OVERRIDE".to_string(),
         "worktree-value".to_string(),
     )]);
     let rewritten = maybe_wrap_shell_lc_with_snapshot(
@@ -1142,7 +1142,7 @@ fn maybe_wrap_shell_lc_with_snapshot_preserves_unset_override_variables() {
 
     let output = Command::new(&rewritten[0])
         .args(&rewritten[1..])
-        .env_remove("LEMURCLAW_TEST_UNSET_OVERRIDE")
+        .env_remove("CODEX_TEST_UNSET_OVERRIDE")
         .output()
         .expect("run rewritten command");
     assert!(output.status.success(), "command failed: {output:?}");

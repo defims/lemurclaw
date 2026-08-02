@@ -83,9 +83,9 @@ pub(crate) fn elevated_setup_failure_metric_name(err: &anyhow::Error) -> &'stati
             lemurclaw_windows_sandbox::SetupErrorCode::OrchestratorHelperLaunchCanceled
         )
     }) {
-        "lemurclaw.windows_sandbox.elevated_setup_canceled"
+        "codex.windows_sandbox.elevated_setup_canceled"
     } else {
-        "lemurclaw.windows_sandbox.elevated_setup_failure"
+        "codex.windows_sandbox.elevated_setup_failure"
     }
 }
 

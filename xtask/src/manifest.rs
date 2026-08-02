@@ -152,6 +152,28 @@ pub fn rename_package(name: &str) -> String {
     }
 }
 
+/// Rewrite a workspace-relative member path to its publish-side form.
+///
+/// Mirrors `rename.rs::dst_rel_dir_for`: only a `codex-`-prefixed leaf
+/// segment is renamed (`codex-api` → `lemurclaw-api`); other paths
+/// (`core`, `utils/absolute-path`) pass through unchanged. Used to compare
+/// source-manifest `path = "..."` values against `keep_members`, which are
+/// already in destination form after the Bug 1 directory-rename fix.
+pub fn dst_member_path(rel: &str) -> String {
+    let rel = rel.strip_prefix("./").unwrap_or(rel);
+    match rel.rsplit('/').next() {
+        Some(leaf) if leaf.starts_with("codex-") => {
+            let parent_len = rel.len().saturating_sub(leaf.len());
+            let mut out = String::with_capacity(rel.len() + 3);
+            out.push_str(&rel[..parent_len]);
+            out.push_str("lemurclaw-");
+            out.push_str(&leaf["codex-".len()..]);
+            out
+        }
+        _ => rel.to_string(),
+    }
+}
+
 /// Rename the Rust identifier form: `codex_foo` -> `lemurclaw_foo`. Used when
 /// rewriting `use codex_foo::...` imports.
 pub fn rename_ident(name: &str) -> String {
@@ -218,6 +240,12 @@ pub fn rewrite_crate_manifest(raw: &str, drop_bins: bool, drop_deps: &[String]) 
 
         // Drop inline dependency lines that reference excluded crates.
         if line_matches_drop_dep(trimmed, drop_deps) {
+            continue;
+        }
+
+        // When bins are dropped, `default-run` references a bin target that no
+        // longer exists, which cargo rejects ("default-run target not found").
+        if drop_bins && trimmed.starts_with("default-run") && trimmed.contains('=') {
             continue;
         }
 
@@ -349,10 +377,21 @@ fn rewrite_codex_strings_in_line(line: &str) -> String {
             if let Some(end_rel) = line[i + 1..].find('"') {
                 let end = i + 1 + end_rel;
                 let inner = &line[i + 1..end];
-                if inner.starts_with("codex-") {
-                    let renamed = rename_package(inner);
+                // A bare quoted `codex-foo` is a package name → rename_package.
+                // A quoted path whose leaf is `codex-*` (e.g. `../codex-bar`,
+                // `./codex-bar`, `some/codex-bar`) must be normalized to its
+                // destination form via dst_member_path, or cargo can't resolve
+                // the member dir after `process_crate` renamed it.
+                let renamed = if inner.starts_with("codex-") {
+                    Some(rename_package(inner))
+                } else if inner.contains('/') && dst_member_path(inner) != inner {
+                    Some(dst_member_path(inner))
+                } else {
+                    None
+                };
+                if let Some(r) = renamed {
                     out.push('"');
-                    out.push_str(&renamed);
+                    out.push_str(&r);
                     out.push('"');
                     i = end + 1;
                     continue;
@@ -382,10 +421,19 @@ fn rewrite_codex_strings_in_line_safe(line: &str) -> String {
             if let Some(end_rel) = line[i + 1..].find('"') {
                 let end = i + 1 + end_rel;
                 let inner = &line[i + 1..end];
-                if inner.starts_with("codex-") {
-                    let renamed = rename_package(inner);
+                // Mirror the byte-level fast path: bare `codex-foo` → package
+                // rename; path-leaf `codex-*` (`../codex-bar` etc.) →
+                // dst_member_path so it matches the renamed member dir.
+                let renamed = if inner.starts_with("codex-") {
+                    Some(rename_package(inner))
+                } else if inner.contains('/') && dst_member_path(inner) != inner {
+                    Some(dst_member_path(inner))
+                } else {
+                    None
+                };
+                if let Some(r) = renamed {
                     out.push('"');
-                    out.push_str(&renamed);
+                    out.push_str(&r);
                     out.push('"');
                     // Advance chars past the closing quote.
                     while let Some(&(j, _)) = chars.peek() {
@@ -457,6 +505,8 @@ fn split_at_key(line: &str, key_start: usize) -> (String, String, String) {
 pub fn rewrite_workspace_manifest(
     src: &WorkspaceManifest,
     keep_members: &[String],
+    own_members: &[String],
+    own_deps: &[(String, String, String)],
 ) -> Result<String> {
     let doc = &src.doc;
     let mut out = String::new();
@@ -465,14 +515,24 @@ pub fn rewrite_workspace_manifest(
     out.push_str("resolver = \"2\"\n");
 
     // members: keep only the publishable rel_dirs, preserving source order.
+    // Then append own_members (lemurclaw's own crates that live exclusively
+    // in lemurclaw-rs/ — they're absent from the source workspace manifest).
     out.push_str("\nmembers = [\n");
     let src_members = src.members()?;
     let keep_set: std::collections::HashSet<&str> =
         keep_members.iter().map(|s| s.as_str()).collect();
     for m in &src_members {
-        if keep_set.contains(m.as_str()) {
-            out.push_str(&format!("    \"{}\",\n", m));
+        // `keep_members` are in destination form; compare the source member
+        // the same way and emit the destination path so the listed member
+        // dir matches what `process_crate` actually wrote.
+        let dst = dst_member_path(m);
+        if keep_set.contains(dst.as_str()) {
+            out.push_str(&format!("    \"{}\",\n", dst));
         }
+    }
+    // Inject own-crate members (Phase 4: they're not in the source workspace).
+    for m in own_members {
+        out.push_str(&format!("    \"{}\",\n", m));
     }
     out.push_str("]\n");
 
@@ -506,17 +566,21 @@ pub fn rewrite_workspace_manifest(
     }
 
     // workspace.dependencies: rename codex-* keys, drop entries for crates
-    // that are not in keep_members (those packages don't exist in publish/).
+    // that are not in keep_members (those packages don't exist in lemurclaw-rs/).
+    // Then inject own_deps (lemurclaw's own crates — absent from source deps
+    // since Phase 4 relocated them out of codex-rs/).
     let deps = src.workspace_deps()?;
-    if !deps.is_empty() {
+    let has_own_deps = !own_deps.is_empty();
+    if !deps.is_empty() || has_own_deps {
         out.push_str("\n[workspace.dependencies]\n");
         for (k, v) in &deps {
             // Path deps point at member dirs; if the dir isn't in keep_members,
-            // skip this entry (it's for an excluded crate).
+            // skip this entry (it's for an excluded crate). `keep_members`
+            // holds destination paths (post directory-rename), so normalize
+            // the source path the same way before comparing.
             if let Some(table) = v.as_table() {
                 if let Some(path) = table.get("path").and_then(|p| p.as_str()) {
-                    let rel = path.strip_prefix("./").unwrap_or(path);
-                    if !keep_set.contains(rel) {
+                    if !keep_set.contains(dst_member_path(path).as_str()) {
                         continue;
                     }
                 }
@@ -535,6 +599,13 @@ pub fn rewrite_workspace_manifest(
             let v_with_version = ensure_version_for_internal_path(v, &key);
             let value_str = render_dep_value(&v_with_version, k);
             out.push_str(&format!("{} = {}\n", key, value_str));
+        }
+        // Inject own-crate path deps (Phase 4: they live in lemurclaw-rs/ only).
+        for (key, path, version) in own_deps {
+            out.push_str(&format!(
+                "{} = {{ path = \"{}\", version = \"{}\" }}\n",
+                key, path, version
+            ));
         }
     }
 
@@ -612,9 +683,12 @@ fn ensure_version_for_internal_path(v: &toml::Value, renamed_key: &str) -> toml:
 }
 
 fn render_dep_value(v: &toml::Value, original_key: &str) -> String {
-    // For path deps pointing at a codex-* workspace member, the path stays the
-    // same (directory layout is preserved); only the package name changes.
-    // Workspace inheritance stays as-is: `{ workspace = true }`.
+    // For path deps pointing at a codex-* workspace member, the package name
+    // changes and — because `process_crate` renames `codex-*` leaf dirs to
+    // `lemurclaw-*` on copy — the `path` value must follow or cargo fails to
+    // resolve the member. `dst_member_path` is a no-op for paths whose leaf
+    // isn't `codex-`-prefixed, so non-codex dirs are untouched. Workspace
+    // inheritance (`{ workspace = true }`) has no `path` key and passes through.
     let rendered = match v {
         toml::Value::Table(t) => {
             let mut parts: Vec<String> = Vec::new();
@@ -624,6 +698,14 @@ fn render_dep_value(v: &toml::Value, original_key: &str) -> String {
                     if let Some(s) = vv.as_str() {
                         let renamed = rename_package(s);
                         parts.push(format!("package = \"{}\"", renamed));
+                        continue;
+                    }
+                }
+                if k == "path" {
+                    // Normalize the member path to its publish-side form so it
+                    // matches the renamed destination directory.
+                    if let Some(s) = vv.as_str() {
+                        parts.push(format!("path = \"{}\"", dst_member_path(s)));
                         continue;
                     }
                 }

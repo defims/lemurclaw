@@ -234,14 +234,14 @@ async fn steer_rejection_queues_review_follow_up_before_existing_queued_messages
     handle_error(
         &mut chat,
         "cannot steer a review turn",
-        Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
+        Some(CodexErrorInfo::ActiveTurnNotSteerable {
             turn_kind: NonSteerableTurnKind::Review,
         }),
     );
     handle_error(
         &mut chat,
         "cannot steer a review turn",
-        Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
+        Some(CodexErrorInfo::ActiveTurnNotSteerable {
             turn_kind: NonSteerableTurnKind::Review,
         }),
     );
@@ -1462,7 +1462,7 @@ async fn review_queues_user_messages_snapshot() {
     handle_error(
         &mut chat,
         "cannot steer a review turn",
-        Some(LemurclawErrorInfo::ActiveTurnNotSteerable {
+        Some(CodexErrorInfo::ActiveTurnNotSteerable {
             turn_kind: NonSteerableTurnKind::Review,
         }),
     );

@@ -1,6 +1,6 @@
 # Migration: `publish/` → `lemurclaw-rs/` (常驻、git 跟踪、增量同步)
 
-> **状态**:阶段 1-2 已完成,阶段 3 待实施。
+> **状态**:阶段 1-4 已全部完成(选项 B)。
 >
 > This document is in Chinese for the maintainer's review. English summary at
 > the bottom.
@@ -149,10 +149,14 @@ clean-slate 模式下,上游删除的 crate 自然消失(整体重建)。增量�
 5. **codex-rs 的 lemurclaw 4 crate 去留**(见 §7)。如果移出,codex-rs 纯净但 4 crate
    失去 workspace.dependencies 解析;如果保留,codex-rs 不纯净但无额外工作。
 
-## 7. codex-rs/ 的 lemurclaw 4 crate 去留(选项 C 已选定,含可行性修正)
+## 7. codex-rs/ 的 lemurclaw 4 crate 去留(选项 B 已执行)
 
-> **决定**:采用选项 C —— 4 crate 物理上属于 lemurclaw-rs/,codex-rs/ 通过 path 依赖
-> 引用它们。但落地形态与最初设想不同(见下方「可行性修正」)。
+> **决定**:采用选项 B —— 4 crate 完全移出 codex-rs/,只在 lemurclaw-rs/ 维护。codex-rs
+> 保持纯净,上游同步零冲突。代价:codex-rs 不再编译 lemurclaw 4 crate(它们只在
+> lemurclaw-rs/ 编译)。初始化模式不再支持从零生成 lemurclaw-rs/(它是常驻 git 跟踪
+> workspace,通过 git clone 获得初始状态)。
+>
+> 选项 C(顶层 workspace)因「上游同步冲突面变大」被否决(详见下方对比表)。
 
 ### 最初设想(选项 C 原文)
 
@@ -248,19 +252,30 @@ lemurclaw-rs workspace(接受 path 依赖手工维护)。
 - strip-v8 改成保留 lockfile + cargo update(修版本漂移)
 - **验收**:strip-v8 后 rama 版本不漂移
 
-### 阶段 3:rename 增量同步(核心,风险最高)
+### 阶段 3:rename 增量同步(核心,风险最高)✅
 - 实现「初始化 vs 同步」分支
 - codex-* 改名产物逐 crate 覆盖;lemurclaw 自有跳过
-- 孤儿目录清理
-- 重新验证 7 个 bug 修复不回归
-- **验收**:上游模拟删除/新增 crate,增量同步结果正确
+- 孤儿目录清理(递归发现所有 crate 目录,支持 ext/、utils/、memories/ 嵌套布局)
+- 重新验证 7 个 bug 修复不回归 ✅
+- **修复 strip_v8 的 rama 版本漂移 bug**:`cargo update` 会把 `rama-error`/
+  `rama-macros`/`rama-utils` 从 `0.3.0-alpha.4` 升到 `0.3.0` 稳定版,与
+  `rama-core 0.3.0-alpha.4` ABI 不兼容(OpaqueError 被移除)。新增
+  `PRERELEASE_PINS` 常量,在 `cargo update` 后按依赖顺序(rama-utils →
+  rama-macros → rama-error)逐个 `cargo update --precise` 回 alpha.4。
+- **验收**:strip-v8 后 rama 全系停在 alpha.4;`cargo check --workspace` 通过
 
-### 阶段 4(可选,高复杂度):4 crate 迁移(见 §7)
-- 若选 **选项 B**:codex-rs/Cargo.toml 移除 4 个成员 + 删目录。codex-rs 纯净,但失去
-  在 codex-rs 编译 lemurclaw 的能力。
-- 若选 **选项 C**:建立顶层 Cargo.toml 作为唯一 workspace,迁移 workspace.dependencies
-  表,codex-rs/ 降级为普通子目录。冲突面大,需评估是否值得。
-- **建议先不做阶段 4**,在阶段 1-3 跑稳后再根据实际痛点决定。
+### 阶段 4:4 crate 迁移(选项 B)✅
+- codex-rs/Cargo.toml 移除 4 个 members + 3 个 workspace.dependencies path 条目
+- 删除 codex-rs/ 下 4 个 crate 目录(权威副本已在 lemurclaw-rs/)
+- xtask rename.rs 新增 `OWN_CRATE_MEMBERS`/`OWN_CRATE_DEPS`/`OWN_CRATE_PACKAGE_NAMES` 常量
+- `rewrite_workspace_manifest()` 新增 `own_members`/`own_deps` 参数,注入到生成的
+  lemurclaw-rs/Cargo.toml(members 列表 + workspace.dependencies)
+- `clean_orphan_dirs()` protected 集合改用硬编码常量(不再依赖 `discovered.own`)
+- `rewrite_lockfile()` keep 集合注入自有 crate package names
+- 初始化模式改为报错(lemurclaw-rs/ 必须通过 git clone 获得)
+- **验收**:codex-rs `cargo check --workspace` 通过(5m29s);lemurclaw-rs
+  `cargo check --workspace` 通过(35m53s,含 4 个自有 crate);sync 后自有 crate
+  内容指纹不变;孤儿清理不误删自有 crate
 
 ## 9. English summary
 
@@ -268,15 +283,13 @@ Migrate the throwaway `publish/` into a persistent, git-tracked `lemurclaw-rs/`
 workspace — lemurclaw's real home, on equal footing with `codex-rs/`. Day-to-day
 lemurclaw edits happen directly in `lemurclaw-rs/`; upstream updates flow in via
 incremental rename sync (only the codex-* → lemurclaw-* renamed crates are
-refreshed; lemurclaw's own 4 crates are never overwritten). Four-phase rollout:
-rename only → git-track + pin lockfile → incremental sync → (optional) relocate
-the 4 crates out of codex-rs. Main risk: the incremental mode touches the rename
-pipeline we just fixed (7 bugs), so each phase needs re-validation.
+refreshed; lemurclaw's own 4 crates are never overwritten). Four-phase rollout,
+all complete: rename only → git-track + pin lockfile → incremental sync →
+relocate the 4 crates out of codex-rs (Option B).
 
-**Option C caveat (§7)**: moving the 4 crates out of codex-rs while keeping them
-compilable there is only possible via a top-level workspace (cargo forbids nested
-workspaces, and the crates use `workspace = true` to reach codex-* deps). That
-top-level workspace increases upstream-merge conflict surface — potentially more
-than the status quo. Option B (fully remove from codex-rs, accept that codex-rs
-can no longer build them) may be the better trade-off if zero upstream conflict
-is the priority. Decision deferred to maintainer.
+**Option B (§7, executed)**: the 4 own crates are fully removed from
+`codex-rs/` — they live exclusively in `lemurclaw-rs/`. codex-rs stays pure
+(zero upstream-merge conflict), but can no longer compile them. Initialization
+from scratch is no longer supported (lemurclaw-rs/ is obtained via git clone).
+Option C (top-level workspace) was rejected because it would increase the
+upstream-merge conflict surface more than the status quo.

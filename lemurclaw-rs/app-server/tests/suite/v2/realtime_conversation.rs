@@ -1446,18 +1446,18 @@ async fn realtime_webrtc_start_emits_sdp_notification() -> Result<()> {
     assert_eq!(
         body,
         format!(
-            "--lemurclaw-realtime-call-boundary\r\n\
+            "--codex-realtime-call-boundary\r\n\
              Content-Disposition: form-data; name=\"sdp\"\r\n\
              Content-Type: application/sdp\r\n\
              \r\n\
              v=offer\r\n\
              \r\n\
-             --lemurclaw-realtime-call-boundary\r\n\
+             --codex-realtime-call-boundary\r\n\
              Content-Disposition: form-data; name=\"session\"\r\n\
              Content-Type: application/json\r\n\
              \r\n\
              {session}\r\n\
-             --lemurclaw-realtime-call-boundary--\r\n"
+             --codex-realtime-call-boundary--\r\n"
         )
     );
 
@@ -3315,19 +3315,19 @@ fn assert_call_create_multipart(
     );
     let body = String::from_utf8(request.body).context("multipart body should be utf-8")?;
     let session_prefix = format!(
-        "--lemurclaw-realtime-call-boundary\r\n\
+        "--codex-realtime-call-boundary\r\n\
              Content-Disposition: form-data; name=\"sdp\"\r\n\
              Content-Type: application/sdp\r\n\
              \r\n\
              {offer_sdp}\r\n\
-             --lemurclaw-realtime-call-boundary\r\n\
+             --codex-realtime-call-boundary\r\n\
              Content-Disposition: form-data; name=\"session\"\r\n\
              Content-Type: application/json\r\n\
              \r\n"
     );
     let actual_session = body
         .strip_prefix(&session_prefix)
-        .and_then(|body| body.strip_suffix("\r\n--lemurclaw-realtime-call-boundary--\r\n"))
+        .and_then(|body| body.strip_suffix("\r\n--codex-realtime-call-boundary--\r\n"))
         .context("multipart body should contain one JSON session part")?;
     let actual_session: Value =
         serde_json::from_str(actual_session).context("session part should be valid JSON")?;

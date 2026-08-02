@@ -10,8 +10,8 @@
 //! adapter that rewrites Responses-API tool JSON into the Chat Completions
 //! `{"type":"function","function":{...}}` shape. That is all this file ports.
 
-use codex_tools::create_tools_json_for_responses_api;
 use codex_tools::ToolSpec;
+use codex_tools::create_tools_json_for_responses_api;
 use serde_json::Value;
 use serde_json::json;
 

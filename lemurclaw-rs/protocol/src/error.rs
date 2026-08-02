@@ -5,7 +5,7 @@ pub use crate::auth::RefreshTokenFailedError;
 pub use crate::auth::RefreshTokenFailedReason;
 use crate::exec_output::ExecToolCallOutput;
 use crate::network_policy::NetworkPolicyDecisionPayload;
-use crate::protocol::LemurclawErrorInfo;
+use crate::protocol::CodexErrorInfo;
 use crate::protocol::ErrorEvent;
 use crate::protocol::RateLimitReachedType;
 use crate::protocol::RateLimitSnapshot;
@@ -149,7 +149,7 @@ pub enum CodexErrorDetails {
     /// Sandbox error
     #[error("sandbox error: {0}")]
     Sandbox(#[from] SandboxErr),
-    #[error("lemurclaw-linux-sandbox was required but not provided")]
+    #[error("codex-linux-sandbox was required but not provided")]
     LandlockSandboxExecutableNotProvided,
     #[error("unsupported operation: {0}")]
     UnsupportedOperation(String),
@@ -412,35 +412,35 @@ impl CodexErr {
     }
 
     /// Translate core error to client-facing protocol error.
-    pub fn to_codex_protocol_error(&self) -> LemurclawErrorInfo {
+    pub fn to_codex_protocol_error(&self) -> CodexErrorInfo {
         match &self.details {
-            CodexErrorDetails::ContextWindowExceeded => LemurclawErrorInfo::ContextWindowExceeded,
-            CodexErrorDetails::SessionBudgetExceeded => LemurclawErrorInfo::SessionBudgetExceeded,
+            CodexErrorDetails::ContextWindowExceeded => CodexErrorInfo::ContextWindowExceeded,
+            CodexErrorDetails::SessionBudgetExceeded => CodexErrorInfo::SessionBudgetExceeded,
             CodexErrorDetails::UsageLimitReached(_)
             | CodexErrorDetails::QuotaExceeded
-            | CodexErrorDetails::UsageNotIncluded => LemurclawErrorInfo::UsageLimitExceeded,
-            CodexErrorDetails::ServerOverloaded => LemurclawErrorInfo::ServerOverloaded,
-            CodexErrorDetails::CyberPolicy { .. } => LemurclawErrorInfo::CyberPolicy,
-            CodexErrorDetails::RetryLimit(_) => LemurclawErrorInfo::ResponseTooManyFailedAttempts {
+            | CodexErrorDetails::UsageNotIncluded => CodexErrorInfo::UsageLimitExceeded,
+            CodexErrorDetails::ServerOverloaded => CodexErrorInfo::ServerOverloaded,
+            CodexErrorDetails::CyberPolicy { .. } => CodexErrorInfo::CyberPolicy,
+            CodexErrorDetails::RetryLimit(_) => CodexErrorInfo::ResponseTooManyFailedAttempts {
                 http_status_code: self.http_status_code_value(),
             },
-            CodexErrorDetails::ConnectionFailed(_) => LemurclawErrorInfo::HttpConnectionFailed {
+            CodexErrorDetails::ConnectionFailed(_) => CodexErrorInfo::HttpConnectionFailed {
                 http_status_code: self.http_status_code_value(),
             },
             CodexErrorDetails::ResponseStreamFailed(_) => {
-                LemurclawErrorInfo::ResponseStreamConnectionFailed {
+                CodexErrorInfo::ResponseStreamConnectionFailed {
                     http_status_code: self.http_status_code_value(),
                 }
             }
-            CodexErrorDetails::RefreshTokenFailed(_) => LemurclawErrorInfo::Unauthorized,
+            CodexErrorDetails::RefreshTokenFailed(_) => CodexErrorInfo::Unauthorized,
             CodexErrorDetails::SessionConfiguredNotFirstEvent
             | CodexErrorDetails::InternalServerError
-            | CodexErrorDetails::InternalAgentDied => LemurclawErrorInfo::InternalServerError,
+            | CodexErrorDetails::InternalAgentDied => CodexErrorInfo::InternalServerError,
             CodexErrorDetails::UnsupportedOperation(_)
             | CodexErrorDetails::ThreadNotFound(_)
-            | CodexErrorDetails::AgentLimitReached { .. } => LemurclawErrorInfo::BadRequest,
-            CodexErrorDetails::Sandbox(_) => LemurclawErrorInfo::SandboxError,
-            _ => LemurclawErrorInfo::Other,
+            | CodexErrorDetails::AgentLimitReached { .. } => CodexErrorInfo::BadRequest,
+            CodexErrorDetails::Sandbox(_) => CodexErrorInfo::SandboxError,
+            _ => CodexErrorInfo::Other,
         }
     }
 
