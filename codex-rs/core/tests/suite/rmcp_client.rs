@@ -21,12 +21,14 @@ use codex_config::types::McpServerAuth;
 use codex_config::types::McpServerConfig;
 use codex_config::types::McpServerEnvVar;
 use codex_config::types::McpServerTransportConfig;
+use codex_config::types::OAuthCredentialsStoreMode;
 use codex_core::config::Config;
 use codex_exec_server::CreateDirectoryOptions;
 use codex_exec_server::Environment;
 use codex_exec_server::HttpRedirectPolicy;
 use codex_exec_server::HttpRequestParams;
 use codex_features::Feature;
+use codex_http_client::HttpClientBuilder;
 use codex_login::CodexAuth;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_mcp::MCP_SANDBOX_STATE_META_CAPABILITY;
@@ -72,12 +74,11 @@ use core_test_support::test_codex::turn_permission_fields;
 use core_test_support::test_docker_container_name;
 use core_test_support::wait_for_event;
 use core_test_support::wait_for_mcp_server;
+use http::StatusCode;
 use image::DynamicImage;
 use image::GenericImageView;
 use image::ImageBuffer;
 use image::Rgba;
-use reqwest::Client;
-use reqwest::StatusCode;
 use serde_json::Value;
 use serde_json::json;
 use serial_test::serial;
@@ -918,6 +919,109 @@ server_names = ["history", "notes"]
     assert_eq!(output_json["echo"], "ECHOING: ping");
 
     server.verify().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn modern_mcp_pagination_preserves_valid_tools_and_rejects_oversized_cursors()
+-> anyhow::Result<()> {
+    skip_if_wine_exec!(
+        Ok(()),
+        "requires a Windows test_stdio_server in the Wine-exec environment"
+    );
+    skip_if_no_network!(Ok(()));
+
+    let server = responses::start_mock_server().await;
+    let response = mount_sse_once(
+        &server,
+        responses::sse(vec![
+            responses::ev_response_created("resp-1"),
+            responses::ev_assistant_message("msg-1", "done"),
+            responses::ev_completed("resp-1"),
+        ]),
+    )
+    .await;
+    let command = remote_aware_stdio_server_bin()?;
+    let fixture = test_codex()
+        .with_model_info_override("gpt-5.4", |model| model.supports_search_tool = false)
+        .with_config(move |config| {
+            config
+                .features
+                .enable(Feature::Mcp20260728)
+                .expect("test config should allow modern MCP");
+            for (server_name, pagination) in
+                [("paginated", "two-pages"), ("rejected", "oversized-cursor")]
+            {
+                insert_mcp_server(
+                    config,
+                    server_name,
+                    stdio_transport(
+                        command.clone(),
+                        Some(HashMap::from([
+                            (
+                                "CODEX_MCP_PROTOCOL_VERSION".to_string(),
+                                "2026-07-28".to_string(),
+                            ),
+                            (
+                                "MCP_TEST_TOOL_PAGINATION".to_string(),
+                                pagination.to_string(),
+                            ),
+                        ])),
+                        Vec::new(),
+                    ),
+                    TestMcpServerOptions {
+                        environment_id: remote_aware_environment_id(),
+                        ..Default::default()
+                    },
+                );
+            }
+        })
+        .build_with_auto_env(&server)
+        .await?;
+
+    let startup = loop {
+        let event = fixture.codex.next_event().await?;
+        if let EventMsg::McpStartupComplete(startup) = event.msg {
+            break startup;
+        }
+    };
+    assert!(startup.ready.iter().any(|name| name == "paginated"));
+    let failure = startup
+        .failed
+        .iter()
+        .find(|failure| failure.server == "rejected")
+        .expect("oversized cursor should reject only its MCP server");
+    assert!(
+        failure
+            .error
+            .contains("tools/list returned a pagination cursor exceeding 65536 bytes"),
+        "unexpected MCP startup failure: {}",
+        failure.error
+    );
+
+    fixture
+        .codex
+        .submit(read_only_user_turn(
+            &fixture,
+            "show the paginated MCP tools",
+        ))
+        .await?;
+    wait_for_event(&fixture.codex, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
+
+    let body = response.single_request().body_json();
+    for tool_name in ["echo", "sync"] {
+        assert!(
+            responses::namespace_child_tool(&body, "mcp__paginated", tool_name).is_some(),
+            "expected paginated MCP tool {tool_name} to reach the model"
+        );
+    }
+    assert!(
+        responses::namespace_child_tool(&body, "mcp__rejected", "echo").is_none(),
+        "a rejected MCP catalog must not reach the model"
+    );
     Ok(())
 }
 
@@ -1867,6 +1971,7 @@ async fn stdio_image_responses_round_trip() -> anyhow::Result<()> {
             app_name: None,
             action_name: None,
             plugin_id: None,
+            read_only_hint: Some(true),
         },
     );
 
@@ -3064,9 +3169,14 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
     // server so the test does not share credentials with other suite cases.
     let temp_home = Arc::new(tempdir()?);
     let _codex_home_guard = EnvVarGuard::set("CODEX_HOME", temp_home.path().as_os_str());
+    let environment_id = remote_aware_environment_id();
+    let credential_config: McpServerConfig = serde_json::from_value(json!({
+        "url": &server_url,
+        "environment_id": &environment_id,
+    }))?;
+    let credential_name = credential_config.oauth_credential_name(server_name);
     write_fallback_oauth_tokens(
-        temp_home.path(),
-        server_name,
+        credential_name.as_ref(),
         &server_url,
         client_id,
         expected_token,
@@ -3092,7 +3202,7 @@ async fn streamable_http_with_oauth_round_trip_impl() -> anyhow::Result<()> {
                     env_http_headers: None,
                 },
                 TestMcpServerOptions {
-                    environment_id: remote_aware_environment_id(),
+                    environment_id,
                     ..Default::default()
                 },
             );
@@ -3376,7 +3486,7 @@ async fn wait_for_local_streamable_http_server(
 ) -> anyhow::Result<()> {
     let deadline = Instant::now() + timeout;
     let metadata_url = streamable_http_metadata_url(server_url);
-    let client = Client::builder().no_proxy().build()?;
+    let client = HttpClientBuilder::new().build_direct()?;
     loop {
         if let Some(status) = server_child.try_wait()? {
             return Err(anyhow::anyhow!(
@@ -3480,7 +3590,7 @@ async fn wait_for_streamable_http_metadata(
 ) -> anyhow::Result<()> {
     let deadline = Instant::now() + timeout;
     let metadata_url = streamable_http_metadata_url(server_url);
-    let client = Client::builder().no_proxy().build()?;
+    let client = HttpClientBuilder::new().build_direct()?;
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
@@ -3524,7 +3634,6 @@ fn streamable_http_metadata_url(server_url: &str) -> String {
 }
 
 fn write_fallback_oauth_tokens(
-    home: &Path,
     server_name: &str,
     server_url: &str,
     client_id: &str,
@@ -3537,21 +3646,25 @@ fn write_fallback_oauth_tokens(
         .duration_since(UNIX_EPOCH)?
         .as_millis() as u64;
 
-    let store = serde_json::json!({
-        "stub": {
-            "server_name": server_name,
-            "server_url": server_url,
-            "client_id": client_id,
+    let tokens = serde_json::from_value(json!({
+        "server_name": server_name,
+        "url": server_url,
+        "client_id": client_id,
+        "token_response": {
             "access_token": access_token,
-            "expires_at": expires_at,
+            "token_type": "Bearer",
             "refresh_token": refresh_token,
-            "scopes": ["profile"],
-        }
-    });
+            "scope": "profile",
+        },
+        "expires_at": expires_at,
+    }))?;
 
-    let file_path = home.join(".credentials.json");
-    fs::write(&file_path, serde_json::to_vec(&store)?)?;
-    Ok(())
+    codex_rmcp_client::save_oauth_tokens(
+        server_name,
+        &tokens,
+        OAuthCredentialsStoreMode::File,
+        codex_config::types::AuthKeyringBackendKind::default(),
+    )
 }
 
 struct EnvVarGuard {

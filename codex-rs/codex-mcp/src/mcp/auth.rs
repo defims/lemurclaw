@@ -20,6 +20,7 @@ use tracing::warn;
 
 use crate::runtime::McpRuntimeContext;
 use crate::server::EffectiveMcpServer;
+use crate::server::has_explicit_http_authorization;
 
 #[derive(Debug, Clone)]
 pub struct McpOAuthLoginConfig {
@@ -190,7 +191,7 @@ where
                 Ok(status) => status,
                 Err(error) => {
                     warn!("failed to determine auth status for MCP server `{name}`: {error:?}");
-                    McpAuthState::Unsupported
+                    McpAuthState::Unknown
                 }
             };
             let entry = McpAuthStatusEntry {
@@ -216,6 +217,14 @@ async fn compute_auth_status(
         return Ok(McpAuthState::Unsupported);
     }
 
+    if matches!(config.auth, McpServerAuth::ChatGpt) && !config.is_local_environment() {
+        return Ok(if has_explicit_http_authorization(config) {
+            McpAuthState::BearerToken
+        } else {
+            McpAuthState::Unsupported
+        });
+    }
+
     if has_runtime_auth {
         return Ok(McpAuthState::BearerToken);
     }
@@ -236,8 +245,9 @@ async fn compute_auth_status(
             } else {
                 OAuthDiscoveryTimeout::Requested
             };
+            let oauth_credential_name = config.oauth_credential_name(server_name);
             determine_streamable_http_auth_status(
-                server_name,
+                oauth_credential_name.as_ref(),
                 url,
                 bearer_token_env_var.as_deref(),
                 http_headers.clone(),

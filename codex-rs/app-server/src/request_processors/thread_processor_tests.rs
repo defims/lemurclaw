@@ -481,6 +481,8 @@ mod thread_processor_behavior_tests {
             recency_at: updated_at.with_timezone(&Utc),
             archived_at: None,
             section: None,
+            section_position: None,
+            section_entered_at: None,
             cwd: PathBuf::from("/tmp"),
             cli_version: "0.0.0".to_string(),
             source: SessionSource::Cli,
@@ -1168,6 +1170,7 @@ mod thread_processor_behavior_tests {
                     turn_id: "turn-1".to_string(),
                     item_id: "call-1".to_string(),
                     questions: vec![],
+                    is_blocking: true,
                     auto_resolution_ms: None,
                 },
             ))

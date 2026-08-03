@@ -30,6 +30,7 @@ use crate::pagination::collect_paginated;
 use crate::runtime::McpRuntimeContext;
 use crate::runtime::emit_duration;
 use crate::server::EffectiveMcpServer;
+use crate::server::has_explicit_http_authorization;
 use crate::tool_catalog_cache::McpToolCatalogCacheContext;
 use crate::tool_catalog_cache::McpToolCatalogFetchTicket;
 use crate::tools::ToolInfo;
@@ -39,6 +40,7 @@ use async_channel::Sender;
 use codex_api::SharedAuthProvider;
 use codex_async_utils::CancelErr;
 use codex_async_utils::OrCancelExt;
+use codex_config::McpServerAuth;
 use codex_config::McpServerConfig;
 use codex_config::McpServerTransportConfig;
 use codex_config::types::AuthKeyringBackendKind;
@@ -591,26 +593,21 @@ pub(crate) async fn list_tools_for_client_uncached(
     server_instructions: Option<&str>,
 ) -> Result<Vec<ToolInfo>> {
     let fetch_start = Instant::now();
-    let tools = match client.protocol_mode() {
-        McpProtocolMode::Legacy => {
-            client
-                .list_tools_with_connector_ids(/*params*/ None, timeout)
-                .await?
-                .tools
+    let protocol_mode = client.protocol_mode();
+    let tools = collect_paginated("tools/list", timeout, |params| {
+        let client = Arc::clone(client);
+        async move {
+            let response = client
+                .list_tools_with_connector_ids(params, timeout)
+                .await?;
+            let next_cursor = match protocol_mode {
+                McpProtocolMode::Legacy => None,
+                McpProtocolMode::V20260728 => response.next_cursor,
+            };
+            Ok((response.tools, next_cursor))
         }
-        McpProtocolMode::V20260728 => {
-            collect_paginated("tools/list", timeout, |params| {
-                let client = Arc::clone(client);
-                async move {
-                    let response = client
-                        .list_tools_with_connector_ids(params, timeout)
-                        .await?;
-                    Ok((response.tools, response.next_cursor))
-                }
-            })
-            .await?
-        }
-    }
+    })
+    .await?
     .into_iter()
     .map(|tool| {
         tool_info_from_listed_tool(
@@ -1000,9 +997,18 @@ async fn make_rmcp_client(
     protocol_mode: McpProtocolMode,
 ) -> Result<RmcpClient, StartupOutcomeError> {
     let config = server.config().clone();
+    if matches!(config.auth, McpServerAuth::ChatGpt)
+        && !config.is_local_environment()
+        && !has_explicit_http_authorization(&config)
+    {
+        return Err(StartupOutcomeError::from(anyhow!(
+            "executor-owned MCP server `{server_name}` cannot use hosted ChatGPT authentication; configure executor-owned credentials instead"
+        )));
+    }
     let resolved_environment =
         resolved_environment.map_err(|err| StartupOutcomeError::from(anyhow!(err)))?;
     let is_local_environment = config.is_local_environment();
+    let oauth_credential_name = config.oauth_credential_name(server_name);
     let McpServerConfig { transport, .. } = config;
 
     match transport {
@@ -1068,7 +1074,7 @@ async fn make_rmcp_client(
                     Err(error) => return Err(error.into()),
                 };
             RmcpClient::new_streamable_http_client_with_protocol_mode(
-                server_name,
+                oauth_credential_name.as_ref(),
                 &url,
                 resolved_bearer_token,
                 http_headers,

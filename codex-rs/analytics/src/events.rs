@@ -13,6 +13,7 @@ use crate::facts::CompactionStrategy;
 use crate::facts::CompactionTrigger;
 use crate::facts::GoalEventKind;
 use crate::facts::HookRunFact;
+use crate::facts::ImagePreparationMetadata;
 use crate::facts::InvocationType;
 use crate::facts::PluginInstallRequested;
 use crate::facts::PluginState;
@@ -895,8 +896,12 @@ pub(crate) struct CodexTurnEventParams {
     pub(crate) personality: Option<String>,
     pub(crate) workspace_kind: Option<String>,
     pub(crate) num_input_images: usize,
+    pub(crate) image_preparations: Vec<ImagePreparationMetadata>,
     pub(crate) is_first_turn: bool,
     pub(crate) status: Option<TurnStatus>,
+    /// Client wall-clock time for the first non-startup turn/interrupt request
+    /// that later received a successful response.
+    pub(crate) explicit_client_interrupt_requested_at_ms: Option<u64>,
     pub(crate) turn_error: Option<CodexErrorInfo>,
     pub(crate) codex_error_kind: Option<CodexErrKind>,
     pub(crate) codex_error_http_status_code: Option<u16>,

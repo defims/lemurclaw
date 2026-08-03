@@ -60,6 +60,9 @@ use crate::facts::ExternalAgentConfigImportCompletedInput;
 use crate::facts::ExternalAgentConfigImportFailureInput;
 use crate::facts::HookRunFact;
 use crate::facts::HookRunInput;
+use crate::facts::ImageDetailSetting;
+use crate::facts::ImagePreparationFact;
+use crate::facts::ImagePreparationMetadata;
 use crate::facts::InputError;
 use crate::facts::InvocationType;
 use crate::facts::PluginInstallFailedInput;
@@ -137,6 +140,7 @@ use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnCompletedNotification;
 use codex_app_server_protocol::TurnDiffUpdatedNotification;
 use codex_app_server_protocol::TurnError as AppServerTurnError;
+use codex_app_server_protocol::TurnInterruptResponse;
 use codex_app_server_protocol::TurnStartParams;
 use codex_app_server_protocol::TurnStartedNotification;
 use codex_app_server_protocol::TurnStatus as AppServerTurnStatus;
@@ -205,6 +209,7 @@ fn sample_thread_with_metadata(
         preview: "first prompt".to_string(),
         ephemeral,
         section: None,
+        section_entered_at: None,
         history_mode: Default::default(),
         model_provider: "openai".to_string(),
         created_at: 1,
@@ -482,6 +487,10 @@ fn sample_turn_steer_response(turn_id: &str) -> ClientResponsePayload {
     ClientResponsePayload::TurnSteer(TurnSteerResponse {
         turn_id: turn_id.to_string(),
     })
+}
+
+fn sample_turn_interrupt_response() -> ClientResponsePayload {
+    ClientResponsePayload::TurnInterrupt(TurnInterruptResponse {})
 }
 
 fn no_active_turn_steer_error() -> JSONRPCErrorError {
@@ -1497,6 +1506,58 @@ fn compaction_event_serializes_expected_shape() {
     );
 }
 
+#[tokio::test]
+async fn image_preparation_fact_is_included_in_turn_event() {
+    let mut reducer = AnalyticsReducer::default();
+    let mut events = Vec::new();
+    ingest_turn_prerequisites(
+        &mut reducer,
+        &mut events,
+        /*include_initialize*/ true,
+        /*include_resolved_config*/ true,
+        /*include_started*/ true,
+        /*include_token_usage*/ false,
+    )
+    .await;
+
+    let metadata = ImagePreparationMetadata {
+        message_role: None,
+        item_id: Some("call-1".to_string()),
+        effective_detail: ImageDetailSetting::High,
+        source_width: 2_048,
+        source_height: 2_048,
+        prepared_width: 1_600,
+        prepared_height: 1_600,
+    };
+    reducer
+        .ingest(
+            AnalyticsFact::Custom(CustomAnalyticsFact::ImagePreparation(Box::new(
+                ImagePreparationFact {
+                    turn_id: "turn-2".to_string(),
+                    metadata: metadata.clone(),
+                },
+            ))),
+            &mut events,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::Notification(Box::new(sample_turn_completed_notification(
+                "thread-2",
+                "turn-2",
+                AppServerTurnStatus::Completed,
+                /*codex_error_info*/ None,
+            ))),
+            &mut events,
+        )
+        .await;
+
+    let [TrackEventRequest::TurnEvent(event)] = events.as_slice() else {
+        panic!("expected one turn event");
+    };
+    assert_eq!(event.event_params.image_preparations, vec![metadata]);
+}
+
 #[test]
 fn compaction_implementation_serializes_remote_v2() {
     let payload = serde_json::to_value(CompactionImplementation::ResponsesCompactionV2)
@@ -2443,7 +2504,7 @@ async fn item_lifecycle_notifications_publish_command_execution_event() {
                             CommandAction::Read {
                                 command: "cat README.md".to_string(),
                                 name: "README.md".to_string(),
-                                path: test_path_buf("/tmp/README.md").abs(),
+                                path: test_path_buf("/tmp/README.md").abs().into(),
                             },
                             CommandAction::ListFiles {
                                 command: "ls".to_string(),
@@ -4070,8 +4131,18 @@ fn turn_event_serializes_expected_shape() {
             personality: Some("pragmatic".to_string()),
             workspace_kind: Some("projectless".to_string()),
             num_input_images: 2,
+            image_preparations: vec![ImagePreparationMetadata {
+                message_role: Some("user".to_string()),
+                item_id: None,
+                effective_detail: ImageDetailSetting::High,
+                source_width: 2_048,
+                source_height: 2_048,
+                prepared_width: 1_600,
+                prepared_height: 1_600,
+            }],
             is_first_turn: true,
             status: Some(TurnStatus::Completed),
+            explicit_client_interrupt_requested_at_ms: None,
             turn_error: None,
             codex_error_kind: None,
             codex_error_http_status_code: None,
@@ -4144,8 +4215,18 @@ fn turn_event_serializes_expected_shape() {
                 "personality": "pragmatic",
                 "workspace_kind": "projectless",
                 "num_input_images": 2,
+                "image_preparations": [{
+                    "message_role": "user",
+                    "item_id": null,
+                    "effective_detail": "high",
+                    "source_width": 2048,
+                    "source_height": 2048,
+                    "prepared_width": 1600,
+                    "prepared_height": 1600
+                }],
                 "is_first_turn": true,
                 "status": "completed",
+                "explicit_client_interrupt_requested_at_ms": null,
                 "turn_error": null,
                 "codex_error_kind": null,
                 "codex_error_http_status_code": null,
@@ -4535,6 +4616,7 @@ async fn turn_event_counts_completed_tool_items() {
         }),
         mcp_app_resource_uri: None,
         plugin_id: Some("sample@test".to_string()),
+        read_only_hint: None,
         result: None,
         error: None,
         duration_ms,
@@ -4940,7 +5022,7 @@ async fn turn_lifecycle_emits_failed_turn_event() {
 }
 
 #[tokio::test]
-async fn turn_lifecycle_emits_interrupted_turn_event_without_error() {
+async fn rejected_turn_interrupt_does_not_tag_interrupted_turn_event() {
     let mut reducer = AnalyticsReducer::default();
     let mut out = Vec::new();
 
@@ -4953,6 +5035,28 @@ async fn turn_lifecycle_emits_interrupted_turn_event_without_error() {
         /*include_token_usage*/ false,
     )
     .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ExplicitClientInterruptRequest {
+                connection_id: 7,
+                request_id: RequestId::Integer(4),
+                turn_id: "turn-2".to_string(),
+                requested_at_ms: 1716000000123,
+            },
+            &mut out,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ErrorResponse {
+                connection_id: 7,
+                request_id: RequestId::Integer(4),
+                error: no_active_turn_steer_error(),
+                error_type: None,
+            },
+            &mut out,
+        )
+        .await;
     reducer
         .ingest(
             AnalyticsFact::Notification(Box::new(sample_turn_completed_notification(
@@ -4968,8 +5072,146 @@ async fn turn_lifecycle_emits_interrupted_turn_event_without_error() {
     assert_eq!(out.len(), 1);
     let payload = serde_json::to_value(&out[0]).expect("serialize turn event");
     assert_eq!(payload["event_params"]["status"], json!("interrupted"));
+    assert_eq!(
+        payload["event_params"]["explicit_client_interrupt_requested_at_ms"],
+        json!(null)
+    );
     assert_eq!(payload["event_params"]["turn_error"], json!(null));
     assert_eq!(payload["event_params"]["codex_error_kind"], json!(null));
+}
+
+#[tokio::test]
+async fn accepted_turn_interrupt_records_requested_at_on_turn_event() {
+    let mut reducer = AnalyticsReducer::default();
+    let mut out = Vec::new();
+
+    ingest_turn_prerequisites(
+        &mut reducer,
+        &mut out,
+        /*include_initialize*/ true,
+        /*include_resolved_config*/ true,
+        /*include_started*/ true,
+        /*include_token_usage*/ false,
+    )
+    .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ExplicitClientInterruptRequest {
+                connection_id: 7,
+                request_id: RequestId::Integer(4),
+                turn_id: "turn-2".to_string(),
+                requested_at_ms: 1716000000123,
+            },
+            &mut out,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ClientResponse {
+                connection_id: 7,
+                request_id: RequestId::Integer(4),
+                response: Box::new(sample_turn_interrupt_response()),
+                thread_originator: None,
+            },
+            &mut out,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::Notification(Box::new(sample_turn_completed_notification(
+                "thread-2",
+                "turn-2",
+                AppServerTurnStatus::Interrupted,
+                /*codex_error_info*/ None,
+            ))),
+            &mut out,
+        )
+        .await;
+
+    assert_eq!(out.len(), 1);
+    let payload = serde_json::to_value(&out[0]).expect("serialize turn event");
+    assert_eq!(
+        payload["event_params"]["explicit_client_interrupt_requested_at_ms"],
+        json!(1716000000123_u64)
+    );
+}
+
+#[tokio::test]
+async fn accepted_turn_interrupt_retries_preserve_earliest_requested_at() {
+    let mut reducer = AnalyticsReducer::default();
+    let mut out = Vec::new();
+
+    ingest_turn_prerequisites(
+        &mut reducer,
+        &mut out,
+        /*include_initialize*/ true,
+        /*include_resolved_config*/ true,
+        /*include_started*/ true,
+        /*include_token_usage*/ false,
+    )
+    .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ExplicitClientInterruptRequest {
+                connection_id: 7,
+                request_id: RequestId::Integer(4),
+                turn_id: "turn-2".to_string(),
+                requested_at_ms: 1716000000123,
+            },
+            &mut out,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ExplicitClientInterruptRequest {
+                connection_id: 7,
+                request_id: RequestId::Integer(5),
+                turn_id: "turn-2".to_string(),
+                requested_at_ms: 1716000000456,
+            },
+            &mut out,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ClientResponse {
+                connection_id: 7,
+                request_id: RequestId::Integer(5),
+                response: Box::new(sample_turn_interrupt_response()),
+                thread_originator: None,
+            },
+            &mut out,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ClientResponse {
+                connection_id: 7,
+                request_id: RequestId::Integer(4),
+                response: Box::new(sample_turn_interrupt_response()),
+                thread_originator: None,
+            },
+            &mut out,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::Notification(Box::new(sample_turn_completed_notification(
+                "thread-2",
+                "turn-2",
+                AppServerTurnStatus::Interrupted,
+                /*codex_error_info*/ None,
+            ))),
+            &mut out,
+        )
+        .await;
+
+    assert_eq!(out.len(), 1);
+    let payload = serde_json::to_value(&out[0]).expect("serialize turn event");
+    assert_eq!(
+        payload["event_params"]["explicit_client_interrupt_requested_at_ms"],
+        json!(1716000000123_u64)
+    );
 }
 
 #[tokio::test]
